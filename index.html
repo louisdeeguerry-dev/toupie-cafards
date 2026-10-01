@@ -1015,6 +1015,10 @@ function waveQuota() { return Math.ceil(3 + Math.pow(state.run.wave - 1, 1.15));
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
 function pickBugType() {
+  // Les insectes ne partent jamais : on réserve 60 % des places aux petits cafards,
+  // pour que le bureau ne se remplisse pas d'insectes trop résistants
+  const tough = bugs.filter(b => !b.dying && !b.gone && b.t.hp > 1).length;
+  if (tough >= Math.floor(bugCap() * 0.4)) return BUG_TYPES[0];
   const lvl = infestLevel();
   const pool = [];
   for (let t = 0; t <= lvl; t++) {
@@ -1041,7 +1045,6 @@ function spawnBug(hungry = false) {
   const bug = {
     t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
     tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
-    life: 20 + Math.random() * 20, // au bout de ce temps, l'insecte s'en va
     hunger: hungry ? 3 * S.hungerMult : Infinity, // les affamés hésitent un peu, puis filent vers le goûter
     mode: 'wander', gone: false, sniff: Math.random(),
   };
@@ -1194,7 +1197,13 @@ function biteSnack(b) {
   void hud.offsetWidth;
   hud.classList.add('hurt');
   updateCookies();
-  b.gone = true;
+  // Rassasié, l'insecte reste sur le bureau et repart se promener (il ne disparaît que si on l'écrase)
+  b.mode = 'wander';
+  b.hunger = Infinity;
+  b.mat.emissiveIntensity = 0;
+  b.pause = 0.5;
+  b.tx = (Math.random() - 0.5) * DESK_X;
+  b.tz = -Math.random() * DESK_Z * 0.8;
   if (state.run.snack <= 0) defeat();
 }
 
@@ -1307,31 +1316,16 @@ function stepBug(b, dt) {
   if (b.dying || b.gone) return;
   const slow = (onTrap(b.x, b.z) ? 0.25 : 1) * S.bugSpeed;
 
-  // Les affamés (Carnage) partent manger le goûter ; les autres finissent par s'en aller
+  // Les affamés (Carnage) partent manger le goûter. Les insectes ne quittent jamais le bureau :
+  // ils ne disparaissent que quand on les écrase.
   if (b.mode === 'wander') {
     b.hunger -= dt;
-    b.life -= dt;
     if (b.hunger <= 0 && !isStory()) {
       b.pause = 0;
       b.mode = 'hungry';
       b.mat.emissive.setHex(0x8a1a00); // les affamés rougissent : à écraser en priorité !
       b.mat.emissiveIntensity = 0.7;
-    } else if (b.life <= 0) {
-      b.pause = 0;
-      b.mode = 'leaving';
-      const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
-      exits.sort((a, c) => a[2] - c[2]);
-      b.tx = exits[0][0];
-      b.tz = exits[0][1];
     }
-  }
-  if (b.mode === 'leaving') {
-    b.heading = Math.atan2(b.tz - b.z, b.tx - b.x);
-    b.x += Math.cos(b.heading) * b.t.speed * 1.3 * slow * dt;
-    b.z += Math.sin(b.heading) * b.t.speed * 1.3 * slow * dt;
-    b.walk += dt * b.t.speed * 200;
-    if (Math.abs(b.x) > DESK_X + 0.04 || b.z < -DESK_Z - 0.04) b.gone = true;
-    return;
   }
 
   // Peur : certains insectes s'enfuient quand une toupie approche
@@ -1370,9 +1364,19 @@ function stepBug(b, dt) {
   b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
   const kd = Math.exp(-6 * dt);
   b.kx *= kd; b.kz *= kd;
+  // Rebond sur les bords du bureau : l'insecte fait demi-tour et repart vers le centre
   const r = b.t.r;
-  b.x = Math.max(-DESK_X + r, Math.min(DESK_X - r, b.x));
-  b.z = Math.max(-DESK_Z + r, Math.min(DESK_Z - r, b.z));
+  let bounced = false;
+  if (b.x < -DESK_X + r) { b.x = -DESK_X + r; b.kx = Math.abs(b.kx) * 0.5; bounced = true; }
+  if (b.x > DESK_X - r) { b.x = DESK_X - r; b.kx = -Math.abs(b.kx) * 0.5; bounced = true; }
+  if (b.z < -DESK_Z + r) { b.z = -DESK_Z + r; b.kz = Math.abs(b.kz) * 0.5; bounced = true; }
+  if (b.z > DESK_Z - r) { b.z = DESK_Z - r; b.kz = -Math.abs(b.kz) * 0.5; bounced = true; }
+  if (bounced && b.mode !== 'hungry' && !smelling) {
+    b.heading += Math.PI;
+    b.tx = (Math.random() - 0.5) * DESK_X;
+    b.tz = (Math.random() - 0.5) * DESK_Z;
+    b.pause = 0;
+  }
   for (const o of obstacles()) {
     const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
@@ -1954,7 +1958,7 @@ function update(dt) {
   spawnTimer += dt * S.spawnRate * waveSpawnMult();
   while (spawnTimer >= 1) {
     spawnTimer -= 1;
-    if (bugs.filter(b => !b.dying && b.mode !== 'leaving' && !b.gone).length < bugCap()) spawnBug();
+    if (bugs.filter(b => !b.dying && !b.gone).length < bugCap()) spawnBug();
   }
 
   // Physique en petits pas pour éviter que la toupie traverse les insectes
