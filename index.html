@@ -91,6 +91,7 @@
   .pop.big { font-size: 26px; color: var(--green); }
   .pop.crit { color: var(--red); font-size: 18px; }
   .pop.bite { color: #ffb36b; font-size: 20px; }
+  .pop.dmg { color: #fff6d6; font-size: 16px; font-weight: 900; animation-duration: .8s; }
   @keyframes rise { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
 
   #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
@@ -217,7 +218,7 @@
       <div class="mr" id="carnageRecord"></div>
     </button>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
-    <div class="menuNote">L’atelier et l’argent sont communs aux deux modes.</div>
+    <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
   </div>
 </div>
 
@@ -245,6 +246,7 @@ const OBS_CARNAGE = [...OBS_BASE, { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012
 const SAVE_KEY = 'toupie-cafards-save-v1';
 const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
 const COMBO_CAP = 4;           // le bonus de combo ne dépasse jamais ×4
+const BUG_GRIP = 5;            // adhérence des insectes : fait rebondir la toupie
 // Mode Histoire
 const WAVE_LAUNCHES = 5;       // lancers disponibles par vague pour atteindre l'objectif
 // Mode Carnage
@@ -265,12 +267,13 @@ const INTRO = [
 //  INSECTES
 // =====================================================================
 const BUG_TYPES = [
-  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  // Les petits cafards meurent toujours en un coup ; la résistance arrive à l'infestation 2
+  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 8,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 35,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 150,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 600,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 4000, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
 ];
 // Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
 const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
@@ -287,49 +290,49 @@ const TABS = [
 
 const UPGRADES = [
   // --- Toupie ---
-  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 15, growth: 1.35, max: 40,
+  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 32, growth: 1.5, max: 40,
     skins: [[0, 'Poignée bâton'], [5, 'Poignée boule'], [12, 'Gemme violette'], [22, 'Flamme éternelle']],
     fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
-  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 17, growth: 1.4, max: 30,
+  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 34, growth: 1.55, max: 30,
     skins: [[0, 'Bord lisse'], [5, 'Anneau chromé'], [12, 'Double anneau'], [20, 'Couronne crénelée']],
     fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
-  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 19, growth: 1.4, max: 35,
+  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 36, growth: 1.55, max: 35,
     skins: [[0, 'Plastique'], [3, 'Bois'], [8, 'Acier'], [15, 'Or massif'], [25, 'Obsidienne']],
     fmt: s => `${Math.round(s.mass)} g` },
-  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 20, growth: 1.4, max: 25,
+  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 30, growth: 1.55, max: 25,
     skins: [[0, 'Pointe plastique'], [4, 'Pointe acier'], [10, 'Pointe rubis'], [18, 'Pointe diamant']],
     fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
-  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 20, growth: 1.4, max: 40,
+  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 30, growth: 1.55, max: 40,
     skins: [[0, 'Aucune lame'], [1, '2 lames'], [4, '4 lames'], [10, '6 faux'], [20, '8 dents de scie'], [30, 'Lames de lave']],
     fmt: s => `×${s.blades.toFixed(2)} dégâts` },
-  { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.45, max: 30,
+  { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.6, max: 30,
     skins: [[0, 'Sans volant'], [4, 'Volant d’inertie'], [10, 'Disque lourd'], [20, 'Double volant']],
     fmt: s => `−${Math.round((1 - s.inertia) * 100)} % de perte au choc` },
-  { id: 'equilibre', tab: 'toupie', name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.45, max: 25,
+  { id: 'equilibre', tab: 'toupie', name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.6, max: 25,
     skins: [[0, 'Sans gyroscope'], [5, 'Gyroscope'], [12, 'Double gyroscope']],
     fmt: s => `tombe sous ${Math.round(s.fallRatio * 100)} %` },
-  { id: 'rebond', tab: 'toupie', name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 25, growth: 1.45, max: 12,
+  { id: 'rebond', tab: 'toupie', name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 38, growth: 1.6, max: 12,
     skins: [[0, 'Sans pare-chocs'], [3, 'Pare-chocs caoutchouc'], [8, 'Pare-chocs fluo']],
     fmt: s => `${Math.round(s.restitution * 100)} % conservé` },
-  { id: 'agressivite', tab: 'toupie', name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.5, max: 15,
+  { id: 'agressivite', tab: 'toupie', name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.65, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Gentille'], [1, 'Petites dents'], [5, 'Épines'], [10, 'Épines + yeux rouges']],
     fmt: s => `attraction ${s.chase.toFixed(2)}` },
-  { id: 'critique', tab: 'toupie', name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.45, max: 15,
+  { id: 'critique', tab: 'toupie', name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.6, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Sans aura'], [3, 'Étincelles'], [8, 'Aura rouge'], [13, 'Aura de foudre']],
     fmt: s => `${Math.round(s.crit * 100)} % de chance` },
 
   // --- Lanceur ---
-  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 17, growth: 1.38, max: 40,
+  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 40,
     skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
     fmt: s => `${fmtInt(s.rpm)} tr/min` },
-  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 15, growth: 1.35, max: 30,
+  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 32, growth: 1.5, max: 30,
     skins: [[0, 'Sans traînée'], [5, 'Traînée blanche'], [12, 'Traînée bleue'], [20, 'Traînée de feu']],
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
-  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 17, growth: 1.5, max: 12,
+  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 34, growth: 1.65, max: 12,
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 19, growth: 1.4, max: 20,
+  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
   { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
@@ -339,13 +342,13 @@ const UPGRADES = [
     fmt: s => s.auto ? 'activé' : 'désactivé' },
 
   // --- Bureau / économie ---
-  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 17, growth: 1.38, max: 30,
+  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 34, growth: 1.5, max: 30,
     fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
-  { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 22, growth: 1.4, max: 25,
+  { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 33, growth: 1.55, max: 25,
     fmt: s => `${s.maxBugs} insectes max` },
-  { id: 'prime', tab: 'bureau', name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.45, max: 40,
+  { id: 'prime', tab: 'bureau', name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 40,
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
-  { id: 'combo', tab: 'bureau', name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.5, max: 20,
+  { id: 'combo', tab: 'bureau', name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
 ];
 
@@ -382,7 +385,7 @@ function computeStats(L, P = perkLevel) {
     decay: 0.17 / (1 + 0.15 * L('endurance')) * Math.pow(0.8, P('roulement')),
     linFric: 0.75 / (1 + 0.12 * L('pointe')),
     drift: 0.22 * (1 + 0.1 * L('pointe')),
-    blades: (1 + 0.25 * L('lames')) * Math.pow(1.3, P('aiguise')),
+    blades: (1 + 0.15 * L('lames')) * Math.pow(1.2, P('aiguise')),
     fallRatio: 0.25 / (1 + 0.1 * L('equilibre')),
     restitution: Math.min(0.95, 0.35 + 0.05 * L('rebond')),
     chase: 0.12 * L('agressivite'),
@@ -395,7 +398,7 @@ function computeStats(L, P = perkLevel) {
     auto: L('auto') > 0,
     spawnRate: 0.9 * (1 + 0.15 * L('appat')),
     maxBugs: 12 + 2 * L('nid'),
-    bounty: (1 + 0.2 * L('prime')) * (1 + 0.25 * P('or')) * recordBonus(),
+    bounty: (1 + 0.1 * L('prime')) * (1 + 0.25 * P('or')),
     comboWindow: 1.2 + 0.2 * L('combo'),
     comboBonus: 0.1 + 0.02 * L('combo') + 0.1 * P('braise'),
     smellRadius: P('odeur') ? smellRadius(P('odeur')) : 0,
@@ -406,35 +409,33 @@ function computeStats(L, P = perkLevel) {
     hungerMult: Math.pow(1.3, P('spray')),
   };
 }
-// Bonus permanent d'argent selon la meilleure vague atteinte, tous modes confondus (+2 % par vague, jusqu'à +100 %)
-function recordBonus() {
-  const best = Math.max(state.best?.histoire || 1, state.best?.carnage || 1);
-  return 1 + Math.min(1, 0.02 * (best - 1));
-}
 // Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
 function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
 
 // =====================================================================
 //  SAUVEGARDE
 // =====================================================================
+// Une partie contient TOUT ce qui est perdu en cas de défaite : argent, améliorations, infestation, bonus
 function newRun(mode) {
   return {
-    mode, wave: 1, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
+    mode, wave: 1, cash: 0, levels: {}, launches: 0,
+    perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
     // Histoire
     launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false,
     // Carnage
     waveTime: 0, raidsSent: 0, snack: SNACK_MAX, maxSnack: SNACK_MAX,
   };
 }
+// Statistiques de carrière (jamais remises à zéro, sauf « Recommencer à zéro ») + les deux parties
 const state = {
-  money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {},
+  totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, killsByType: {},
   mode: 'histoire', introSeen: false,
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
   run: null,
 };
-const PERSISTED = ['money', 'totalMoney', 'kills', 'launches', 'bestCombo', 'levels', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -447,6 +448,14 @@ function load() {
         if (data.bestWave) state.best.histoire = data.bestWave;
         if (data.levels && data.kills > 0) state.introSeen = true;
       }
+      // Anciennes sauvegardes (argent et atelier communs) : on les confie à la partie en cours
+      if ('money' in data || 'levels' in data) {
+        const m = ['histoire', 'carnage'].includes(data.mode) ? data.mode : 'histoire';
+        const run = state.savedRuns[m];
+        run.cash = Number(data.money) || 0;
+        run.levels = data.levels || {};
+        run.kills = Math.max(run.kills || 0, data.kills || 0);
+      }
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
   for (const m of ['histoire', 'carnage']) {
@@ -458,7 +467,7 @@ function load() {
   }
   if (!['histoire', 'carnage'].includes(state.mode)) state.mode = 'histoire';
   state.run = state.savedRuns[state.mode];
-  if (!Number.isFinite(state.money)) state.money = 0;
+  if (!Number.isFinite(state.run.cash)) state.run.cash = 0;
 }
 let resetting = false; // pendant une remise à zéro, on n'enregistre plus rien
 function save() {
@@ -469,7 +478,7 @@ function save() {
 }
 load();
 
-const lv = id => state.levels[id] || 0;
+const lv = id => state.run.levels[id] || 0;
 function perkLevel(id) { return state.run.perks[id] || 0; }
 const isStory = () => state.run.mode === 'histoire';
 let S = computeStats(lv);
@@ -477,7 +486,7 @@ function refreshStats() { S = computeStats(lv); }
 function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
 function infestLevel() {
   let l = 0;
-  for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.kills >= INFEST_THRESHOLDS[i]) l = i;
+  for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.run.kills >= INFEST_THRESHOLDS[i]) l = i;
   return l;
 }
 // Palier de skin actuel d'une amélioration
@@ -915,6 +924,7 @@ function launchTops(aim, power, perfect) {
   }
   if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
+  state.run.launches++;
   if (isStory()) state.run.launchesLeft--;
   launcherKick = 1;
 }
@@ -1010,7 +1020,7 @@ function waveSpawnMult() { return 1 + 0.08 * (state.run.wave - 1); }
 function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
-function waveQuota() { return Math.ceil(3 + Math.pow(state.run.wave - 1, 1.15)); }
+function waveQuota() { return Math.ceil(3 + 0.6 * Math.pow(state.run.wave - 1, 1.15)); }
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
@@ -1133,7 +1143,7 @@ function killBug(b) {
   state.bestCombo = Math.max(state.bestCombo, combo);
   const comboMult = Math.min(COMBO_CAP, 1 + (combo - 1) * S.comboBonus);
   const gain = b.t.reward * S.bounty * comboMult;
-  state.money += gain;
+  state.run.cash += gain;
   state.totalMoney += gain;
   state.kills++;
   run.kills++;
@@ -1158,17 +1168,22 @@ function killBug(b) {
   }
 }
 
+// Dégâts d'un coup : au début ~1 à 2 par coup, il faut donc 2 ou 3 coups pour un petit cafard.
+// Le poids, les lames et la puissance du lanceur les multiplient.
 function baseDamage(ratio, impact) {
-  // Une toupie encore debout fait toujours au moins ~1 de dégât (écrase un petit cafard)
-  return 1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * (0.6 + 0.4 * ratio) * Math.sqrt(S.rpm / 600) * (1 + 2 * impact);
+  return 1.3 * Math.pow(S.mass / 20, 0.6) * S.blades * (0.6 + 0.4 * ratio) * Math.pow(S.rpm / 600, 0.35) * (1 + 1.5 * impact);
 }
+function fmtDmg(d) { return d < 10 ? nf1.format(d) : fmtInt(d); }
 
 function hitBug(top, b, now) {
-  if (now - b.lastHit < 0.1 || b.dying) return;
+  if (now - b.lastHit < 0.12 || b.dying) return;
   b.lastHit = now;
   const ratio = top.spin / top.launchSpin;
   let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
-  if (Math.random() < S.crit) { dmg *= 3; popup('CRITIQUE', b.x, b.z - 0.03, 'crit'); }
+  const crit = Math.random() < S.crit;
+  if (crit) dmg *= 3;
+  dmg = Math.min(dmg, b.hp); // on n'affiche pas plus que la vie restante
+  popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
   top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia;
@@ -1263,6 +1278,9 @@ function stepTop(top, dt, now) {
     if (b.dying || b.gone) continue;
     const br = b.t.r * 0.8;
     const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz), min = r + br;
+    // Contact : la toupie « râpe » l'insecte tant qu'elle le touche (un coup toutes les 0,12 s)
+    if (d < min + 0.006) hitBug(top, b, now);
+    if (b.dying) continue;
     if (d < min && d > 0) {
       const nx = dx / d, nz = dz / d;
       const mt = S.mass, mb = b.t.mass;
@@ -1273,13 +1291,17 @@ function stepTop(top, dt, now) {
       b.z += nz * overlap * (mt / (mt + mb));
       const vrel = (b.kx - top.vx) * nx + (b.kz - top.vz) * nz;
       if (vrel < 0) {
-        const j = -(1.6 * vrel) / (1 / mt + 1 / mb);
+        // Les cafards s'agrippent au bureau : pour le rebond de la toupie, ils « pèsent » bien plus
+        // que leur poids. Une toupie légère rebondit beaucoup, une toupie lourde passe à travers.
+        const grip = mb * BUG_GRIP;
+        const j = -(1.3 * vrel) / (1 / mt + 1 / grip);
         top.vx -= (j / mt) * nx; top.vz -= (j / mt) * nz;
-        b.kx += (j / mb) * nx; b.kz += (j / mb) * nz;
+        const kick = Math.min(0.15, j / grip);
+        b.kx += kick * nx; b.kz += kick * nz;
       }
-      const fling = 0.25 * ratio * Math.min(1, mt / mb / 4);
+      // La rotation entraîne légèrement l'insecte sur le côté
+      const fling = 0.06 * ratio * Math.min(1, mt / mb / 4);
       b.kx += -nz * fling; b.kz += nx * fling;
-      hitBug(top, b, now);
     }
   }
 
@@ -1412,13 +1434,13 @@ function endWave() {
   if (isStory()) {
     // Prime plus grosse si on a atteint l'objectif sans utiliser tous les lancers
     run.lastSpare = run.launchesLeft;
-    reward = Math.round(0.5 * (1 + run.lastSpare) * Math.pow(run.wave, 1.3) * S.bounty);
+    reward = Math.round((1 + run.lastSpare) * Math.pow(run.wave, 1.3) * S.bounty);
   } else {
     reward = Math.round(0.5 * Math.pow(run.wave, 1.5) * S.bounty);
     run.snack = Math.min(run.maxSnack, run.snack + 2);
     updateCookies();
   }
-  state.money += reward;
+  state.run.cash += reward;
   state.totalMoney += reward;
   run.money += reward;
   run.lastReward = reward;
@@ -1513,8 +1535,8 @@ function defeat() {
     ['Record', `vague ${state.best[run.mode]}`],
     ['Insectes écrasés', fmtInt(run.kills)],
     ['Argent gagné', fmtMoney(run.money)],
+    ['Améliorations perdues', `${Object.values(run.levels).reduce((a, b) => a + b, 0)} niveaux`],
     ['Bonus perdus', perkNames.length ? perkNames.join(', ') : 'aucun'],
-    ['Bonus de record (permanent)', `+${Math.round((recordBonus() - 1) * 100)} % d’argent`],
   ]) {
     const r = document.createElement('div');
     r.className = 'statRow';
@@ -1525,7 +1547,7 @@ function defeat() {
   }
   const note = document.createElement('p');
   note.className = 'lead';
-  note.textContent = 'Tes améliorations de l’atelier et ton argent sont conservés.';
+  note.textContent = 'Tout repart de zéro : argent, améliorations de l’atelier et infestation. Seul ton record reste.';
   const btn = document.createElement('button');
   btn.className = 'bigBtn';
   btn.textContent = 'Nouvelle partie';
@@ -1542,6 +1564,7 @@ function restartRun() {
   rebuildTraps();
   updateCookies();
   refreshStats();
+  updateLauncherSkin();
   startWave();
   save();
   modal.classList.remove('open');
@@ -1584,6 +1607,7 @@ function enterMode(mode, { forceIntro = false } = {}) {
     refreshStats();
   }
   document.getElementById('hud').dataset.mode = mode;
+  updateLauncherSkin();
   rebuildTraps();
   updateCookies();
   shopDirty = true;
@@ -1601,16 +1625,10 @@ function resumeRun() {
 }
 
 function startIntro() {
-  // On repart d'une partie neuve pour l'histoire
-  if (state.run.wave > 1 || state.run.kills > 0) {
-    state.run = state.savedRuns.histoire = newRun('histoire');
-    clearBoard();
-    rebuildTraps();
-    refreshStats();
-  }
+  // L'intro ne touche jamais à la partie en cours (argent, améliorations…)
   paused = false;  // les cafards bougent pendant l'intro, mais on ne peut pas encore lancer
   introStep = 0;
-  for (let i = 0; i < 8; i++) spawnBug();
+  while (bugs.length < 8) spawnBug();
   showIntroLine();
   dialogEl.classList.add('open');
   skipBtn.classList.add('open');
@@ -1636,9 +1654,9 @@ function endIntro() {
   skipBtn.classList.remove('open');
   if (introTop) { disposeTop(introTop); introTop = null; }
   state.introSeen = true;
-  startWave();
   save();
-  banner('📖 Vague 1', `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
+  if (state.run.choice || state.run.over) { resumeRun(); return; }
+  banner(`📖 Vague ${state.run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
 }
 dialogEl.addEventListener('click', nextIntroLine);
 skipBtn.addEventListener('click', endIntro);
@@ -1713,10 +1731,10 @@ $('closeShop').onclick = () => shopEl.classList.remove('open');
 
 function buy(u) {
   const c = costOf(u);
-  if (state.money < c || lv(u.id) >= u.max) return;
+  if (state.run.cash < c || lv(u.id) >= u.max) return;
   const before = u.skins ? skinTier(u.id) : 0;
-  state.money -= c;
-  state.levels[u.id] = lv(u.id) + 1;
+  state.run.cash -= c;
+  state.run.levels[u.id] = lv(u.id) + 1;
   refreshStats();
   updateLauncherSkin();
   save();
@@ -1766,7 +1784,7 @@ function renderShop() {
       }
       btn.textContent = maxed ? 'MAX' : fmtMoney(costOf(u));
       btn.dataset.cost = maxed ? '' : costOf(u);
-      btn.disabled = maxed || state.money < costOf(u);
+      btn.disabled = maxed || state.run.cash < costOf(u);
       btn.onclick = () => buy(u);
     }
     card.append(name, btn, desc, val);
@@ -1852,8 +1870,8 @@ function renderStats() {
 
 function updateHud() {
   const run = state.run;
-  $('money').textContent = fmtMoney(state.money);
-  $('killsLine').textContent = `${fmtInt(state.kills)} insecte${state.kills > 1 ? 's' : ''} écrasé${state.kills > 1 ? 's' : ''} · ${fmtInt(state.launches)} lancer${state.launches > 1 ? 's' : ''}`;
+  $('money').textContent = fmtMoney(state.run.cash);
+  $('killsLine').textContent = `${fmtInt(run.kills)} insecte${run.kills > 1 ? 's' : ''} écrasé${run.kills > 1 ? 's' : ''} · ${fmtInt(run.launches)} lancer${run.launches > 1 ? 's' : ''}`;
   $('waveText').textContent = `${isStory() ? '📖' : '🍪'} Vague ${run.wave}`;
   if (isStory()) {
     const quota = waveQuota();
@@ -1870,17 +1888,17 @@ function updateHud() {
   const l = infestLevel();
   $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
   const next = INFEST_THRESHOLDS[l + 1];
-  $('infestBar').style.width = next ? `${((state.kills - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
+  $('infestBar').style.width = next ? `${((state.run.kills - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
   $('perksLine').textContent = Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? n : '')).join(' ');
 
   // Boutons d'achat : activés/désactivés selon l'argent, sans tout reconstruire
   let canBuy = false;
   for (const btn of shopList.querySelectorAll('button[data-cost]')) {
     if (btn.dataset.cost === '') continue;
-    btn.disabled = state.money < Number(btn.dataset.cost);
+    btn.disabled = state.run.cash < Number(btn.dataset.cost);
   }
   for (const u of UPGRADES) {
-    if ((!u.unlock || u.unlock()) && lv(u.id) < u.max && state.money >= costOf(u)) { canBuy = true; break; }
+    if ((!u.unlock || u.unlock()) && lv(u.id) < u.max && state.run.cash >= costOf(u)) { canBuy = true; break; }
   }
   $('shopBtn').classList.toggle('can', canBuy);
 
