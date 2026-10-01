@@ -14,6 +14,7 @@
     --green: #5fd38a;
     --red: #ff6b5b;
     --accent: #ff9f43;
+    --pink: #ff8ad8;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; color: var(--text);
@@ -22,12 +23,18 @@
   #game canvas { display: block; }
 
   #hud { position: fixed; top: 10px; left: 10px; padding: 10px 14px; background: var(--panel); border-radius: 12px;
-    pointer-events: none; min-width: 190px; }
+    pointer-events: none; width: 210px; }
   #money { font-size: 26px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
-  #hud .sub { color: var(--muted); font-size: 13px; }
-  .infest { margin-top: 6px; font-size: 13px; }
+  #hud .sub { color: var(--muted); font-size: 12px; }
+  .hudRow { margin-top: 6px; font-size: 13px; display: flex; justify-content: space-between; gap: 6px; }
+  .hudRow b { font-variant-numeric: tabular-nums; }
   .bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin-top: 3px; }
   .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  #snackBar { background: #d9a05b; }
+  #waveBar { background: #7fb2ff; transition: none; }
+  #hud.hurt { animation: hurt .45s; }
+  @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
+  #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; min-height: 0; }
 
   #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
     border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px);
@@ -61,12 +68,13 @@
   .card .desc { grid-column: 1; color: var(--muted); font-size: 12px; }
   .card .val { grid-column: 1; font-size: 13px; font-variant-numeric: tabular-nums; }
   .card .val b { color: var(--green); }
-  .card button { grid-row: 1 / span 3; grid-column: 2; border: 0; border-radius: 9px; padding: 10px 12px; min-width: 86px;
+  .card .skin { grid-column: 1; font-size: 12px; color: var(--pink); }
+  .card button { grid-row: 1 / span 4; grid-column: 2; border: 0; border-radius: 9px; padding: 10px 12px; min-width: 86px;
     font-weight: 800; font-size: 14px; cursor: pointer; background: var(--gold); color: #1a1410; font-variant-numeric: tabular-nums; }
   .card button:disabled { background: rgba(255,255,255,.12); color: var(--muted); cursor: default; }
   .card.locked { opacity: .55; }
-  .statRow { display: flex; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 14px; }
-  .statRow span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .statRow { display: flex; justify-content: space-between; gap: 10px; padding: 6px 2px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 14px; }
+  .statRow span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
   .statTitle { margin: 14px 0 4px; color: var(--accent); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
   #resetBtn { margin-top: 18px; width: 100%; border: 1px solid var(--red); background: transparent; color: var(--red); border-radius: 9px;
     padding: 10px; font-weight: 700; cursor: pointer; }
@@ -76,6 +84,7 @@
     text-shadow: 0 2px 4px rgba(0,0,0,.8); white-space: nowrap; animation: rise 1s ease-out forwards; }
   .pop.big { font-size: 26px; color: var(--green); }
   .pop.crit { color: var(--red); font-size: 18px; }
+  .pop.bite { color: #ffb36b; font-size: 20px; }
   @keyframes rise { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
 
   #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
@@ -84,12 +93,34 @@
   #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   #banner small { display: block; color: var(--muted); font-weight: 600; font-size: 13px; margin-top: 4px; }
 
+  /* Fenêtres : choix de bonus et défaite */
+  #modal { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: rgba(10, 6, 3, 0.72); backdrop-filter: blur(3px); }
+  #modal.open { display: flex; }
+  .modalBox { background: #241b14; border: 2px solid var(--accent); border-radius: 16px; padding: 18px; width: min(560px, 100%);
+    max-height: calc(100vh - 32px); overflow-y: auto; text-align: center; }
+  .modalBox h2 { margin: 0 0 4px; font-size: 22px; }
+  .modalBox .lead { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .perkChoices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .perk { border: 2px solid rgba(255,255,255,.12); background: var(--panel-2); border-radius: 12px; padding: 14px 10px; color: var(--text);
+    cursor: pointer; font: inherit; text-align: center; transition: transform .1s, border-color .1s; }
+  .perk:hover, .perk:focus-visible { border-color: var(--gold); transform: translateY(-2px); outline: none; }
+  .perk .ico { font-size: 34px; line-height: 1.1; }
+  .perk .pname { font-weight: 800; margin: 6px 0 4px; }
+  .perk .pdesc { color: var(--muted); font-size: 13px; }
+  .perk .pstack { color: var(--pink); font-size: 12px; margin-top: 6px; }
+  .summary { text-align: left; margin: 10px 0 16px; }
+  .bigBtn { border: 0; border-radius: 12px; padding: 12px 22px; background: var(--gold); color: #1a1410; font-weight: 800; font-size: 16px; cursor: pointer; }
+  .defeat { border-color: var(--red); }
+  .defeat h2 { color: var(--red); }
+
   @media (min-width: 1000px) {
     #shop { transform: none; }
     #shopBtn, #closeShop { display: none; }
     #game { right: 380px; }
     #status { left: calc(50% - 190px); }
     #gauge { right: 398px; }
+    #modal { right: 380px; }
   }
 </style>
 </head>
@@ -98,11 +129,14 @@
 
 <div id="hud">
   <div id="money">0 $</div>
-  <div class="sub" id="killsLine">0 cafard écrasé</div>
-  <div class="infest">
-    <div id="infestName"></div>
-    <div class="bar"><div id="infestBar"></div></div>
-  </div>
+  <div class="sub" id="killsLine"></div>
+  <div class="hudRow"><span>🍪 Goûter</span><b id="snackText"></b></div>
+  <div class="bar"><div id="snackBar"></div></div>
+  <div class="hudRow"><span id="waveText"></span><b id="waveTimer"></b></div>
+  <div class="bar"><div id="waveBar"></div></div>
+  <div class="hudRow"><span id="infestName"></span></div>
+  <div class="bar"><div id="infestBar"></div></div>
+  <div id="perksLine"></div>
 </div>
 
 <div id="status"></div>
@@ -119,6 +153,7 @@
 
 <div id="popups"></div>
 <div id="banner"></div>
+<div id="modal"><div class="modalBox" id="modalBox"></div></div>
 
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -132,29 +167,34 @@ import * as THREE from 'three';
 const DESK_X = 0.78;          // demi-largeur du bureau (m)
 const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
 const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
+const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter, à défendre
 const OBSTACLES = [            // objets posés sur le bureau (la toupie rebondit dessus)
   { x: 0.60, z: -0.30, r: 0.045, h: 0.10, color: 0xd9534f, kind: 'mug' },
   { x: -0.62, z: -0.28, r: 0.04, h: 0.11, color: 0x3b6ea5, kind: 'pot' },
+  { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, color: 0xf2efe8, kind: 'plate' },
 ];
 const SAVE_KEY = 'toupie-cafards-save-v1';
 const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
+const WAVE_LEN = 40;           // durée d'une vague (s)
+const SNACK_MAX = 20;          // bouchées du goûter au début d'une partie
+const COMBO_CAP = 4;           // le bonus de combo ne dépasse jamais ×4
 
 // =====================================================================
 //  INSECTES
 // =====================================================================
 const BUG_TYPES = [
-  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,    speed: 0.13, reward: 5,    mass: 3,   color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
 ];
 // Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
-const INFEST_THRESHOLDS = [0, 25, 110, 380, 1100, 3200];
+const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
 
 // =====================================================================
-//  AMÉLIORATIONS (toutes les stats du jeu)
+//  AMÉLIORATIONS PERMANENTES (atelier) — avec leurs skins
 // =====================================================================
 const TABS = [
   { id: 'toupie', label: '🌀 Toupie' },
@@ -165,37 +205,49 @@ const TABS = [
 
 const UPGRADES = [
   // --- Toupie ---
-  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 12, growth: 1.35, max: 40,
+  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 20, growth: 1.35, max: 40,
+    skins: [[0, 'Poignée bâton'], [5, 'Poignée boule'], [12, 'Gemme violette'], [22, 'Flamme éternelle']],
     fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
-  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 15, growth: 1.4, max: 30,
+  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 22, growth: 1.4, max: 30,
+    skins: [[0, 'Bord lisse'], [5, 'Anneau chromé'], [12, 'Double anneau'], [20, 'Couronne crénelée']],
     fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
-  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 18, growth: 1.4, max: 35,
+  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 24, growth: 1.4, max: 35,
+    skins: [[0, 'Plastique'], [3, 'Bois'], [8, 'Acier'], [15, 'Or massif'], [25, 'Obsidienne']],
     fmt: s => `${Math.round(s.mass)} g` },
-  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 20, growth: 1.4, max: 25,
+  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 25, growth: 1.4, max: 25,
+    skins: [[0, 'Pointe plastique'], [4, 'Pointe acier'], [10, 'Pointe rubis'], [18, 'Pointe diamant']],
     fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
-  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 20, growth: 1.4, max: 40,
+  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 25, growth: 1.4, max: 40,
+    skins: [[0, 'Aucune lame'], [1, '2 lames'], [4, '4 lames'], [10, '6 faux'], [20, '8 dents de scie'], [30, 'Lames de lave']],
     fmt: s => `×${s.blades.toFixed(2)} dégâts` },
   { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.45, max: 30,
+    skins: [[0, 'Sans volant'], [4, 'Volant d’inertie'], [10, 'Disque lourd'], [20, 'Double volant']],
     fmt: s => `−${Math.round((1 - s.inertia) * 100)} % de perte au choc` },
   { id: 'equilibre', tab: 'toupie', name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.45, max: 25,
+    skins: [[0, 'Sans gyroscope'], [5, 'Gyroscope'], [12, 'Double gyroscope']],
     fmt: s => `tombe sous ${Math.round(s.fallRatio * 100)} %` },
   { id: 'rebond', tab: 'toupie', name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 25, growth: 1.45, max: 12,
+    skins: [[0, 'Sans pare-chocs'], [3, 'Pare-chocs caoutchouc'], [8, 'Pare-chocs fluo']],
     fmt: s => `${Math.round(s.restitution * 100)} % conservé` },
   { id: 'agressivite', tab: 'toupie', name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.5, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
+    skins: [[0, 'Gentille'], [1, 'Petites dents'], [5, 'Épines'], [10, 'Épines + yeux rouges']],
     fmt: s => `attraction ${s.chase.toFixed(2)}` },
   { id: 'critique', tab: 'toupie', name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.45, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
+    skins: [[0, 'Sans aura'], [3, 'Étincelles'], [8, 'Aura rouge'], [13, 'Aura de foudre']],
     fmt: s => `${Math.round(s.crit * 100)} % de chance` },
 
   // --- Lanceur ---
-  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 16, growth: 1.38, max: 40,
+  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 22, growth: 1.38, max: 40,
+    skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
     fmt: s => `${fmtInt(s.rpm)} tr/min` },
-  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 14, growth: 1.35, max: 30,
+  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 20, growth: 1.35, max: 30,
+    skins: [[0, 'Sans traînée'], [5, 'Traînée blanche'], [12, 'Traînée bleue'], [20, 'Traînée de feu']],
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
-  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 15, growth: 1.5, max: 12,
+  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 22, growth: 1.5, max: 12,
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 18, growth: 1.4, max: 20,
+  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 24, growth: 1.4, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
   { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
@@ -205,7 +257,7 @@ const UPGRADES = [
     fmt: s => s.auto ? 'activé' : 'désactivé' },
 
   // --- Bureau / économie ---
-  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 16, growth: 1.38, max: 30,
+  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 22, growth: 1.38, max: 30,
     fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
   { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 22, growth: 1.4, max: 25,
     fmt: s => `${s.maxBugs} insectes max` },
@@ -215,45 +267,82 @@ const UPGRADES = [
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
 ];
 
-// Calcule toutes les stats à partir des niveaux d'amélioration
-function computeStats(L) {
-  return {
+// =====================================================================
+//  BONUS DE PARTIE (choix entre 3 à la fin de chaque vague, perdus en cas de défaite)
+// =====================================================================
+const PERKS = [
+  { id: 'odeur', icon: '🍬', name: 'Odeur sucrée', max: 3,
+    desc: n => `La toupie sent bon : certains insectes proches (${Math.round(smellChance(n) * 100)} %) s’approchent d’elle, dans un rayon de ${Math.round(smellRadius(n) * 100)} cm.` },
+  { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+30 % de dégâts.' },
+  { id: 'roulement', icon: '⚙️', name: 'Roulement à billes', max: 4, desc: () => 'La toupie tourne 25 % plus longtemps.' },
+  { id: 'cookies', icon: '🍪', name: 'Boîte de cookies', max: 5, desc: () => '+6 bouchées de goûter tout de suite, et +4 au maximum.' },
+  { id: 'glu', icon: '🪤', name: 'Piège à glu', max: 3, desc: () => 'Pose un piège collant sur le bureau : les insectes y avancent 4 fois moins vite.' },
+  { id: 'or', icon: '💰', name: 'Ruée vers l’or', max: 5, desc: () => '+25 % d’argent par insecte.' },
+  { id: 'jumelle', icon: '👯', name: 'Toupie jumelle', max: 3, desc: () => '25 % de chance de lancer une toupie en plus.' },
+  { id: 'onde', icon: '💥', name: 'Onde de choc', max: 3, desc: () => 'Quand la toupie tombe, elle explose et blesse les insectes autour.' },
+  { id: 'spray', icon: '🧴', name: 'Spray anti-faim', max: 3, desc: () => 'Les affamés traînent 30 % plus longtemps avant de foncer sur le goûter.' },
+  { id: 'ressort', icon: '🌀', name: 'Ressort turbo', max: 4, desc: () => '+20 % d’élan et +15 % de rotation au lancer.' },
+  { id: 'braise', icon: '🔥', name: 'Combo brûlant', max: 3, desc: () => '+10 % de bonus par insecte dans un combo.' },
+  { id: 'epines', icon: '🦔', name: 'Épines empoisonnées', max: 3, desc: () => '+10 % de chance de coup critique.' },
+  { id: 'plomb', icon: '🪨', name: 'Lest en plomb', max: 4, desc: () => '+25 % de poids.' },
+];
+function smellRadius(n) { return 0.06 + 0.035 * n; }
+function smellChance(n) { return Math.min(0.6, 0.2 + 0.13 * n); }
+
+// Calcule toutes les stats à partir des niveaux (atelier) et des bonus de la partie
+function computeStats(L, P = perkLevel) {
+  const s = {
     radius: 0.036 * (1 + 0.08 * L('diametre')),
-    mass: 20 * (1 + 0.15 * L('poids')),
+    mass: 20 * (1 + 0.15 * L('poids')) * Math.pow(1.25, P('plomb')),
     inertia: 1 / (1 + 0.12 * L('inertie')),
-    decay: 0.17 / (1 + 0.15 * L('endurance')),
+    decay: 0.17 / (1 + 0.15 * L('endurance')) * Math.pow(0.8, P('roulement')),
     linFric: 0.75 / (1 + 0.12 * L('pointe')),
     drift: 0.22 * (1 + 0.1 * L('pointe')),
-    blades: 1 + 0.25 * L('lames'),
+    blades: (1 + 0.25 * L('lames')) * Math.pow(1.3, P('aiguise')),
     fallRatio: 0.25 / (1 + 0.1 * L('equilibre')),
     restitution: Math.min(0.95, 0.35 + 0.05 * L('rebond')),
     chase: 0.12 * L('agressivite'),
-    crit: Math.min(0.45, 0.03 * L('critique')),
-    rpm: 600 * (1 + 0.18 * L('puissance')),
-    speed: 0.35 * (1 + 0.12 * L('elan')),
+    crit: Math.min(0.6, 0.03 * L('critique') + 0.1 * P('epines')),
+    rpm: 600 * (1 + 0.18 * L('puissance')) * Math.pow(1.15, P('ressort')),
+    speed: 0.35 * (1 + 0.12 * L('elan')) * Math.pow(1.2, P('ressort')),
     perfect: 0.06 + 0.02 * L('precision'),
     cooldown: 2.5 / (1 + 0.2 * L('recharge')),
     tops: 1 + L('multi'),
     auto: L('auto') > 0,
     spawnRate: 0.9 * (1 + 0.15 * L('appat')),
     maxBugs: 12 + 2 * L('nid'),
-    bounty: 1 + 0.2 * L('prime'),
+    bounty: (1 + 0.2 * L('prime')) * (1 + 0.25 * P('or')) * recordBonus(),
     comboWindow: 1.2 + 0.2 * L('combo'),
-    comboBonus: 0.1 + 0.02 * L('combo'),
+    comboBonus: 0.1 + 0.02 * L('combo') + 0.1 * P('braise'),
+    smellRadius: P('odeur') ? smellRadius(P('odeur')) : 0,
+    smellChance: P('odeur') ? smellChance(P('odeur')) : 0,
+    twinChance: 0.25 * P('jumelle'),
+    shockRadius: P('onde') ? 0.07 + 0.03 * P('onde') : 0,
+    hungerMult: Math.pow(1.3, P('spray')),
   };
+  return s;
 }
+// Bonus permanent d'argent selon la meilleure vague atteinte (+2 % par vague, jusqu'à +100 %)
+function recordBonus() { return 1 + Math.min(1, 0.02 * Math.max(0, (state.bestWave || 1) - 1)); }
 // Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
 function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
 
 // =====================================================================
 //  SAUVEGARDE
 // =====================================================================
-const state = { money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {} };
+function newRun() {
+  return { wave: 1, waveTime: 0, raidsSent: 0, snack: SNACK_MAX, maxSnack: SNACK_MAX, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false };
+}
+const state = {
+  money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {},
+  bestWave: 1, runs: 1, run: newRun(),
+};
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (data && typeof data === 'object') {
       for (const k of Object.keys(state)) if (k in data) state[k] = data[k];
+      state.run = Object.assign(newRun(), data.run || {});
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
   if (!Number.isFinite(state.money)) state.money = 0;
@@ -266,6 +355,7 @@ function save() {
 load();
 
 const lv = id => state.levels[id] || 0;
+function perkLevel(id) { return state.run.perks[id] || 0; }
 let S = computeStats(lv);
 function refreshStats() { S = computeStats(lv); }
 function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
@@ -273,6 +363,14 @@ function infestLevel() {
   let l = 0;
   for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.kills >= INFEST_THRESHOLDS[i]) l = i;
   return l;
+}
+// Palier de skin actuel d'une amélioration
+function skinTier(id) {
+  const u = UPGRADES.find(x => x.id === id);
+  if (!u?.skins) return 0;
+  let t = 0;
+  u.skins.forEach(([lvl], i) => { if (lv(id) >= lvl) t = i; });
+  return t;
 }
 
 // =====================================================================
@@ -299,7 +397,7 @@ container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x2a221c);
-scene.fog = new THREE.Fog(0x2a221c, 2.2, 4);
+scene.fog = new THREE.Fog(0x2a221c, 2.2, 5);
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.01, 10);
 function placeCamera() {
@@ -335,30 +433,30 @@ lamp.shadow.bias = -0.0005;
 scene.add(lamp);
 
 // Bureau en bois (texture générée)
-function woodTexture() {
+function woodCanvas(base, line) {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#9b6a3e';
+  g.fillStyle = base;
   g.fillRect(0, 0, 512, 512);
   for (let i = 0; i < 140; i++) {
     const y = Math.random() * 512;
-    g.strokeStyle = `rgba(${60 + Math.random() * 40}, ${35 + Math.random() * 20}, 15, ${0.08 + Math.random() * 0.18})`;
+    g.strokeStyle = line(Math.random());
     g.lineWidth = 1 + Math.random() * 3;
     g.beginPath();
     g.moveTo(0, y);
     for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x * 0.02 + i) * 4 + (Math.random() - 0.5) * 2);
     g.stroke();
   }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(2, 1);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return c;
 }
+const deskTex = new THREE.CanvasTexture(woodCanvas('#9b6a3e', r => `rgba(${60 + r * 40}, ${35 + r * 20}, 15, ${0.08 + r * 0.18})`));
+deskTex.wrapS = deskTex.wrapT = THREE.RepeatWrapping;
+deskTex.repeat.set(2, 1);
+deskTex.colorSpace = THREE.SRGBColorSpace;
 const desk = new THREE.Mesh(
   new THREE.BoxGeometry(DESK_X * 2 + 0.06, 0.04, DESK_Z * 2 + 0.06),
-  new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.75 })
+  new THREE.MeshStandardMaterial({ map: deskTex, roughness: 0.75 })
 );
 desk.position.y = -0.02;
 desk.receiveShadow = true;
@@ -385,12 +483,13 @@ const screenMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.36, 0.025), new 
 screenMesh.position.y = 0.3;
 const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.32), new THREE.MeshBasicMaterial({ color: 0x1f3550 }));
 glow.position.set(0, 0.3, 0.013);
-const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.04), new THREE.MeshStandardMaterial({ color: 0x222 }));
+const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.04), new THREE.MeshStandardMaterial({ color: 0x222222 }));
 stand.position.y = 0.06;
 monitor.add(screenMesh, glow, stand);
 monitor.position.set(0, 0, -0.62);
 scene.add(monitor);
 for (const o of OBSTACLES) {
+  if (o.kind === 'plate') continue;
   const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 0.92, o.h, 24), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.45 }));
   m.position.set(o.x, o.h / 2, o.z);
   m.castShadow = m.receiveShadow = true;
@@ -405,16 +504,67 @@ for (const o of OBSTACLES) {
   }
 }
 
-// Lanceur posé devant le joueur
+// L'assiette du goûter et ses cookies
+const plate = new THREE.Mesh(new THREE.CylinderGeometry(PLATE.r, PLATE.r * 0.8, 0.012, 32), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.3 }));
+plate.position.set(PLATE.x, 0.006, PLATE.z);
+plate.receiveShadow = plate.castShadow = true;
+scene.add(plate);
+const cookieMat = new THREE.MeshStandardMaterial({ color: 0xc98a45, roughness: 0.9 });
+const chipMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.9 });
+const cookies = [];
+for (let i = 0; i < 5; i++) {
+  const c = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.008, 16), cookieMat);
+  c.add(body);
+  for (let k = 0; k < 4; k++) {
+    const chip = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 4), chipMat);
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.015;
+    chip.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r);
+    c.add(chip);
+  }
+  const a = (i / 4) * Math.PI * 2;
+  c.position.set(PLATE.x + (i === 4 ? 0 : Math.cos(a) * 0.03), 0.017 + (i === 4 ? 0.008 : 0), PLATE.z + (i === 4 ? 0 : Math.sin(a) * 0.03));
+  c.rotation.y = Math.random() * 3;
+  c.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  scene.add(c);
+  cookies.push(c);
+}
+function updateCookies() {
+  const shown = Math.ceil((Math.max(0, state.run.snack) / state.run.maxSnack) * 5);
+  cookies.forEach((c, i) => { c.visible = i < shown; });
+}
+
+// Lanceur posé devant le joueur (son apparence dépend de la Puissance)
 const launcher = new THREE.Group();
-const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.035, 0.09), new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5 }));
+const lBodyMat = new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5 });
+const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.035, 0.09), lBodyMat);
 lBody.position.y = 0.06;
-const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 8, 20), new THREE.MeshStandardMaterial({ color: 0x333 }));
+const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 8, 20), new THREE.MeshStandardMaterial({ color: 0x333333 }));
 lRing.rotation.x = Math.PI / 2;
 lRing.position.set(0, 0.04, 0);
-launcher.add(lBody, lRing);
+const lFins = new THREE.Group();
+for (const s of [-1, 1]) {
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.04, 0.05), new THREE.MeshStandardMaterial({ color: 0xd93b3b }));
+  fin.position.set(s * 0.038, 0.06, 0.02);
+  fin.rotation.z = s * 0.4;
+  lFins.add(fin);
+}
+launcher.add(lBody, lRing, lFins);
 launcher.position.set(LAUNCH.x, 0, LAUNCH.y + 0.03);
 scene.add(launcher);
+function updateLauncherSkin() {
+  const t = skinTier('puissance');
+  const looks = [
+    { color: 0xff9f43, metal: 0, rough: 0.5 },
+    { color: 0x9aa4ad, metal: 0.85, rough: 0.3 },
+    { color: 0xf2f2f2, metal: 0.4, rough: 0.35 },
+    { color: 0xffc94a, metal: 1, rough: 0.2 },
+  ][t];
+  lBodyMat.color.setHex(looks.color);
+  lBodyMat.metalness = looks.metal;
+  lBodyMat.roughness = looks.rough;
+  lFins.visible = t >= 2;
+}
 
 // Ligne de visée
 const aimGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -422,69 +572,238 @@ const aimLine = new THREE.Line(aimGeo, new THREE.LineBasicMaterial({ color: 0xff
 aimLine.visible = false;
 scene.add(aimLine);
 
+// Pièges à glu (bonus)
+const trapMeshes = [];
+const trapMat = new THREE.MeshStandardMaterial({ color: 0xe6c34a, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.8 });
+function rebuildTraps() {
+  for (const m of trapMeshes) scene.remove(m);
+  trapMeshes.length = 0;
+  for (const t of state.run.traps) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(t.w, 0.003, t.d), trapMat);
+    m.position.set(t.x, 0.0015, t.z);
+    m.receiveShadow = true;
+    scene.add(m);
+    trapMeshes.push(m);
+  }
+}
+function addTrap() {
+  for (let tries = 0; tries < 30; tries++) {
+    const t = { x: (Math.random() * 2 - 1) * (DESK_X - 0.12), z: -DESK_Z + 0.1 + Math.random() * 0.55, w: 0.13, d: 0.09 };
+    const clear = OBSTACLES.every(o => Math.hypot(o.x - t.x, o.z - t.z) > o.r + 0.1) && state.run.traps.every(o => Math.hypot(o.x - t.x, o.z - t.z) > 0.18);
+    if (clear) { state.run.traps.push(t); break; }
+  }
+  rebuildTraps();
+}
+function onTrap(x, z) {
+  return state.run.traps.some(t => Math.abs(x - t.x) < t.w / 2 && Math.abs(z - t.z) < t.d / 2);
+}
+
 // =====================================================================
-//  TOUPIES
+//  TOUPIES (avec skins selon les améliorations)
 // =====================================================================
-function topTexture(hue) {
+const texCache = new Map();
+function stripeTexture(colors, key) {
+  if (texCache.has(key)) return texCache.get(key);
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const g = c.getContext('2d');
-  const colors = [`hsl(${hue},80%,55%)`, '#f4f1ea', `hsl(${(hue + 40) % 360},85%,50%)`, '#222'];
   for (let i = 0; i < 8; i++) {
     g.fillStyle = colors[i % colors.length];
     g.fillRect(i * 32, 0, 32, 64);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  texCache.set(key, t);
   return t;
 }
-const topProfile = [
-  [0, 0], [0.1, 0.04], [0.45, 0.22], [1, 0.4], [1, 0.5], [0.85, 0.58], [0.3, 0.62], [0.16, 0.66], [0.14, 0.95], [0.1, 1.0], [0, 1.0],
+// Corps de la toupie (rayon 1, hauteur ~0.66), sans la pointe ni la poignée
+const bodyProfile = [
+  [0.2, 0.16], [0.45, 0.24], [1, 0.4], [1, 0.5], [0.85, 0.58], [0.3, 0.62], [0.14, 0.66], [0, 0.66],
 ].map(([x, y]) => new THREE.Vector2(x, y));
-const topGeo = new THREE.LatheGeometry(topProfile, 32);
+const bodyGeo = new THREE.LatheGeometry(bodyProfile, 32);
 
-const tops = [];
-function makeTopMesh() {
-  const tilt = new THREE.Group();   // inclinaison (wobble)
-  const spinner = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({
-    map: topTexture((lv('poids') * 25 + lv('lames') * 40) % 360),
-    roughness: 0.35, metalness: Math.min(0.75, 0.1 + lv('poids') * 0.03),
-  }));
-  spinner.castShadow = true;
-  tilt.add(spinner);
-  // Lames visibles quand on les a améliorées
-  const nBlades = Math.min(8, Math.floor(lv('lames') / 3));
-  for (let i = 0; i < nBlades; i++) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.08), new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.9, roughness: 0.25 }));
-    const a = (i / nBlades) * Math.PI * 2;
-    b.position.set(Math.cos(a) * 1.05, 0.45, Math.sin(a) * 1.05);
-    b.rotation.y = -a;
-    spinner.add(b);
+function bodyMaterial() {
+  const t = skinTier('poids');
+  const hue = (lv('lames') * 40 + lv('diametre') * 15) % 360;
+  switch (t) {
+    case 0: return new THREE.MeshStandardMaterial({ map: stripeTexture([`hsl(${hue},80%,55%)`, '#f4f1ea', `hsl(${(hue + 40) % 360},85%,50%)`, '#222'], 'p' + hue), roughness: 0.4 });
+    case 1: return new THREE.MeshStandardMaterial({ map: stripeTexture(['#8a5a2b', '#b07a44', '#6e4420', '#c18d55'], 'bois'), roughness: 0.8 });
+    case 2: return new THREE.MeshStandardMaterial({ map: stripeTexture(['#c9d1d8', '#7d8790', '#e6ebef', '#5d666e'], 'acier'), metalness: 0.9, roughness: 0.3 });
+    case 3: return new THREE.MeshStandardMaterial({ map: stripeTexture(['#ffd65a', '#c99a1c', '#fff0a8', '#a87a10'], 'or'), metalness: 1, roughness: 0.22 });
+    default: return new THREE.MeshStandardMaterial({ map: stripeTexture(['#1a0f24', '#3b1d5c', '#120a1a', '#5b2a8c'], 'obs'), metalness: 0.6, roughness: 0.25, emissive: 0x2a0d4a, emissiveIntensity: 0.6 });
   }
-  scene.add(tilt);
-  return { tilt, spinner };
 }
 
+function makeTopMesh() {
+  const tilt = new THREE.Group();   // inclinaison (vacillement)
+  const spinner = new THREE.Group(); // tout ce qui tourne
+  tilt.add(spinner);
+  const parts = { flame: null, aura: null };
+  const add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; spinner.add(m); return m; };
+
+  // Corps (matière selon le Poids)
+  add(bodyGeo, bodyMaterial());
+
+  // Pointe (selon la Pointe)
+  const tipT = skinTier('pointe');
+  const tipLook = [
+    { r: 0.3, mat: new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.5 }), seg: 12 },
+    { r: 0.2, mat: new THREE.MeshStandardMaterial({ color: 0xc9d1d8, metalness: 0.95, roughness: 0.2 }), seg: 12 },
+    { r: 0.22, mat: new THREE.MeshStandardMaterial({ color: 0xe0115f, emissive: 0x7a0020, emissiveIntensity: 0.6, roughness: 0.15 }), seg: 6 },
+    { r: 0.2, mat: new THREE.MeshStandardMaterial({ color: 0xbff4ff, emissive: 0x3fb8d8, emissiveIntensity: 0.8, roughness: 0.05, transparent: true, opacity: 0.85 }), seg: 5 },
+  ][tipT];
+  const tip = add(new THREE.ConeGeometry(tipLook.r, 0.17, tipLook.seg), tipLook.mat, 0, 0.085, 0);
+  tip.rotation.x = Math.PI;
+
+  // Poignée (selon l'Endurance)
+  const knobT = skinTier('endurance');
+  const stickMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.4 });
+  add(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 10), stickMat, 0, 0.8, 0);
+  if (knobT === 1) add(new THREE.SphereGeometry(0.17, 14, 10), new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.3 }), 0, 1.0, 0);
+  if (knobT === 2) add(new THREE.OctahedronGeometry(0.22), new THREE.MeshStandardMaterial({ color: 0xa25cff, emissive: 0x5a1fb0, emissiveIntensity: 0.9, roughness: 0.1 }), 0, 1.05, 0);
+  if (knobT === 3) parts.flame = add(new THREE.ConeGeometry(0.16, 0.45, 10), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.85 }), 0, 1.15, 0);
+
+  // Anneaux sur le bord (selon le Diamètre)
+  const ringT = skinTier('diametre');
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xdfe6ec, metalness: 1, roughness: 0.2 });
+  if (ringT >= 1) { const r = add(new THREE.TorusGeometry(1.0, 0.05, 8, 40), chrome, 0, 0.45, 0); r.rotation.x = Math.PI / 2; }
+  if (ringT >= 2) { const r = add(new THREE.TorusGeometry(0.75, 0.045, 8, 40), chrome, 0, 0.58, 0); r.rotation.x = Math.PI / 2; }
+  if (ringT >= 3) {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      add(new THREE.BoxGeometry(0.12, 0.14, 0.12), chrome, Math.cos(a) * 1.02, 0.55, Math.sin(a) * 1.02);
+    }
+  }
+
+  // Lames (selon les Lames)
+  const bladeT = skinTier('lames');
+  const bladeCount = [0, 2, 4, 6, 8, 8][bladeT];
+  const bladeMat = bladeT >= 5
+    ? new THREE.MeshStandardMaterial({ color: 0xff5a1f, emissive: 0xff3a00, emissiveIntensity: 1.2, roughness: 0.3 })
+    : new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.9, roughness: 0.25 });
+  for (let i = 0; i < bladeCount; i++) {
+    const a = (i / bladeCount) * Math.PI * 2;
+    let b;
+    if (bladeT >= 4) {
+      b = add(new THREE.ConeGeometry(0.1, 0.35, 4), bladeMat, Math.cos(a) * 1.12, 0.45, Math.sin(a) * 1.12);
+      b.rotation.set(0, -a, -Math.PI / 2);
+    } else if (bladeT === 3) {
+      b = add(new THREE.BoxGeometry(0.5, 0.05, 0.08), bladeMat, Math.cos(a + 0.35) * 1.05, 0.45, Math.sin(a + 0.35) * 1.05);
+      b.rotation.y = -a + 0.9; // forme de faux, inclinée
+    } else {
+      b = add(new THREE.BoxGeometry(0.45, 0.05, 0.08), bladeMat, Math.cos(a) * 1.05, 0.45, Math.sin(a) * 1.05);
+      b.rotation.y = -a;
+    }
+  }
+
+  // Volant d'inertie (selon l'Inertie)
+  const flyT = skinTier('inertie');
+  if (flyT >= 1) {
+    const fm = new THREE.MeshStandardMaterial({ color: flyT >= 2 ? 0x3d4148 : 0x8c949c, metalness: 0.9, roughness: 0.35 });
+    add(new THREE.CylinderGeometry(0.7, 0.7, flyT >= 2 ? 0.08 : 0.04, 32), fm, 0, 0.3, 0);
+    if (flyT >= 3) add(new THREE.CylinderGeometry(0.55, 0.55, 0.06, 32), fm, 0, 0.2, 0);
+  }
+
+  // Gyroscope (selon l'Équilibre) : anneaux qui ne tournent pas avec le corps
+  const gyroT = skinTier('equilibre');
+  const gyro = new THREE.Group();
+  if (gyroT >= 1) {
+    const gm = new THREE.MeshStandardMaterial({ color: 0x5fd3c8, metalness: 0.7, roughness: 0.3 });
+    const g1 = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.03, 8, 32), gm);
+    g1.position.y = 0.8;
+    gyro.add(g1);
+    if (gyroT >= 2) { const g2 = g1.clone(); g2.rotation.x = Math.PI / 2; gyro.add(g2); }
+  }
+  tilt.add(gyro);
+
+  // Pare-chocs (selon le Rebond)
+  const bumpT = skinTier('rebond');
+  if (bumpT >= 1) {
+    const r = add(new THREE.TorusGeometry(1.06, 0.07, 8, 40), new THREE.MeshStandardMaterial({ color: bumpT >= 2 ? 0x39ff6a : 0x1d1d1d, roughness: 0.9, emissive: bumpT >= 2 ? 0x0f5a20 : 0 }), 0, 0.42, 0);
+    r.rotation.x = Math.PI / 2;
+  }
+
+  // Dents, épines et yeux (selon l'Agressivité)
+  const aggT = skinTier('agressivite');
+  if (aggT >= 1) {
+    const sm = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.5, roughness: 0.4 });
+    const n = aggT >= 2 ? 10 : 6, len = aggT >= 2 ? 0.28 : 0.15;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + 0.3;
+      const sp = add(new THREE.ConeGeometry(0.05, len, 6), sm, Math.cos(a) * 0.95, 0.56, Math.sin(a) * 0.95);
+      sp.rotation.set(0, -a, -Math.PI / 2 + 0.4);
+    }
+  }
+  if (aggT >= 3) {
+    const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a });
+    add(new THREE.SphereGeometry(0.07, 8, 6), em, 0.25, 0.64, 0.12);
+    add(new THREE.SphereGeometry(0.07, 8, 6), em, 0.25, 0.64, -0.12);
+  }
+
+  // Aura (selon le Coup critique)
+  const critT = skinTier('critique');
+  if (critT >= 1) {
+    const col = [0, 0xffe066, 0xff3b3b, 0x8fd3ff][critT];
+    parts.aura = new THREE.Mesh(new THREE.TorusGeometry(1.25, critT >= 2 ? 0.08 : 0.03, 6, 40), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55 }));
+    parts.aura.rotation.x = Math.PI / 2;
+    parts.aura.position.y = 0.45;
+    tilt.add(parts.aura);
+  }
+
+  scene.add(tilt);
+
+  // Traînée (selon l'Élan)
+  const trailT = skinTier('elan');
+  let trail = null;
+  if (trailT >= 1) {
+    const n = 24;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    trail = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: [0, 0xffffff, 0x5ab8ff, 0xff6a1a][trailT], transparent: true, opacity: 0.55 }));
+    trail.frustumCulled = false;
+    scene.add(trail);
+  }
+  return { tilt, spinner, gyro, trail, trailInit: false, ...parts };
+}
+
+// Odeur sucrée : un cercle rose autour de la toupie
+const smellGeo = new THREE.RingGeometry(0.97, 1, 48);
+smellGeo.rotateX(-Math.PI / 2);
+
+const tops = [];
 function launchTops(aim, power, perfect) {
   const dir = new THREE.Vector2(aim.x - LAUNCH.x, aim.y - LAUNCH.y);
   if (dir.y > -0.05) dir.set(dir.x, -0.05);
   dir.normalize();
   const mult = perfect ? 1.25 : 1;
-  const n = S.tops;
+  const n = S.tops + (Math.random() < S.twinChance ? 1 : 0);
   for (let i = 0; i < n; i++) {
     const ang = (i - (n - 1) / 2) * 0.28;
     const d = dir.clone().rotateAround(new THREE.Vector2(), ang);
     const spin = S.rpm * (0.4 + 0.6 * power) * mult;
     const speed = S.speed * (0.4 + 0.6 * power) * mult;
     const mesh = makeTopMesh();
+    let smell = null;
+    if (S.smellRadius > 0) {
+      smell = new THREE.Mesh(smellGeo, new THREE.MeshBasicMaterial({ color: 0xff8ad8, transparent: true, opacity: 0.35, depthWrite: false }));
+      scene.add(smell);
+    }
     tops.push({
       x: LAUNCH.x + d.x * 0.02 * i, z: LAUNCH.y, vx: d.x * speed, vz: d.y * speed,
       spin, launchSpin: spin, wander: Math.atan2(d.y, d.x), wanderRate: 0, prec: 0, angle: 0,
-      falling: 0, fallDir: 0, dead: false, ...mesh,
+      falling: 0, fallDir: 0, dead: false, smell, ...mesh,
     });
   }
+  if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
   launcherKick = 1;
+}
+function disposeTop(top) {
+  for (const o of [top.tilt, top.trail, top.smell]) {
+    if (!o) continue;
+    scene.remove(o);
+    o.traverse(m => { if (m.isMesh || m.isLine) { if (m.geometry !== bodyGeo && m.geometry !== smellGeo) m.geometry.dispose(); m.material.dispose(); } });
+  }
 }
 
 // =====================================================================
@@ -545,7 +864,7 @@ function makeBugMesh(t) {
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   g.scale.setScalar(t.r * BUG_VISUAL);
   scene.add(g);
-  return { group: g, legs };
+  return { group: g, legs, mat };
 }
 
 // Barre de vie au-dessus des gros insectes
@@ -566,11 +885,17 @@ function makeHpBar() {
 const bugs = [];
 let spawnTimer = 0;
 
+// Difficulté selon la vague
+function waveSpawnMult() { return 1 + 0.08 * (state.run.wave - 1); }
+// Nombre d'insectes affamés envoyés vers le goûter pendant la vague (les « raids »)
+function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
+function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
+
 function pickBugType() {
   const lvl = infestLevel();
   const pool = [];
   for (let t = 0; t <= lvl; t++) {
-    let w = t < lvl ? 1 : 0.55;   // le tout dernier type débloqué est un peu plus rare
+    let w = (t < lvl ? 1 : 0.55) * Math.pow(1 + 0.12 * (state.run.wave - 1), t); // les vagues avancées amènent plus de gros insectes
     if (BUG_TYPES[t].rare) w *= 0.25;
     pool.push([t, w]);
   }
@@ -579,10 +904,11 @@ function pickBugType() {
   return BUG_TYPES[0];
 }
 
-function spawnBug() {
+function spawnBug(hungry = false) {
   const t = pickBugType();
-  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur)
-  const side = Math.floor(Math.random() * 3);
+  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur).
+  // Les affamés partent du fond, pour laisser le temps de les intercepter.
+  const side = hungry ? 0 : Math.floor(Math.random() * 3);
   let x, z;
   if (side === 0) { x = (Math.random() * 2 - 1) * DESK_X; z = -DESK_Z + 0.01; }
   else if (side === 1) { x = -DESK_X + 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
@@ -592,18 +918,28 @@ function spawnBug() {
   const bug = {
     t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
     tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
-    life: 25 + Math.random() * 20, leaving: false, gone: false,
+    life: 20 + Math.random() * 20, // au bout de ce temps, l'insecte s'en va
+    hunger: hungry ? 3 * S.hungerMult : Infinity, // les affamés hésitent un peu, puis filent vers le goûter
+    mode: 'wander', gone: false, sniff: Math.random(),
   };
   newTarget(bug);
   bugs.push(bug);
+  return bug;
 }
 function newTarget(b) {
   b.tx = (Math.random() * 2 - 1) * (DESK_X - 0.06);
   b.tz = (Math.random() * 2 - 1) * (DESK_Z - 0.06);
 }
+function removeBug(i) {
+  const b = bugs[i];
+  scene.remove(b.group, b.hpBar.g);
+  b.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
+  b.hpBar.fill.material.dispose();
+  bugs.splice(i, 1);
+}
 
 // =====================================================================
-//  TACHES D'INSECTES ÉCRASÉS
+//  TACHES D'INSECTES ÉCRASÉS ET EFFETS
 // =====================================================================
 const splats = [];
 const splatGeo = new THREE.CircleGeometry(1, 10);
@@ -616,6 +952,13 @@ function addSplat(x, z, r) {
   scene.add(m);
   splats.push({ m, life: 6 });
   if (splats.length > 60) { const s = splats.shift(); scene.remove(s.m); s.m.material.dispose(); }
+}
+const shocks = [];
+function addShock(x, z, r) {
+  const m = new THREE.Mesh(smellGeo, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.9, depthWrite: false }));
+  m.position.set(x, 0.004, z);
+  scene.add(m);
+  shocks.push({ m, t: 0, r });
 }
 
 // =====================================================================
@@ -654,11 +997,13 @@ function killBug(b) {
   combo = gameTime - lastKillTime <= S.comboWindow ? combo + 1 : 1;
   lastKillTime = gameTime;
   state.bestCombo = Math.max(state.bestCombo, combo);
-  const comboMult = 1 + (combo - 1) * S.comboBonus;
+  const comboMult = Math.min(COMBO_CAP, 1 + (combo - 1) * S.comboBonus);
   const gain = b.t.reward * S.bounty * comboMult;
   state.money += gain;
   state.totalMoney += gain;
   state.kills++;
+  state.run.kills++;
+  state.run.money += gain;
   state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
   popup('+' + fmtMoney(gain), b.x, b.z);
   if (combo >= 3) popup('Combo ×' + combo, b.x, b.z - 0.05, 'crit');
@@ -672,19 +1017,47 @@ function killBug(b) {
   }
 }
 
+function baseDamage(ratio, impact) {
+  // Une toupie encore debout fait toujours au moins ~1 de dégât (écrase un petit cafard)
+  return 1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * (0.6 + 0.4 * ratio) * Math.sqrt(S.rpm / 600) * (1 + 2 * impact);
+}
+
 function hitBug(top, b, now) {
   if (now - b.lastHit < 0.1 || b.dying) return;
   b.lastHit = now;
   const ratio = top.spin / top.launchSpin;
-  const impact = Math.hypot(top.vx, top.vz);
-  // Une toupie encore debout fait toujours au moins ~1 de dégât (écrase un petit cafard)
-  let dmg = 1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * (0.6 + 0.4 * ratio) * Math.sqrt(S.rpm / 600) * (1 + 2 * impact);
-  const crit = Math.random() < S.crit;
-  if (crit) { dmg *= 3; popup('CRITIQUE', b.x, b.z - 0.03, 'crit'); }
+  let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
+  if (Math.random() < S.crit) { dmg *= 3; popup('CRITIQUE', b.x, b.z - 0.03, 'crit'); }
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
   top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia;
   if (b.hp <= 0) killBug(b);
+}
+
+function shockwave(top) {
+  const r = S.shockRadius;
+  addShock(top.x, top.z, r);
+  const dmg = 3 * baseDamage(0.5, 0);
+  for (const b of bugs) {
+    if (b.dying || b.gone) continue;
+    if (Math.hypot(b.x - top.x, b.z - top.z) < r + b.t.r) {
+      b.hp -= dmg;
+      if (b.hp <= 0) killBug(b);
+    }
+  }
+}
+
+// Un insecte affamé atteint le goûter
+function biteSnack(b) {
+  state.run.snack -= b.t.bite;
+  popup(`−${b.t.bite} 🍪`, PLATE.x, PLATE.z, 'bite');
+  const hud = document.getElementById('hud');
+  hud.classList.remove('hurt');
+  void hud.offsetWidth;
+  hud.classList.add('hurt');
+  updateCookies();
+  b.gone = true;
+  if (state.run.snack <= 0) defeat();
 }
 
 // =====================================================================
@@ -704,7 +1077,7 @@ function stepTop(top, dt, now) {
   if (S.chase > 0) {
     let best = null, bd = 0.5;
     for (const b of bugs) {
-      if (b.dying) continue;
+      if (b.dying || b.gone) continue;
       const d = Math.hypot(b.x - top.x, b.z - top.z);
       if (d < bd) { bd = d; best = b; }
     }
@@ -727,7 +1100,7 @@ function stepTop(top, dt, now) {
   if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
   if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
 
-  // Rebonds sur le mug et le pot à crayons
+  // Rebonds sur le mug, le pot à crayons et l'assiette
   for (const o of OBSTACLES) {
     const dx = top.x - o.x, dz = top.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
@@ -740,26 +1113,23 @@ function stepTop(top, dt, now) {
 
   // Chocs avec les insectes
   for (const b of bugs) {
-    if (b.dying) continue;
+    if (b.dying || b.gone) continue;
     const br = b.t.r * 0.8;
     const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz), min = r + br;
     if (d < min && d > 0) {
       const nx = dx / d, nz = dz / d;
       const mt = S.mass, mb = b.t.mass;
-      // Séparation selon les masses
       const overlap = min - d;
       top.x -= nx * overlap * (mb / (mt + mb));
       top.z -= nz * overlap * (mb / (mt + mb));
       b.x += nx * overlap * (mt / (mt + mb));
       b.z += nz * overlap * (mt / (mt + mb));
-      // Échange de vitesse (choc)
       const vrel = (b.kx - top.vx) * nx + (b.kz - top.vz) * nz;
       if (vrel < 0) {
         const j = -(1.6 * vrel) / (1 / mt + 1 / mb);
         top.vx -= (j / mt) * nx; top.vz -= (j / mt) * nz;
         b.kx += (j / mb) * nx; b.kz += (j / mb) * nz;
       }
-      // La rotation projette l'insecte sur le côté
       const fling = 0.25 * ratio * Math.min(1, mt / mb / 4);
       b.kx += -nz * fling; b.kz += nx * fling;
       hitBug(top, b, now);
@@ -771,6 +1141,7 @@ function stepTop(top, dt, now) {
   if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
     top.falling = 0.001;
     top.fallDir = top.prec;
+    if (S.shockRadius > 0) shockwave(top);
   }
 }
 
@@ -796,45 +1167,58 @@ function stepTopsTogether() {
 
 function stepBug(b, dt) {
   if (b.dying || b.gone) return;
-  // Au bout d'un moment, l'insecte en a assez et repart par le bord le plus proche
-  b.life -= dt;
-  if (b.life <= 0 && !b.leaving) {
-    b.leaving = true;
-    b.pause = 0;
-    const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
-    exits.sort((a, c) => a[2] - c[2]);
-    b.tx = exits[0][0];
-    b.tz = exits[0][1];
+  const slow = onTrap(b.x, b.z) ? 0.25 : 1;
+
+  // Les affamés partent manger le goûter ; les autres finissent par s'en aller
+  if (b.mode === 'wander') {
+    b.hunger -= dt;
+    b.life -= dt;
+    if (b.hunger <= 0) {
+      b.pause = 0;
+      b.mode = 'hungry';
+      b.mat.emissive.setHex(0x8a1a00); // les affamés rougissent : à écraser en priorité !
+      b.mat.emissiveIntensity = 0.7;
+    } else if (b.life <= 0) {
+      b.pause = 0;
+      b.mode = 'leaving';
+      const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
+      exits.sort((a, c) => a[2] - c[2]);
+      b.tx = exits[0][0];
+      b.tz = exits[0][1];
+    }
   }
-  if (b.leaving) {
-    const dx = b.tx - b.x, dz = b.tz - b.z;
-    b.heading = Math.atan2(dz, dx);
-    b.x += Math.cos(b.heading) * b.t.speed * 1.3 * dt;
-    b.z += Math.sin(b.heading) * b.t.speed * 1.3 * dt;
+  if (b.mode === 'leaving') {
+    b.heading = Math.atan2(b.tz - b.z, b.tx - b.x);
+    b.x += Math.cos(b.heading) * b.t.speed * 1.3 * slow * dt;
+    b.z += Math.sin(b.heading) * b.t.speed * 1.3 * slow * dt;
     b.walk += dt * b.t.speed * 200;
     if (Math.abs(b.x) > DESK_X + 0.04 || b.z < -DESK_Z - 0.04) b.gone = true;
     return;
   }
+
   // Peur : certains insectes s'enfuient quand une toupie approche
-  let fleeing = false;
-  if (b.t.fear > 0) {
-    for (const top of tops) {
-      if (top.falling) continue;
-      const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz);
-      if (d < b.t.fear + S.radius) {
-        b.tx = Math.max(-DESK_X, Math.min(DESK_X, b.x + (dx / d) * 0.3));
-        b.tz = Math.max(-DESK_Z, Math.min(DESK_Z, b.z + (dz / d) * 0.3));
-        fleeing = true;
-        b.pause = 0;
-      }
+  let fleeing = false, smelling = null;
+  for (const top of tops) {
+    if (top.falling) continue;
+    const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz);
+    // Odeur sucrée : certains insectes sont attirés (pas tous, et seulement de près)
+    if (S.smellRadius > 0 && b.sniff < S.smellChance && d < S.smellRadius + S.radius) smelling = top;
+    else if (b.t.fear > 0 && d < b.t.fear + S.radius) {
+      b.tx = Math.max(-DESK_X, Math.min(DESK_X, b.x + (dx / d) * 0.3));
+      b.tz = Math.max(-DESK_Z, Math.min(DESK_Z, b.z + (dz / d) * 0.3));
+      fleeing = true;
+      b.pause = 0;
     }
   }
+  if (smelling) { b.tx = smelling.x; b.tz = smelling.z; b.pause = 0; }
+  else if (b.mode === 'hungry' && !fleeing) { b.tx = PLATE.x; b.tz = PLATE.z; b.pause = 0; }
+
   let speed = 0;
   if (b.pause > 0) {
     b.pause -= dt;
   } else {
     const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);
-    if (d < 0.03) {
+    if (d < 0.03 && b.mode === 'wander' && !smelling) {
       newTarget(b);
       if (Math.random() < 0.5) b.pause = 0.3 + Math.random() * 1.5; // les cafards s'arrêtent souvent
     }
@@ -842,7 +1226,7 @@ function stepBug(b, dt) {
     let diff = want - b.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     b.heading += Math.max(-6 * dt, Math.min(6 * dt, diff));
-    speed = b.t.speed * (fleeing ? 1.6 : 1);
+    speed = b.t.speed * (fleeing ? 1.6 : b.mode === 'hungry' ? 1.2 : 1) * slow;
   }
   b.x += (Math.cos(b.heading) * speed + b.kx) * dt;
   b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
@@ -853,9 +1237,152 @@ function stepBug(b, dt) {
   b.z = Math.max(-DESK_Z + r, Math.min(DESK_Z - r, b.z));
   for (const o of OBSTACLES) {
     const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
-    if (d < min && d > 0) { b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min; newTarget(b); }
+    if (d < min && d > 0) {
+      if (o.kind === 'plate' && b.mode === 'hungry') { biteSnack(b); return; }
+      b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min;
+      if (b.mode === 'wander') newTarget(b);
+    }
   }
   b.walk += dt * (speed * 160 + (Math.hypot(b.kx, b.kz) > 0.05 ? 20 : 0));
+}
+
+// =====================================================================
+//  VAGUES, BONUS ET DÉFAITE
+// =====================================================================
+let paused = false;
+const modal = document.getElementById('modal'), modalBox = document.getElementById('modalBox');
+
+function availablePerks() { return PERKS.filter(p => perkLevel(p.id) < p.max); }
+function pickChoices() {
+  const pool = availablePerks().slice();
+  const out = [];
+  while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+  return out;
+}
+
+function endWave() {
+  const run = state.run;
+  const reward = Math.round(0.5 * Math.pow(run.wave, 1.5) * S.bounty);
+  state.money += reward;
+  state.totalMoney += reward;
+  run.money += reward;
+  run.snack = Math.min(run.maxSnack, run.snack + 2);
+  updateCookies();
+  run.wave++;
+  run.waveTime = 0;
+  run.raidsSent = 0;
+  if (run.wave > state.bestWave) { state.bestWave = run.wave; refreshStats(); }
+  run.choice = pickChoices();
+  save();
+  showPerkChoice(reward);
+}
+
+function showPerkChoice(reward) {
+  const run = state.run;
+  if (!run.choice || !run.choice.length) { run.choice = null; return; }
+  paused = true;
+  charging = false;
+  modalBox.className = 'modalBox';
+  modalBox.replaceChildren();
+  const h = document.createElement('h2');
+  h.textContent = `Vague ${run.wave - 1} repoussée !`;
+  const lead = document.createElement('p');
+  lead.className = 'lead';
+  lead.textContent = (reward ? `+${fmtMoney(reward)} · ` : '') + `+2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
+  const grid = document.createElement('div');
+  grid.className = 'perkChoices';
+  for (const id of run.choice) {
+    const p = PERKS.find(x => x.id === id);
+    const n = perkLevel(id) + 1;
+    const btn = document.createElement('button');
+    btn.className = 'perk';
+    btn.innerHTML = '<div class="ico"></div><div class="pname"></div><div class="pdesc"></div><div class="pstack"></div>';
+    btn.querySelector('.ico').textContent = p.icon;
+    btn.querySelector('.pname').textContent = p.name;
+    btn.querySelector('.pdesc').textContent = p.desc(n);
+    btn.querySelector('.pstack').textContent = p.max > 1 ? `Niveau ${n} / ${p.max}` : '';
+    btn.onclick = () => takePerk(id);
+    grid.appendChild(btn);
+  }
+  modalBox.append(h, lead, grid);
+  modal.classList.add('open');
+}
+
+function takePerk(id) {
+  const run = state.run;
+  run.perks[id] = perkLevel(id) + 1;
+  if (id === 'cookies') { run.maxSnack += 4; run.snack = Math.min(run.maxSnack, run.snack + 6); updateCookies(); }
+  if (id === 'glu') addTrap();
+  run.choice = null;
+  refreshStats();
+  save();
+  modal.classList.remove('open');
+  paused = false;
+  const p = PERKS.find(x => x.id === id);
+  banner(`${p.icon} ${p.name}`, `Vague ${run.wave} : ça repart !`);
+  shopDirty = true;
+}
+
+function defeat() {
+  const run = state.run;
+  if (run.over) return;
+  run.over = true;
+  paused = true;
+  charging = false;
+  state.bestWave = Math.max(state.bestWave, run.wave);
+  save();
+  modalBox.className = 'modalBox defeat';
+  modalBox.replaceChildren();
+  const h = document.createElement('h2');
+  h.textContent = 'Défaite ! 🪳🍪';
+  const lead = document.createElement('p');
+  lead.className = 'lead';
+  lead.textContent = 'Les cafards ont dévoré tout ton goûter.';
+  const sum = document.createElement('div');
+  sum.className = 'summary';
+  const perkNames = Object.entries(run.perks).map(([id, n]) => { const p = PERKS.find(x => x.id === id); return `${p.icon} ${p.name}${n > 1 ? ' ×' + n : ''}`; });
+  for (const [k, v] of [
+    ['Vague atteinte', `${run.wave}`],
+    ['Record', `vague ${state.bestWave}`],
+    ['Insectes écrasés', fmtInt(run.kills)],
+    ['Argent gagné', fmtMoney(run.money)],
+    ['Bonus perdus', perkNames.length ? perkNames.join(', ') : 'aucun'],
+    ['Bonus de record (permanent)', `+${Math.round((recordBonus() - 1) * 100)} % d’argent`],
+  ]) {
+    const r = document.createElement('div');
+    r.className = 'statRow';
+    const a = document.createElement('span'); a.textContent = k;
+    const b = document.createElement('span'); b.textContent = v;
+    r.append(a, b);
+    sum.appendChild(r);
+  }
+  const note = document.createElement('p');
+  note.className = 'lead';
+  note.textContent = 'Tes améliorations de l’atelier et ton argent sont conservés.';
+  const btn = document.createElement('button');
+  btn.className = 'bigBtn';
+  btn.textContent = 'Nouvelle partie';
+  btn.onclick = restartRun;
+  modalBox.append(h, lead, sum, note, btn);
+  modal.classList.add('open');
+}
+
+function restartRun() {
+  state.runs++;
+  state.run = newRun();
+  for (let i = bugs.length - 1; i >= 0; i--) removeBug(i);
+  for (const t of tops) disposeTop(t);
+  tops.length = 0;
+  cooldown = 0;
+  spawnTimer = 0;
+  rebuildTraps();
+  updateCookies();
+  refreshStats();
+  save();
+  modal.classList.remove('open');
+  paused = false;
+  banner('Nouvelle partie', 'Protège ton goûter !');
+  shopDirty = true;
 }
 
 // =====================================================================
@@ -875,7 +1402,7 @@ function pointerToDesk(e) {
   if (!raycaster.ray.intersectPlane(deskPlane, hit)) return;
   aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hit.x)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hit.z)));
 }
-function isReady() { return tops.length === 0 && cooldown <= 0; }
+function isReady() { return tops.length === 0 && cooldown <= 0 && !paused; }
 function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
 
 const canvas = renderer.domElement;
@@ -919,11 +1446,14 @@ $('closeShop').onclick = () => shopEl.classList.remove('open');
 function buy(u) {
   const c = costOf(u);
   if (state.money < c || lv(u.id) >= u.max) return;
+  const before = u.skins ? skinTier(u.id) : 0;
   state.money -= c;
   state.levels[u.id] = lv(u.id) + 1;
   refreshStats();
+  updateLauncherSkin();
   save();
   shopDirty = true;
+  if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
 }
 
 function renderShop() {
@@ -945,6 +1475,8 @@ function renderShop() {
     desc.textContent = locked ? `🔒 Débloqué au ${u.lockText}` : u.desc;
     const val = document.createElement('div');
     val.className = 'val';
+    const skin = document.createElement('div');
+    skin.className = 'skin';
     const btn = document.createElement('button');
     if (locked) {
       card.classList.add('locked');
@@ -959,12 +1491,18 @@ function renderShop() {
         b.textContent = u.fmt(next);
         val.append(b);
       }
+      if (u.skins) {
+        const t = skinTier(u.id);
+        const nxt = u.skins[t + 1];
+        skin.textContent = `🎨 ${u.skins[t][1]}` + (nxt ? ` · prochain : ${nxt[1]} (niv. ${nxt[0]})` : ' · skin max');
+      }
       btn.textContent = maxed ? 'MAX' : fmtMoney(costOf(u));
       btn.dataset.cost = maxed ? '' : costOf(u);
       btn.disabled = maxed || state.money < costOf(u);
       btn.onclick = () => buy(u);
     }
     card.append(name, btn, desc, val);
+    if (skin.textContent) card.append(skin);
     shopList.appendChild(card);
   }
 }
@@ -984,6 +1522,15 @@ function renderStats() {
       shopList.appendChild(r);
     }
   };
+  const run = state.run;
+  rows('Partie en cours', [
+    ['Vague', `${run.wave} (record : ${state.bestWave})`],
+    ['Goûter', `${Math.max(0, run.snack)} / ${run.maxSnack} 🍪`],
+    ['Insectes affamés cette vague', `${waveRaiders()}`],
+    ['Bonus', Object.keys(run.perks).length ? Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? '×' + n : '')).join(' ') : 'aucun'],
+    ['Insectes écrasés', fmtInt(run.kills)],
+    ['Argent gagné', fmtMoney(run.money)],
+  ]);
   rows('Toupie', [
     ['Diamètre', `${(S.radius * 200).toFixed(1)} cm`],
     ['Poids', `${Math.round(S.mass)} g`],
@@ -991,12 +1538,13 @@ function renderStats() {
     ['Endurance', `${estimatedSpin(S).toFixed(1)} s`],
     ['Frottement de la pointe', S.linFric.toFixed(2)],
     ['Multiplicateur de dégâts', `×${S.blades.toFixed(2)}`],
-    ['Dégâts par contact (plein régime)', (1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * Math.sqrt(S.rpm / 600)).toFixed(2)],
+    ['Dégâts par contact (plein régime)', baseDamage(1, 0).toFixed(2)],
     ['Seuil de chute', `${Math.round(S.fallRatio * 100)} %`],
     ['Rebond', `${Math.round(S.restitution * 100)} %`],
     ['Agressivité', S.chase.toFixed(2)],
     ['Coup critique', `${Math.round(S.crit * 100)} %`],
   ]);
+  rows('Apparence', UPGRADES.filter(u => u.skins).map(u => [u.name, u.skins[skinTier(u.id)][1]]));
   rows('Lanceur', [
     ['Rotation au lancer', `${fmtInt(S.rpm)} tr/min`],
     ['Vitesse au lancer', `${(S.speed * 100).toFixed(0)} cm/s`],
@@ -1006,13 +1554,15 @@ function renderStats() {
     ['Lanceur automatique', S.auto ? 'oui' : 'non'],
   ]);
   rows('Bureau', [
-    ['Apparition', `${S.spawnRate.toFixed(2)} insecte/s`],
-    ['Insectes max', S.maxBugs + infestLevel() * 2],
-    ['Prime', `×${S.bounty.toFixed(1)}`],
+    ['Apparition', `${(S.spawnRate * waveSpawnMult()).toFixed(2)} insecte/s`],
+    ['Insectes max', bugCap()],
+    ['Prime (avec bonus de record)', `×${S.bounty.toFixed(2)}`],
     ['Combo', `+${Math.round(S.comboBonus * 100)} % (fenêtre ${S.comboWindow.toFixed(1)} s)`],
   ]);
-  rows('Partie', [
+  rows('Carrière', [
     ['Argent gagné au total', fmtMoney(state.totalMoney)],
+    ['Parties jouées', fmtInt(state.runs)],
+    ['Meilleure vague', state.bestWave],
     ['Lancers', fmtInt(state.launches)],
     ['Insectes écrasés', fmtInt(state.kills)],
     ['Meilleur combo', `×${state.bestCombo}`],
@@ -1032,12 +1582,19 @@ function renderStats() {
 }
 
 function updateHud() {
+  const run = state.run;
   $('money').textContent = fmtMoney(state.money);
   $('killsLine').textContent = `${fmtInt(state.kills)} insecte${state.kills > 1 ? 's' : ''} écrasé${state.kills > 1 ? 's' : ''} · ${fmtInt(state.launches)} lancer${state.launches > 1 ? 's' : ''}`;
+  $('snackText').textContent = `${Math.max(0, run.snack)} / ${run.maxSnack}`;
+  $('snackBar').style.width = `${(Math.max(0, run.snack) / run.maxSnack) * 100}%`;
+  $('waveText').textContent = `🌊 Vague ${run.wave}`;
+  $('waveTimer').textContent = `${Math.ceil(WAVE_LEN - run.waveTime)} s`;
+  $('waveBar').style.width = `${(run.waveTime / WAVE_LEN) * 100}%`;
   const l = infestLevel();
-  $('infestName').textContent = `Infestation niv. ${l + 1} — ${BUG_TYPES[l].name}`;
+  $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
   const next = INFEST_THRESHOLDS[l + 1];
   $('infestBar').style.width = next ? `${((state.kills - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
+  $('perksLine').textContent = Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? n : '')).join(' ');
 
   // Boutons d'achat : activés/désactivés selon l'argent, sans tout reconstruire
   let canBuy = false;
@@ -1053,7 +1610,10 @@ function updateHud() {
   // Message d'état
   let msg;
   const alive = tops.filter(t => !t.falling);
-  if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
+  const hungry = bugs.filter(b => b.mode === 'hungry' && !b.dying && !b.gone).length;
+  if (paused) msg = run.over ? 'Défaite…' : 'Choisis un bonus';
+  else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
+  else if (hungry && !alive.length && cooldown <= 0) msg = `⚠️ ${hungry} insecte${hungry > 1 ? 's' : ''} affamé${hungry > 1 ? 's' : ''} (en rouge) vers ton goûter !`;
   else if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min`;
   else if (tops.length) msg = 'La toupie est tombée…';
   else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s`;
@@ -1075,19 +1635,31 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  update(dt);
+  if (!paused) update(dt);
+  else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); }
   renderer.render(scene, camera);
 }
 
 function update(dt) {
   gameTime += dt;
+  const run = state.run;
+
+  // Vagues
+  run.waveTime += dt;
+  if (run.waveTime >= WAVE_LEN) { endWave(); return; }
+
+  // Raids : les affamés arrivent à intervalles réguliers pendant la vague
+  const raiders = waveRaiders();
+  if (run.raidsSent < raiders && run.waveTime >= (WAVE_LEN * (run.raidsSent + 0.5)) / (raiders + 0.5)) {
+    run.raidsSent++;
+    spawnBug(true);
+  }
 
   // Apparition des insectes
-  const cap = S.maxBugs + infestLevel() * 2;
-  spawnTimer += dt * S.spawnRate;
+  spawnTimer += dt * S.spawnRate * waveSpawnMult();
   while (spawnTimer >= 1) {
     spawnTimer -= 1;
-    if (bugs.filter(b => !b.dying && !b.leaving).length < cap) spawnBug();
+    if (bugs.filter(b => !b.dying && b.mode !== 'leaving' && !b.gone).length < bugCap()) spawnBug();
   }
 
   // Physique en petits pas pour éviter que la toupie traverse les insectes
@@ -1097,6 +1669,7 @@ function update(dt) {
     for (const top of tops) stepTop(top, h, gameTime);
     stepTopsTogether();
     for (const b of bugs) stepBug(b, h);
+    if (paused) break; // défaite pendant ce pas
   }
 
   // Animation des toupies
@@ -1104,7 +1677,7 @@ function update(dt) {
     const ratio = Math.max(0, top.spin / top.launchSpin);
     const r = S.radius;
     top.tilt.position.set(top.x, 0, top.z);
-    top.spinner.scale.set(r, r * 0.95, r);
+    top.tilt.scale.set(r, r * 0.95, r);
     if (!top.falling) {
       top.angle += (6 + 40 * ratio) * dt;
       top.prec += (5 + 8 * ratio) * dt;
@@ -1120,20 +1693,37 @@ function update(dt) {
       if (top.falling > 1.9) top.dead = true;
     }
     top.spinner.rotation.y = top.angle;
+    top.gyro.rotation.y = -top.angle * 0.15;
+    if (top.flame) top.flame.scale.set(1, 0.8 + Math.random() * 0.5, 1);
+    if (top.aura) { top.aura.rotation.z += dt * 3; top.aura.material.opacity = 0.35 + 0.25 * Math.sin(gameTime * 8); }
+    if (top.smell) {
+      top.smell.visible = !top.falling;
+      top.smell.position.set(top.x, 0.003, top.z);
+      const sr = S.smellRadius + S.radius;
+      top.smell.scale.setScalar(sr * (0.95 + 0.05 * Math.sin(gameTime * 4)));
+    }
+    if (top.trail) {
+      const p = top.trail.geometry.attributes.position;
+      if (!top.trailInit) { for (let i = 0; i < p.count; i++) p.setXYZ(i, top.x, 0.01, top.z); top.trailInit = true; }
+      for (let i = p.count - 1; i > 0; i--) p.setXYZ(i, p.getX(i - 1), p.getY(i - 1), p.getZ(i - 1));
+      p.setXYZ(0, top.x, 0.01, top.z);
+      p.needsUpdate = true;
+      top.trail.visible = !top.falling;
+    }
   }
   for (let i = tops.length - 1; i >= 0; i--) {
     if (tops[i].dead) {
-      scene.remove(tops[i].tilt);
-      tops[i].tilt.traverse(o => { if (o.isMesh) { o.material.map?.dispose(); o.material.dispose(); } });
+      disposeTop(tops[i]);
       tops.splice(i, 1);
       if (tops.length === 0) cooldown = S.cooldown;
     }
   }
   if (tops.length === 0 && cooldown > 0) cooldown -= dt;
 
-  // Lanceur automatique
+  // Lanceur automatique (vise en priorité les affamés)
   if (S.auto && isReady() && !charging && gameTime - lastInput > 1.5) {
-    const target = bugs.find(b => !b.dying);
+    const alive = bugs.filter(b => !b.dying && !b.gone);
+    const target = alive.find(b => b.mode === 'hungry') || alive[0];
     const aim = target ? new THREE.Vector2(target.x, target.z) : new THREE.Vector2((Math.random() - 0.5) * 0.8, -0.2);
     launchTops(aim, 0.85, false);
   }
@@ -1158,13 +1748,7 @@ function update(dt) {
   camera.getWorldQuaternion(camQuat);
   for (let i = bugs.length - 1; i >= 0; i--) {
     const b = bugs[i];
-    if (b.gone) {
-      scene.remove(b.group, b.hpBar.g);
-      b.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
-      b.hpBar.fill.material.dispose();
-      bugs.splice(i, 1);
-      continue;
-    }
+    if (b.gone) { removeBug(i); continue; }
     b.group.position.set(b.x, 0, b.z);
     b.group.rotation.y = -b.heading;
     b.legs.forEach((leg, k) => { leg.rotation.y = Math.sin(b.walk + k * Math.PI * 0.5 + (k % 2) * Math.PI) * 0.45; });
@@ -1182,21 +1766,23 @@ function update(dt) {
       b.dying += dt;
       const s = b.t.r * BUG_VISUAL;
       b.group.scale.set(s * (1 + b.dying), s * Math.max(0.1, 1 - b.dying * 4), s * (1 + b.dying));
-      if (b.dying > 0.3) {
-        scene.remove(b.group, b.hpBar.g);
-        b.group.traverse(o => { if (o.isMesh && o.material !== hpBgMat) o.material.dispose(); });
-        b.hpBar.fill.material.dispose();
-        bugs.splice(i, 1);
-      }
+      if (b.dying > 0.3) removeBug(i);
     }
   }
 
-  // Taches qui s'effacent
+  // Taches et ondes de choc qui s'effacent
   for (let i = splats.length - 1; i >= 0; i--) {
     const s = splats[i];
     s.life -= dt;
     s.m.material.opacity = Math.min(0.55, s.life / 2);
     if (s.life <= 0) { scene.remove(s.m); s.m.material.dispose(); splats.splice(i, 1); }
+  }
+  for (let i = shocks.length - 1; i >= 0; i--) {
+    const s = shocks[i];
+    s.t += dt;
+    s.m.scale.setScalar(s.r * Math.min(1, s.t / 0.25));
+    s.m.material.opacity = Math.max(0, 0.9 - s.t * 2);
+    if (s.t > 0.5) { scene.remove(s.m); s.m.material.dispose(); shocks.splice(i, 1); }
   }
 
   // Interface (pas à chaque image, pour économiser la batterie)
@@ -1211,11 +1797,20 @@ window.addEventListener('resize', placeCamera);
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 placeCamera();
+updateLauncherSkin();
+rebuildTraps();
+updateCookies();
 updateHud();
+// Reprise d'une partie interrompue pendant un choix de bonus ou une défaite
+if (state.run.over) { state.run.over = false; defeat(); }
+else if (state.run.choice) showPerkChoice(0);
 requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
-window.__dbg = { state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, buy, costOf, infestLevel, refreshStats, camera, THREE };
+window.__dbg = {
+  state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
+  refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
+};
 </script>
 </body>
 </html>
