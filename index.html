@@ -30,8 +30,8 @@
   .hudRow b { font-variant-numeric: tabular-nums; }
   .bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin-top: 3px; }
   .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
-  #snackBar { background: #d9a05b; }
-  #waveBar { background: #7fb2ff; transition: none; }
+  #quotaBar { background: var(--red); }
+  #quotaBar.done { background: var(--green); }
   #hud.hurt { animation: hurt .45s; }
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
   #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; min-height: 0; }
@@ -84,7 +84,6 @@
     text-shadow: 0 2px 4px rgba(0,0,0,.8); white-space: nowrap; animation: rise 1s ease-out forwards; }
   .pop.big { font-size: 26px; color: var(--green); }
   .pop.crit { color: var(--red); font-size: 18px; }
-  .pop.bite { color: #ffb36b; font-size: 20px; }
   @keyframes rise { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
 
   #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
@@ -130,10 +129,9 @@
 <div id="hud">
   <div id="money">0 $</div>
   <div class="sub" id="killsLine"></div>
-  <div class="hudRow"><span>🍪 Goûter</span><b id="snackText"></b></div>
-  <div class="bar"><div id="snackBar"></div></div>
-  <div class="hudRow"><span id="waveText"></span><b id="waveTimer"></b></div>
-  <div class="bar"><div id="waveBar"></div></div>
+  <div class="hudRow"><span id="waveText"></span><b id="launchesText"></b></div>
+  <div class="hudRow"><span>🎯 Objectif</span><b id="quotaText"></b></div>
+  <div class="bar"><div id="quotaBar"></div></div>
   <div class="hudRow"><span id="infestName"></span></div>
   <div class="bar"><div id="infestBar"></div></div>
   <div id="perksLine"></div>
@@ -167,28 +165,25 @@ import * as THREE from 'three';
 const DESK_X = 0.78;          // demi-largeur du bureau (m)
 const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
 const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
-const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter, à défendre
 const OBSTACLES = [            // objets posés sur le bureau (la toupie rebondit dessus)
   { x: 0.60, z: -0.30, r: 0.045, h: 0.10, color: 0xd9534f, kind: 'mug' },
   { x: -0.62, z: -0.28, r: 0.04, h: 0.11, color: 0x3b6ea5, kind: 'pot' },
-  { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, color: 0xf2efe8, kind: 'plate' },
 ];
 const SAVE_KEY = 'toupie-cafards-save-v1';
 const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
-const WAVE_LEN = 40;           // durée d'une vague (s)
-const SNACK_MAX = 20;          // bouchées du goûter au début d'une partie
-const COMBO_CAP = 4;           // le bonus de combo ne dépasse jamais ×4
+const WAVE_LAUNCHES = 5;       // lancers disponibles par vague pour atteindre l'objectif
+const COMBO_CAP = 4;          // le bonus de combo ne dépasse jamais ×4
 
 // =====================================================================
 //  INSECTES
 // =====================================================================
 const BUG_TYPES = [
-  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
 ];
 // Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
 const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
@@ -275,12 +270,12 @@ const PERKS = [
     desc: n => `La toupie sent bon : certains insectes proches (${Math.round(smellChance(n) * 100)} %) s’approchent d’elle, dans un rayon de ${Math.round(smellRadius(n) * 100)} cm.` },
   { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+30 % de dégâts.' },
   { id: 'roulement', icon: '⚙️', name: 'Roulement à billes', max: 4, desc: () => 'La toupie tourne 25 % plus longtemps.' },
-  { id: 'cookies', icon: '🍪', name: 'Boîte de cookies', max: 5, desc: () => '+6 bouchées de goûter tout de suite, et +4 au maximum.' },
+  { id: 'lancer', icon: '🎯', name: 'Lancer en plus', max: 3, desc: () => '+1 lancer à chaque vague pour atteindre l’objectif.' },
   { id: 'glu', icon: '🪤', name: 'Piège à glu', max: 3, desc: () => 'Pose un piège collant sur le bureau : les insectes y avancent 4 fois moins vite.' },
   { id: 'or', icon: '💰', name: 'Ruée vers l’or', max: 5, desc: () => '+25 % d’argent par insecte.' },
   { id: 'jumelle', icon: '👯', name: 'Toupie jumelle', max: 3, desc: () => '25 % de chance de lancer une toupie en plus.' },
   { id: 'onde', icon: '💥', name: 'Onde de choc', max: 3, desc: () => 'Quand la toupie tombe, elle explose et blesse les insectes autour.' },
-  { id: 'spray', icon: '🧴', name: 'Spray anti-faim', max: 3, desc: () => 'Les affamés traînent 30 % plus longtemps avant de foncer sur le goûter.' },
+  { id: 'spray', icon: '🧴', name: 'Insecticide', max: 3, desc: () => 'Les insectes avancent 15 % moins vite et fuient moins bien.' },
   { id: 'ressort', icon: '🌀', name: 'Ressort turbo', max: 4, desc: () => '+20 % d’élan et +15 % de rotation au lancer.' },
   { id: 'braise', icon: '🔥', name: 'Combo brûlant', max: 3, desc: () => '+10 % de bonus par insecte dans un combo.' },
   { id: 'epines', icon: '🦔', name: 'Épines empoisonnées', max: 3, desc: () => '+10 % de chance de coup critique.' },
@@ -318,7 +313,7 @@ function computeStats(L, P = perkLevel) {
     smellChance: P('odeur') ? smellChance(P('odeur')) : 0,
     twinChance: 0.25 * P('jumelle'),
     shockRadius: P('onde') ? 0.07 + 0.03 * P('onde') : 0,
-    hungerMult: Math.pow(1.3, P('spray')),
+    bugSpeed: Math.pow(0.85, P('spray')),
   };
   return s;
 }
@@ -331,7 +326,7 @@ function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
 //  SAUVEGARDE
 // =====================================================================
 function newRun() {
-  return { wave: 1, waveTime: 0, raidsSent: 0, snack: SNACK_MAX, maxSnack: SNACK_MAX, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false };
+  return { wave: 1, launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false };
 }
 const state = {
   money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {},
@@ -342,9 +337,14 @@ function load() {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (data && typeof data === 'object') {
       for (const k of Object.keys(state)) if (k in data) state[k] = data[k];
-      state.run = Object.assign(newRun(), data.run || {});
+      // Une partie enregistrée avec l'ancien système (goûter) repart de zéro ; l'atelier est conservé
+      state.run = data.run && !('snack' in data.run) ? Object.assign(newRun(), data.run) : newRun();
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
+  // On ignore les bonus qui n'existent plus
+  const known = new Set(PERKS.map(p => p.id));
+  for (const id of Object.keys(state.run.perks)) if (!known.has(id)) delete state.run.perks[id];
+  if (state.run.choice) state.run.choice = state.run.choice.filter(id => known.has(id));
   if (!Number.isFinite(state.money)) state.money = 0;
 }
 let resetting = false; // pendant une remise à zéro, on n'enregistre plus rien
@@ -489,7 +489,6 @@ monitor.add(screenMesh, glow, stand);
 monitor.position.set(0, 0, -0.62);
 scene.add(monitor);
 for (const o of OBSTACLES) {
-  if (o.kind === 'plate') continue;
   const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 0.92, o.h, 24), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.45 }));
   m.position.set(o.x, o.h / 2, o.z);
   m.castShadow = m.receiveShadow = true;
@@ -504,35 +503,6 @@ for (const o of OBSTACLES) {
   }
 }
 
-// L'assiette du goûter et ses cookies
-const plate = new THREE.Mesh(new THREE.CylinderGeometry(PLATE.r, PLATE.r * 0.8, 0.012, 32), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.3 }));
-plate.position.set(PLATE.x, 0.006, PLATE.z);
-plate.receiveShadow = plate.castShadow = true;
-scene.add(plate);
-const cookieMat = new THREE.MeshStandardMaterial({ color: 0xc98a45, roughness: 0.9 });
-const chipMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.9 });
-const cookies = [];
-for (let i = 0; i < 5; i++) {
-  const c = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.008, 16), cookieMat);
-  c.add(body);
-  for (let k = 0; k < 4; k++) {
-    const chip = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 4), chipMat);
-    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.015;
-    chip.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r);
-    c.add(chip);
-  }
-  const a = (i / 4) * Math.PI * 2;
-  c.position.set(PLATE.x + (i === 4 ? 0 : Math.cos(a) * 0.03), 0.017 + (i === 4 ? 0.008 : 0), PLATE.z + (i === 4 ? 0 : Math.sin(a) * 0.03));
-  c.rotation.y = Math.random() * 3;
-  c.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  scene.add(c);
-  cookies.push(c);
-}
-function updateCookies() {
-  const shown = Math.ceil((Math.max(0, state.run.snack) / state.run.maxSnack) * 5);
-  cookies.forEach((c, i) => { c.visible = i < shown; });
-}
 
 // Lanceur posé devant le joueur (son apparence dépend de la Puissance)
 const launcher = new THREE.Group();
@@ -796,6 +766,7 @@ function launchTops(aim, power, perfect) {
   }
   if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
+  state.run.launchesLeft--;
   launcherKick = 1;
 }
 function disposeTop(top) {
@@ -887,8 +858,9 @@ let spawnTimer = 0;
 
 // Difficulté selon la vague
 function waveSpawnMult() { return 1 + 0.08 * (state.run.wave - 1); }
-// Nombre d'insectes affamés envoyés vers le goûter pendant la vague (les « raids »)
-function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
+// Objectif de la vague : X insectes à écraser en un nombre limité de lancers
+function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
+function waveQuota() { return Math.ceil(3 + Math.pow(state.run.wave - 1, 1.15)); }
 function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
 
 function pickBugType() {
@@ -904,11 +876,10 @@ function pickBugType() {
   return BUG_TYPES[0];
 }
 
-function spawnBug(hungry = false) {
+function spawnBug() {
   const t = pickBugType();
-  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur).
-  // Les affamés partent du fond, pour laisser le temps de les intercepter.
-  const side = hungry ? 0 : Math.floor(Math.random() * 3);
+  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur)
+  const side = Math.floor(Math.random() * 3);
   let x, z;
   if (side === 0) { x = (Math.random() * 2 - 1) * DESK_X; z = -DESK_Z + 0.01; }
   else if (side === 1) { x = -DESK_X + 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
@@ -919,7 +890,6 @@ function spawnBug(hungry = false) {
     t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
     tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
     life: 20 + Math.random() * 20, // au bout de ce temps, l'insecte s'en va
-    hunger: hungry ? 3 * S.hungerMult : Infinity, // les affamés hésitent un peu, puis filent vers le goûter
     mode: 'wander', gone: false, sniff: Math.random(),
   };
   newTarget(bug);
@@ -1003,6 +973,11 @@ function killBug(b) {
   state.totalMoney += gain;
   state.kills++;
   state.run.kills++;
+  state.run.waveKills++;
+  if (!state.run.cleared && state.run.waveKills >= waveQuota()) {
+    state.run.cleared = true;
+    banner('🎯 Objectif atteint !', 'La vague sera repoussée quand la toupie s’arrêtera');
+  }
   state.run.money += gain;
   state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
   popup('+' + fmtMoney(gain), b.x, b.z);
@@ -1045,19 +1020,6 @@ function shockwave(top) {
       if (b.hp <= 0) killBug(b);
     }
   }
-}
-
-// Un insecte affamé atteint le goûter
-function biteSnack(b) {
-  state.run.snack -= b.t.bite;
-  popup(`−${b.t.bite} 🍪`, PLATE.x, PLATE.z, 'bite');
-  const hud = document.getElementById('hud');
-  hud.classList.remove('hurt');
-  void hud.offsetWidth;
-  hud.classList.add('hurt');
-  updateCookies();
-  b.gone = true;
-  if (state.run.snack <= 0) defeat();
 }
 
 // =====================================================================
@@ -1167,18 +1129,12 @@ function stepTopsTogether() {
 
 function stepBug(b, dt) {
   if (b.dying || b.gone) return;
-  const slow = onTrap(b.x, b.z) ? 0.25 : 1;
+  const slow = (onTrap(b.x, b.z) ? 0.25 : 1) * S.bugSpeed;
 
-  // Les affamés partent manger le goûter ; les autres finissent par s'en aller
+  // Au bout d'un moment, l'insecte s'en va par le bord le plus proche
   if (b.mode === 'wander') {
-    b.hunger -= dt;
     b.life -= dt;
-    if (b.hunger <= 0) {
-      b.pause = 0;
-      b.mode = 'hungry';
-      b.mat.emissive.setHex(0x8a1a00); // les affamés rougissent : à écraser en priorité !
-      b.mat.emissiveIntensity = 0.7;
-    } else if (b.life <= 0) {
+    if (b.life <= 0) {
       b.pause = 0;
       b.mode = 'leaving';
       const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
@@ -1211,7 +1167,6 @@ function stepBug(b, dt) {
     }
   }
   if (smelling) { b.tx = smelling.x; b.tz = smelling.z; b.pause = 0; }
-  else if (b.mode === 'hungry' && !fleeing) { b.tx = PLATE.x; b.tz = PLATE.z; b.pause = 0; }
 
   let speed = 0;
   if (b.pause > 0) {
@@ -1226,7 +1181,7 @@ function stepBug(b, dt) {
     let diff = want - b.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     b.heading += Math.max(-6 * dt, Math.min(6 * dt, diff));
-    speed = b.t.speed * (fleeing ? 1.6 : b.mode === 'hungry' ? 1.2 : 1) * slow;
+    speed = b.t.speed * (fleeing ? 1.6 * S.bugSpeed : 1) * slow;
   }
   b.x += (Math.cos(b.heading) * speed + b.kx) * dt;
   b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
@@ -1238,7 +1193,6 @@ function stepBug(b, dt) {
   for (const o of OBSTACLES) {
     const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
-      if (o.kind === 'plate' && b.mode === 'hungry') { biteSnack(b); return; }
       b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min;
       if (b.mode === 'wander') newTarget(b);
     }
@@ -1260,24 +1214,31 @@ function pickChoices() {
   return out;
 }
 
+// Vague réussie : prime pour chaque lancer non utilisé, puis choix d'un bonus
 function endWave() {
   const run = state.run;
-  const reward = Math.round(0.5 * Math.pow(run.wave, 1.5) * S.bounty);
+  const spare = run.launchesLeft;
+  const reward = Math.round(0.5 * (1 + spare) * Math.pow(run.wave, 1.3) * S.bounty);
   state.money += reward;
   state.totalMoney += reward;
   run.money += reward;
-  run.snack = Math.min(run.maxSnack, run.snack + 2);
-  updateCookies();
   run.wave++;
-  run.waveTime = 0;
-  run.raidsSent = 0;
+  startWave();
   if (run.wave > state.bestWave) { state.bestWave = run.wave; refreshStats(); }
   run.choice = pickChoices();
+  run.lastReward = reward;
+  run.lastSpare = spare;
   save();
-  showPerkChoice(reward);
+  showPerkChoice();
+}
+function startWave() {
+  const run = state.run;
+  run.launchesLeft = waveLaunches();
+  run.waveKills = 0;
+  run.cleared = false;
 }
 
-function showPerkChoice(reward) {
+function showPerkChoice() {
   const run = state.run;
   if (!run.choice || !run.choice.length) { run.choice = null; return; }
   paused = true;
@@ -1288,7 +1249,8 @@ function showPerkChoice(reward) {
   h.textContent = `Vague ${run.wave - 1} repoussée !`;
   const lead = document.createElement('p');
   lead.className = 'lead';
-  lead.textContent = (reward ? `+${fmtMoney(reward)} · ` : '') + `+2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
+  lead.textContent = `+${fmtMoney(run.lastReward || 0)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
+    + ` · Choisis un bonus pour cette partie. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`;
   const grid = document.createElement('div');
   grid.className = 'perkChoices';
   for (const id of run.choice) {
@@ -1311,10 +1273,10 @@ function showPerkChoice(reward) {
 function takePerk(id) {
   const run = state.run;
   run.perks[id] = perkLevel(id) + 1;
-  if (id === 'cookies') { run.maxSnack += 4; run.snack = Math.min(run.maxSnack, run.snack + 6); updateCookies(); }
   if (id === 'glu') addTrap();
   run.choice = null;
   refreshStats();
+  run.launchesLeft = waveLaunches(); // le bonus « lancer en plus » compte dès cette vague
   save();
   modal.classList.remove('open');
   paused = false;
@@ -1334,10 +1296,10 @@ function defeat() {
   modalBox.className = 'modalBox defeat';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = 'Défaite ! 🪳🍪';
+  h.textContent = 'Défaite ! Le bureau est envahi 🪳🪳🪳';
   const lead = document.createElement('p');
   lead.className = 'lead';
-  lead.textContent = 'Les cafards ont dévoré tout ton goûter.';
+  lead.textContent = `Il fallait écraser ${waveQuota()} insectes en ${waveLaunches()} lancers : tu en as eu ${run.waveKills}.`;
   const sum = document.createElement('div');
   sum.className = 'summary';
   const perkNames = Object.entries(run.perks).map(([id, n]) => { const p = PERKS.find(x => x.id === id); return `${p.icon} ${p.name}${n > 1 ? ' ×' + n : ''}`; });
@@ -1376,12 +1338,12 @@ function restartRun() {
   cooldown = 0;
   spawnTimer = 0;
   rebuildTraps();
-  updateCookies();
   refreshStats();
+  startWave();
   save();
   modal.classList.remove('open');
   paused = false;
-  banner('Nouvelle partie', 'Protège ton goûter !');
+  banner('Nouvelle partie', `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
   shopDirty = true;
 }
 
@@ -1402,7 +1364,7 @@ function pointerToDesk(e) {
   if (!raycaster.ray.intersectPlane(deskPlane, hit)) return;
   aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hit.x)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hit.z)));
 }
-function isReady() { return tops.length === 0 && cooldown <= 0 && !paused; }
+function isReady() { return tops.length === 0 && cooldown <= 0 && !paused && state.run.launchesLeft > 0 && !state.run.cleared; }
 function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
 
 const canvas = renderer.domElement;
@@ -1525,8 +1487,8 @@ function renderStats() {
   const run = state.run;
   rows('Partie en cours', [
     ['Vague', `${run.wave} (record : ${state.bestWave})`],
-    ['Goûter', `${Math.max(0, run.snack)} / ${run.maxSnack} 🍪`],
-    ['Insectes affamés cette vague', `${waveRaiders()}`],
+    ['Objectif de la vague', `${run.waveKills} / ${waveQuota()} insectes`],
+    ['Lancers restants', `${run.launchesLeft} / ${waveLaunches()}`],
     ['Bonus', Object.keys(run.perks).length ? Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? '×' + n : '')).join(' ') : 'aucun'],
     ['Insectes écrasés', fmtInt(run.kills)],
     ['Argent gagné', fmtMoney(run.money)],
@@ -1585,11 +1547,12 @@ function updateHud() {
   const run = state.run;
   $('money').textContent = fmtMoney(state.money);
   $('killsLine').textContent = `${fmtInt(state.kills)} insecte${state.kills > 1 ? 's' : ''} écrasé${state.kills > 1 ? 's' : ''} · ${fmtInt(state.launches)} lancer${state.launches > 1 ? 's' : ''}`;
-  $('snackText').textContent = `${Math.max(0, run.snack)} / ${run.maxSnack}`;
-  $('snackBar').style.width = `${(Math.max(0, run.snack) / run.maxSnack) * 100}%`;
+  const quota = waveQuota();
   $('waveText').textContent = `🌊 Vague ${run.wave}`;
-  $('waveTimer').textContent = `${Math.ceil(WAVE_LEN - run.waveTime)} s`;
-  $('waveBar').style.width = `${(run.waveTime / WAVE_LEN) * 100}%`;
+  $('launchesText').textContent = `🚀 ${run.launchesLeft} lancer${run.launchesLeft > 1 ? 's' : ''}`;
+  $('quotaText').textContent = `${Math.min(run.waveKills, quota)} / ${quota}`;
+  $('quotaBar').style.width = `${Math.min(1, run.waveKills / quota) * 100}%`;
+  $('quotaBar').classList.toggle('done', run.cleared);
   const l = infestLevel();
   $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
   const next = INFEST_THRESHOLDS[l + 1];
@@ -1610,11 +1573,11 @@ function updateHud() {
   // Message d'état
   let msg;
   const alive = tops.filter(t => !t.falling);
-  const hungry = bugs.filter(b => b.mode === 'hungry' && !b.dying && !b.gone).length;
+  const missing = quota - run.waveKills;
   if (paused) msg = run.over ? 'Défaite…' : 'Choisis un bonus';
   else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
-  else if (hungry && !alive.length && cooldown <= 0) msg = `⚠️ ${hungry} insecte${hungry > 1 ? 's' : ''} affamé${hungry > 1 ? 's' : ''} (en rouge) vers ton goûter !`;
-  else if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min`;
+  else if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
+  else if (!run.cleared && run.launchesLeft === 1 && cooldown <= 0) msg = `⚠️ Dernier lancer ! Il en faut encore ${missing}`;
   else if (tops.length) msg = 'La toupie est tombée…';
   else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s`;
   else if (S.auto) msg = 'Lanceur automatique prêt (appuie sur le bureau pour lancer toi-même)';
@@ -1643,17 +1606,6 @@ function frame(now) {
 function update(dt) {
   gameTime += dt;
   const run = state.run;
-
-  // Vagues
-  run.waveTime += dt;
-  if (run.waveTime >= WAVE_LEN) { endWave(); return; }
-
-  // Raids : les affamés arrivent à intervalles réguliers pendant la vague
-  const raiders = waveRaiders();
-  if (run.raidsSent < raiders && run.waveTime >= (WAVE_LEN * (run.raidsSent + 0.5)) / (raiders + 0.5)) {
-    run.raidsSent++;
-    spawnBug(true);
-  }
 
   // Apparition des insectes
   spawnTimer += dt * S.spawnRate * waveSpawnMult();
@@ -1720,10 +1672,17 @@ function update(dt) {
   }
   if (tops.length === 0 && cooldown > 0) cooldown -= dt;
 
-  // Lanceur automatique (vise en priorité les affamés)
+  // Fin de vague, une fois toutes les toupies tombées :
+  // objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi
+  if (tops.length === 0) {
+    if (run.cleared) { endWave(); return; }
+    if (run.launchesLeft <= 0) { defeat(); return; }
+  }
+
+  // Lanceur automatique
   if (S.auto && isReady() && !charging && gameTime - lastInput > 1.5) {
     const alive = bugs.filter(b => !b.dying && !b.gone);
-    const target = alive.find(b => b.mode === 'hungry') || alive[0];
+    const target = alive[Math.floor(Math.random() * alive.length)];
     const aim = target ? new THREE.Vector2(target.x, target.z) : new THREE.Vector2((Math.random() - 0.5) * 0.8, -0.2);
     launchTops(aim, 0.85, false);
   }
@@ -1799,7 +1758,6 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 placeCamera();
 updateLauncherSkin();
 rebuildTraps();
-updateCookies();
 updateHud();
 // Reprise d'une partie interrompue pendant un choix de bonus ou une défaite
 if (state.run.over) { state.run.over = false; defeat(); }
