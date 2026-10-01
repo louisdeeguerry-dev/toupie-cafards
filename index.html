@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Toupie contre Cafards</title>
+<style>
+  :root {
+    --panel: rgba(20, 16, 12, 0.88);
+    --panel-2: rgba(255, 255, 255, 0.06);
+    --text: #f5efe6;
+    --muted: #b9ab98;
+    --gold: #ffc94a;
+    --green: #5fd38a;
+    --red: #ff6b5b;
+    --accent: #ff9f43;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; color: var(--text);
+    font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  #game { position: fixed; inset: 0; touch-action: none; }
+  #game canvas { display: block; }
+
+  #hud { position: fixed; top: 10px; left: 10px; padding: 10px 14px; background: var(--panel); border-radius: 12px;
+    pointer-events: none; min-width: 190px; }
+  #money { font-size: 26px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+  #hud .sub { color: var(--muted); font-size: 13px; }
+  .infest { margin-top: 6px; font-size: 13px; }
+  .bar { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+
+  #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
+    border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px);
+    overflow: hidden; text-overflow: ellipsis; }
+
+  #gauge { position: fixed; right: 18px; top: 50%; transform: translateY(-50%); width: 26px; height: 46vh; max-height: 300px;
+    background: var(--panel); border-radius: 13px; padding: 4px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+  #gauge.on { opacity: 1; }
+  #gaugeInner { position: relative; width: 100%; height: 100%; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,0.08); }
+  #gaugePerfect { position: absolute; left: 0; right: 0; top: 0; background: rgba(95, 211, 138, 0.45); }
+  #gaugeFill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #ff9f43, #ffe08a); }
+
+  #shopBtn { position: fixed; top: 10px; right: 10px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--accent);
+    color: #1a1410; font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  #shopBtn .dot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-left: 6px; vertical-align: middle; }
+  #shopBtn.can .dot { display: inline-block; }
+
+  #shop { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 100vw); background: var(--panel); backdrop-filter: blur(6px);
+    display: flex; flex-direction: column; transform: translateX(105%); transition: transform .2s ease; z-index: 5; }
+  #shop.open { transform: none; }
+  .shopHead { display: flex; align-items: center; gap: 6px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1; }
+  .tabs button, #closeShop { border: 0; border-radius: 8px; padding: 8px 4px; background: var(--panel-2); color: var(--text);
+    font-weight: 700; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .tabs button.active { background: var(--accent); color: #1a1410; }
+  #shopList { overflow-y: auto; padding: 10px; flex: 1; }
+  .card { background: var(--panel-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: grid;
+    grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+  .card .name { font-weight: 800; }
+  .card .lvl { color: var(--muted); font-weight: 600; font-size: 12px; margin-left: 4px; }
+  .card .desc { grid-column: 1; color: var(--muted); font-size: 12px; }
+  .card .val { grid-column: 1; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .card .val b { color: var(--green); }
+  .card button { grid-row: 1 / span 3; grid-column: 2; border: 0; border-radius: 9px; padding: 10px 12px; min-width: 86px;
+    font-weight: 800; font-size: 14px; cursor: pointer; background: var(--gold); color: #1a1410; font-variant-numeric: tabular-nums; }
+  .card button:disabled { background: rgba(255,255,255,.12); color: var(--muted); cursor: default; }
+  .card.locked { opacity: .55; }
+  .statRow { display: flex; justify-content: space-between; padding: 6px 2px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 14px; }
+  .statRow span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .statTitle { margin: 14px 0 4px; color: var(--accent); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  #resetBtn { margin-top: 18px; width: 100%; border: 1px solid var(--red); background: transparent; color: var(--red); border-radius: 9px;
+    padding: 10px; font-weight: 700; cursor: pointer; }
+
+  #popups { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .pop { position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 16px; color: var(--gold);
+    text-shadow: 0 2px 4px rgba(0,0,0,.8); white-space: nowrap; animation: rise 1s ease-out forwards; }
+  .pop.big { font-size: 26px; color: var(--green); }
+  .pop.crit { color: var(--red); font-size: 18px; }
+  @keyframes rise { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
+
+  #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
+    border: 2px solid var(--accent); border-radius: 14px; font-weight: 800; font-size: 18px; text-align: center; opacity: 0;
+    transition: opacity .3s, transform .3s; pointer-events: none; max-width: calc(100vw - 32px); }
+  #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #banner small { display: block; color: var(--muted); font-weight: 600; font-size: 13px; margin-top: 4px; }
+
+  @media (min-width: 1000px) {
+    #shop { transform: none; }
+    #shopBtn, #closeShop { display: none; }
+    #game { right: 380px; }
+    #status { left: calc(50% - 190px); }
+    #gauge { right: 398px; }
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="money">0 $</div>
+  <div class="sub" id="killsLine">0 cafard écrasé</div>
+  <div class="infest">
+    <div id="infestName"></div>
+    <div class="bar"><div id="infestBar"></div></div>
+  </div>
+</div>
+
+<div id="status"></div>
+<div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
+<button id="shopBtn">🛠 Atelier<span class="dot"></span></button>
+
+<aside id="shop">
+  <div class="shopHead">
+    <div class="tabs" id="tabs"></div>
+    <button id="closeShop" aria-label="Fermer">✕</button>
+  </div>
+  <div id="shopList"></div>
+</aside>
+
+<div id="popups"></div>
+<div id="banner"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// =====================================================================
+//  RÉGLAGES DU MONDE
+// =====================================================================
+const DESK_X = 0.78;          // demi-largeur du bureau (m)
+const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
+const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
+const OBSTACLES = [            // objets posés sur le bureau (la toupie rebondit dessus)
+  { x: 0.60, z: -0.30, r: 0.045, h: 0.10, color: 0xd9534f, kind: 'mug' },
+  { x: -0.62, z: -0.28, r: 0.04, h: 0.11, color: 0x3b6ea5, kind: 'pot' },
+];
+const SAVE_KEY = 'toupie-cafards-save-v1';
+const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
+
+// =====================================================================
+//  INSECTES
+// =====================================================================
+const BUG_TYPES = [
+  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,    speed: 0.13, reward: 5,    mass: 3,   color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+];
+// Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
+const INFEST_THRESHOLDS = [0, 25, 110, 380, 1100, 3200];
+
+// =====================================================================
+//  AMÉLIORATIONS (toutes les stats du jeu)
+// =====================================================================
+const TABS = [
+  { id: 'toupie', label: '🌀 Toupie' },
+  { id: 'lanceur', label: '🚀 Lanceur' },
+  { id: 'bureau', label: '🪳 Bureau' },
+  { id: 'stats', label: '📊 Stats' },
+];
+
+const UPGRADES = [
+  // --- Toupie ---
+  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 12, growth: 1.35, max: 40,
+    fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
+  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 15, growth: 1.4, max: 30,
+    fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
+  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 18, growth: 1.4, max: 35,
+    fmt: s => `${Math.round(s.mass)} g` },
+  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 20, growth: 1.4, max: 25,
+    fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
+  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 20, growth: 1.4, max: 40,
+    fmt: s => `×${s.blades.toFixed(2)} dégâts` },
+  { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.45, max: 30,
+    fmt: s => `−${Math.round((1 - s.inertia) * 100)} % de perte au choc` },
+  { id: 'equilibre', tab: 'toupie', name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.45, max: 25,
+    fmt: s => `tombe sous ${Math.round(s.fallRatio * 100)} %` },
+  { id: 'rebond', tab: 'toupie', name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 25, growth: 1.45, max: 12,
+    fmt: s => `${Math.round(s.restitution * 100)} % conservé` },
+  { id: 'agressivite', tab: 'toupie', name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.5, max: 15,
+    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
+    fmt: s => `attraction ${s.chase.toFixed(2)}` },
+  { id: 'critique', tab: 'toupie', name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.45, max: 15,
+    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
+    fmt: s => `${Math.round(s.crit * 100)} % de chance` },
+
+  // --- Lanceur ---
+  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 16, growth: 1.38, max: 40,
+    fmt: s => `${fmtInt(s.rpm)} tr/min` },
+  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 14, growth: 1.35, max: 30,
+    fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
+  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 15, growth: 1.5, max: 12,
+    fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
+  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 18, growth: 1.4, max: 20,
+    fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
+  { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
+    unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
+    fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
+  { id: 'auto', tab: 'lanceur', name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est prête.', base: 3000, growth: 1, max: 1,
+    unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
+    fmt: s => s.auto ? 'activé' : 'désactivé' },
+
+  // --- Bureau / économie ---
+  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 16, growth: 1.38, max: 30,
+    fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
+  { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 22, growth: 1.4, max: 25,
+    fmt: s => `${s.maxBugs} insectes max` },
+  { id: 'prime', tab: 'bureau', name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.45, max: 40,
+    fmt: s => `×${s.bounty.toFixed(1)} argent` },
+  { id: 'combo', tab: 'bureau', name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.5, max: 20,
+    fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
+];
+
+// Calcule toutes les stats à partir des niveaux d'amélioration
+function computeStats(L) {
+  return {
+    radius: 0.036 * (1 + 0.08 * L('diametre')),
+    mass: 20 * (1 + 0.15 * L('poids')),
+    inertia: 1 / (1 + 0.12 * L('inertie')),
+    decay: 0.17 / (1 + 0.15 * L('endurance')),
+    linFric: 0.75 / (1 + 0.12 * L('pointe')),
+    drift: 0.22 * (1 + 0.1 * L('pointe')),
+    blades: 1 + 0.25 * L('lames'),
+    fallRatio: 0.25 / (1 + 0.1 * L('equilibre')),
+    restitution: Math.min(0.95, 0.35 + 0.05 * L('rebond')),
+    chase: 0.12 * L('agressivite'),
+    crit: Math.min(0.45, 0.03 * L('critique')),
+    rpm: 600 * (1 + 0.18 * L('puissance')),
+    speed: 0.35 * (1 + 0.12 * L('elan')),
+    perfect: 0.06 + 0.02 * L('precision'),
+    cooldown: 2.5 / (1 + 0.2 * L('recharge')),
+    tops: 1 + L('multi'),
+    auto: L('auto') > 0,
+    spawnRate: 0.9 * (1 + 0.15 * L('appat')),
+    maxBugs: 12 + 2 * L('nid'),
+    bounty: 1 + 0.2 * L('prime'),
+    comboWindow: 1.2 + 0.2 * L('combo'),
+    comboBonus: 0.1 + 0.02 * L('combo'),
+  };
+}
+// Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
+function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
+
+// =====================================================================
+//  SAUVEGARDE
+// =====================================================================
+const state = { money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {} };
+function load() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (data && typeof data === 'object') {
+      for (const k of Object.keys(state)) if (k in data) state[k] = data[k];
+    }
+  } catch { /* pas de sauvegarde, ou stockage bloqué */ }
+  if (!Number.isFinite(state.money)) state.money = 0;
+}
+let resetting = false; // pendant une remise à zéro, on n'enregistre plus rien
+function save() {
+  if (resetting) return;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* stockage indisponible */ }
+}
+load();
+
+const lv = id => state.levels[id] || 0;
+let S = computeStats(lv);
+function refreshStats() { S = computeStats(lv); }
+function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
+function infestLevel() {
+  let l = 0;
+  for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.kills >= INFEST_THRESHOLDS[i]) l = i;
+  return l;
+}
+
+// =====================================================================
+//  FORMATAGE
+// =====================================================================
+const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+function fmtInt(n) { return nf.format(Math.floor(n)); }
+function fmtMoney(n) {
+  if (n >= 1e9) return nf1.format(n / 1e9) + ' Md $';
+  if (n >= 1e6) return nf1.format(n / 1e6) + ' M $';
+  return fmtInt(n) + ' $';
+}
+
+// =====================================================================
+//  SCÈNE 3D
+// =====================================================================
+const container = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a221c);
+scene.fog = new THREE.Fog(0x2a221c, 2.2, 4);
+
+const camera = new THREE.PerspectiveCamera(52, 1, 0.01, 10);
+function placeCamera() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  const aspect = w / h;
+  camera.aspect = aspect;
+  // Sur écran étroit (téléphone en portrait), vue plus plongeante
+  const k = Math.min(1, Math.max(0, (1.5 - aspect) / 1));
+  const target = new THREE.Vector3(0, 0, 0.02);
+  const dir = new THREE.Vector3(0, 0.95 + k * 0.6, 0.84 - k * 0.3).sub(target).normalize();
+  // On recule la caméra jusqu'à ce que les 4 coins du bureau et le lanceur tiennent dans l'écran
+  const corners = [[-DESK_X, -DESK_Z], [DESK_X, -DESK_Z], [-DESK_X, DESK_Z], [DESK_X, DESK_Z], [0, LAUNCH.y + 0.08]]
+    .map(([x, z]) => new THREE.Vector3(x, 0, z));
+  const v = new THREE.Vector3();
+  for (let dist = 0.9; dist < 6; dist += 0.03) {
+    camera.position.copy(target).addScaledVector(dir, dist);
+    camera.lookAt(target);
+    camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
+    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; })) break;
+  }
+}
+
+// Lumières
+scene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 0.75));
+const lamp = new THREE.DirectionalLight(0xffe2b8, 1.6);
+lamp.position.set(-0.6, 1.6, 0.4);
+lamp.castShadow = true;
+lamp.shadow.mapSize.set(1024, 1024);
+Object.assign(lamp.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1, near: 0.5, far: 3.5 });
+lamp.shadow.bias = -0.0005;
+scene.add(lamp);
+
+// Bureau en bois (texture générée)
+function woodTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#9b6a3e';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 140; i++) {
+    const y = Math.random() * 512;
+    g.strokeStyle = `rgba(${60 + Math.random() * 40}, ${35 + Math.random() * 20}, 15, ${0.08 + Math.random() * 0.18})`;
+    g.lineWidth = 1 + Math.random() * 3;
+    g.beginPath();
+    g.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x * 0.02 + i) * 4 + (Math.random() - 0.5) * 2);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 1);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const desk = new THREE.Mesh(
+  new THREE.BoxGeometry(DESK_X * 2 + 0.06, 0.04, DESK_Z * 2 + 0.06),
+  new THREE.MeshStandardMaterial({ map: woodTexture(), roughness: 0.75 })
+);
+desk.position.y = -0.02;
+desk.receiveShadow = true;
+scene.add(desk);
+
+// Petits rebords sur les côtés du bureau (la toupie rebondit dessus)
+const rimMat = new THREE.MeshStandardMaterial({ color: 0x5b3a1e, roughness: 0.6 });
+for (const [w, d, x, z] of [
+  [DESK_X * 2 + 0.06, 0.03, 0, -DESK_Z - 0.015], [DESK_X * 2 + 0.06, 0.03, 0, DESK_Z + 0.015],
+  [0.03, DESK_Z * 2, -DESK_X - 0.015, 0], [0.03, DESK_Z * 2, DESK_X + 0.015, 0],
+]) {
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(w, 0.018, d), rimMat);
+  rim.position.set(x, 0.009, z);
+  rim.castShadow = rim.receiveShadow = true;
+  scene.add(rim);
+}
+
+// Mur, écran d'ordinateur, mug, pot à crayons (décor)
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshStandardMaterial({ color: 0x4a5a52, roughness: 0.95 }));
+wall.position.set(0, 0.8, -0.85);
+scene.add(wall);
+const monitor = new THREE.Group();
+const screenMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.36, 0.025), new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.4 }));
+screenMesh.position.y = 0.3;
+const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.32), new THREE.MeshBasicMaterial({ color: 0x1f3550 }));
+glow.position.set(0, 0.3, 0.013);
+const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.04), new THREE.MeshStandardMaterial({ color: 0x222 }));
+stand.position.y = 0.06;
+monitor.add(screenMesh, glow, stand);
+monitor.position.set(0, 0, -0.62);
+scene.add(monitor);
+for (const o of OBSTACLES) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 0.92, o.h, 24), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.45 }));
+  m.position.set(o.x, o.h / 2, o.z);
+  m.castShadow = m.receiveShadow = true;
+  scene.add(m);
+  if (o.kind === 'pot') {
+    for (let i = 0; i < 4; i++) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.16, 6), new THREE.MeshStandardMaterial({ color: [0xffcc00, 0xe74c3c, 0x2ecc71, 0x3498db][i] }));
+      p.position.set(o.x + (i - 1.5) * 0.012, o.h + 0.03, o.z + (i % 2 ? 0.01 : -0.01));
+      p.rotation.z = (i - 1.5) * 0.15;
+      scene.add(p);
+    }
+  }
+}
+
+// Lanceur posé devant le joueur
+const launcher = new THREE.Group();
+const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.035, 0.09), new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5 }));
+lBody.position.y = 0.06;
+const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 8, 20), new THREE.MeshStandardMaterial({ color: 0x333 }));
+lRing.rotation.x = Math.PI / 2;
+lRing.position.set(0, 0.04, 0);
+launcher.add(lBody, lRing);
+launcher.position.set(LAUNCH.x, 0, LAUNCH.y + 0.03);
+scene.add(launcher);
+
+// Ligne de visée
+const aimGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const aimLine = new THREE.Line(aimGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }));
+aimLine.visible = false;
+scene.add(aimLine);
+
+// =====================================================================
+//  TOUPIES
+// =====================================================================
+function topTexture(hue) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  const colors = [`hsl(${hue},80%,55%)`, '#f4f1ea', `hsl(${(hue + 40) % 360},85%,50%)`, '#222'];
+  for (let i = 0; i < 8; i++) {
+    g.fillStyle = colors[i % colors.length];
+    g.fillRect(i * 32, 0, 32, 64);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const topProfile = [
+  [0, 0], [0.1, 0.04], [0.45, 0.22], [1, 0.4], [1, 0.5], [0.85, 0.58], [0.3, 0.62], [0.16, 0.66], [0.14, 0.95], [0.1, 1.0], [0, 1.0],
+].map(([x, y]) => new THREE.Vector2(x, y));
+const topGeo = new THREE.LatheGeometry(topProfile, 32);
+
+const tops = [];
+function makeTopMesh() {
+  const tilt = new THREE.Group();   // inclinaison (wobble)
+  const spinner = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({
+    map: topTexture((lv('poids') * 25 + lv('lames') * 40) % 360),
+    roughness: 0.35, metalness: Math.min(0.75, 0.1 + lv('poids') * 0.03),
+  }));
+  spinner.castShadow = true;
+  tilt.add(spinner);
+  // Lames visibles quand on les a améliorées
+  const nBlades = Math.min(8, Math.floor(lv('lames') / 3));
+  for (let i = 0; i < nBlades; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.08), new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.9, roughness: 0.25 }));
+    const a = (i / nBlades) * Math.PI * 2;
+    b.position.set(Math.cos(a) * 1.05, 0.45, Math.sin(a) * 1.05);
+    b.rotation.y = -a;
+    spinner.add(b);
+  }
+  scene.add(tilt);
+  return { tilt, spinner };
+}
+
+function launchTops(aim, power, perfect) {
+  const dir = new THREE.Vector2(aim.x - LAUNCH.x, aim.y - LAUNCH.y);
+  if (dir.y > -0.05) dir.set(dir.x, -0.05);
+  dir.normalize();
+  const mult = perfect ? 1.25 : 1;
+  const n = S.tops;
+  for (let i = 0; i < n; i++) {
+    const ang = (i - (n - 1) / 2) * 0.28;
+    const d = dir.clone().rotateAround(new THREE.Vector2(), ang);
+    const spin = S.rpm * (0.4 + 0.6 * power) * mult;
+    const speed = S.speed * (0.4 + 0.6 * power) * mult;
+    const mesh = makeTopMesh();
+    tops.push({
+      x: LAUNCH.x + d.x * 0.02 * i, z: LAUNCH.y, vx: d.x * speed, vz: d.y * speed,
+      spin, launchSpin: spin, wander: Math.atan2(d.y, d.x), wanderRate: 0, prec: 0, angle: 0,
+      falling: 0, fallDir: 0, dead: false, ...mesh,
+    });
+  }
+  state.launches++;
+  launcherKick = 1;
+}
+
+// =====================================================================
+//  CAFARDS
+// =====================================================================
+const unitSphere = new THREE.SphereGeometry(1, 14, 10);
+const legGeo = new THREE.BoxGeometry(0.06, 0.05, 0.75);
+legGeo.translate(0, 0, 0.375);
+const antGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.3, 4);
+antGeo.rotateZ(Math.PI / 2);
+antGeo.translate(0.65, 0, 0);
+
+function makeBugMesh(t) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.35, metalness: t.metal || 0.15 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a0f08, roughness: 0.6 });
+  const body = new THREE.Mesh(unitSphere, mat);
+  body.scale.set(1, 0.32, 0.62);
+  body.position.y = 0.34;
+  const thorax = new THREE.Mesh(unitSphere, mat);
+  thorax.scale.set(0.38, 0.27, 0.56);
+  thorax.position.set(0.72, 0.32, 0);
+  const head = new THREE.Mesh(unitSphere, dark);
+  head.scale.setScalar(0.24);
+  head.position.set(1.05, 0.26, 0);
+  g.add(body, thorax, head);
+  for (const s of [-1, 1]) {
+    const a = new THREE.Mesh(antGeo, dark);
+    a.position.set(1.15, 0.3, s * 0.08);
+    a.rotation.y = -s * 0.45;
+    a.rotation.z = 0.25;
+    g.add(a);
+  }
+  const legs = [];
+  for (const x of [-0.35, 0.15, 0.6]) {
+    for (const s of [-1, 1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.28, s * 0.35);
+      const leg = new THREE.Mesh(legGeo, dark);
+      leg.rotation.x = s > 0 ? 0.55 : Math.PI - 0.55;
+      pivot.add(leg);
+      g.add(pivot);
+      legs.push(pivot);
+    }
+  }
+  if (t.horn) {
+    const h = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.7, 8), mat);
+    h.rotation.z = -1.1;
+    h.position.set(1.3, 0.45, 0);
+    g.add(h);
+  }
+  if (t.crown) {
+    const c = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 6, 12), new THREE.MeshStandardMaterial({ color: 0xffcc33, metalness: 0.9, roughness: 0.2 }));
+    c.rotation.x = Math.PI / 2;
+    c.position.set(1.0, 0.55, 0);
+    g.add(c);
+  }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  g.scale.setScalar(t.r * BUG_VISUAL);
+  scene.add(g);
+  return { group: g, legs };
+}
+
+// Barre de vie au-dessus des gros insectes
+const hpBgMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false });
+const hpPlane = new THREE.PlaneGeometry(1, 1);
+function makeHpBar() {
+  const g = new THREE.Group();
+  const bg = new THREE.Mesh(hpPlane, hpBgMat);
+  const fill = new THREE.Mesh(hpPlane, new THREE.MeshBasicMaterial({ color: 0x5fd38a, depthTest: false }));
+  fill.position.z = 0.001;
+  bg.renderOrder = fill.renderOrder = 10;
+  g.add(bg, fill);
+  g.visible = false;
+  scene.add(g);
+  return { g, fill };
+}
+
+const bugs = [];
+let spawnTimer = 0;
+
+function pickBugType() {
+  const lvl = infestLevel();
+  const pool = [];
+  for (let t = 0; t <= lvl; t++) {
+    let w = t < lvl ? 1 : 0.55;   // le tout dernier type débloqué est un peu plus rare
+    if (BUG_TYPES[t].rare) w *= 0.25;
+    pool.push([t, w]);
+  }
+  let r = Math.random() * pool.reduce((a, [, w]) => a + w, 0);
+  for (const [t, w] of pool) { if ((r -= w) <= 0) return BUG_TYPES[t]; }
+  return BUG_TYPES[0];
+}
+
+function spawnBug() {
+  const t = pickBugType();
+  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur)
+  const side = Math.floor(Math.random() * 3);
+  let x, z;
+  if (side === 0) { x = (Math.random() * 2 - 1) * DESK_X; z = -DESK_Z + 0.01; }
+  else if (side === 1) { x = -DESK_X + 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
+  else { x = DESK_X - 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
+  const mesh = makeBugMesh(t);
+  const hp = makeHpBar();
+  const bug = {
+    t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
+    tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
+    life: 25 + Math.random() * 20, leaving: false, gone: false,
+  };
+  newTarget(bug);
+  bugs.push(bug);
+}
+function newTarget(b) {
+  b.tx = (Math.random() * 2 - 1) * (DESK_X - 0.06);
+  b.tz = (Math.random() * 2 - 1) * (DESK_Z - 0.06);
+}
+
+// =====================================================================
+//  TACHES D'INSECTES ÉCRASÉS
+// =====================================================================
+const splats = [];
+const splatGeo = new THREE.CircleGeometry(1, 10);
+splatGeo.rotateX(-Math.PI / 2);
+function addSplat(x, z, r) {
+  const m = new THREE.Mesh(splatGeo, new THREE.MeshBasicMaterial({ color: 0x3b3a12, transparent: true, opacity: 0.55, depthWrite: false }));
+  m.position.set(x, 0.0015, z);
+  m.scale.set(r * (1.2 + Math.random() * 0.6), 1, r * (1 + Math.random() * 0.6));
+  m.rotation.y = Math.random() * Math.PI;
+  scene.add(m);
+  splats.push({ m, life: 6 });
+  if (splats.length > 60) { const s = splats.shift(); scene.remove(s.m); s.m.material.dispose(); }
+}
+
+// =====================================================================
+//  TEXTES FLOTTANTS ET BANDEAU
+// =====================================================================
+const popLayer = document.getElementById('popups');
+const tmpV = new THREE.Vector3();
+function popup(text, x, z, cls = '') {
+  tmpV.set(x, 0.05, z).project(camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'pop ' + cls;
+  el.textContent = text;
+  el.style.left = rect.left + (tmpV.x * 0.5 + 0.5) * rect.width + 'px';
+  el.style.top = rect.top + (-tmpV.y * 0.5 + 0.5) * rect.height + 'px';
+  popLayer.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+const bannerEl = document.getElementById('banner');
+let bannerTimer = 0;
+function banner(title, sub) {
+  bannerEl.textContent = title;
+  if (sub) { const s = document.createElement('small'); s.textContent = sub; bannerEl.appendChild(s); }
+  bannerEl.classList.add('show');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 2600);
+}
+
+// =====================================================================
+//  COMBAT
+// =====================================================================
+let combo = 0, lastKillTime = -99, gameTime = 0;
+
+function killBug(b) {
+  const prevLevel = infestLevel();
+  combo = gameTime - lastKillTime <= S.comboWindow ? combo + 1 : 1;
+  lastKillTime = gameTime;
+  state.bestCombo = Math.max(state.bestCombo, combo);
+  const comboMult = 1 + (combo - 1) * S.comboBonus;
+  const gain = b.t.reward * S.bounty * comboMult;
+  state.money += gain;
+  state.totalMoney += gain;
+  state.kills++;
+  state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
+  popup('+' + fmtMoney(gain), b.x, b.z);
+  if (combo >= 3) popup('Combo ×' + combo, b.x, b.z - 0.05, 'crit');
+  addSplat(b.x, b.z, b.t.r);
+  b.dying = 0.001;
+  b.hpBar.g.visible = false;
+  const newLevel = infestLevel();
+  if (newLevel > prevLevel) {
+    banner(`Infestation niveau ${newLevel + 1} !`, `Nouveaux insectes : ${BUG_TYPES[newLevel].name}`);
+    shopDirty = true;
+  }
+}
+
+function hitBug(top, b, now) {
+  if (now - b.lastHit < 0.1 || b.dying) return;
+  b.lastHit = now;
+  const ratio = top.spin / top.launchSpin;
+  const impact = Math.hypot(top.vx, top.vz);
+  // Une toupie encore debout fait toujours au moins ~1 de dégât (écrase un petit cafard)
+  let dmg = 1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * (0.6 + 0.4 * ratio) * Math.sqrt(S.rpm / 600) * (1 + 2 * impact);
+  const crit = Math.random() < S.crit;
+  if (crit) { dmg *= 3; popup('CRITIQUE', b.x, b.z - 0.03, 'crit'); }
+  b.hp -= dmg;
+  // La toupie perd de la rotation en percutant l'insecte
+  top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia;
+  if (b.hp <= 0) killBug(b);
+}
+
+// =====================================================================
+//  PHYSIQUE
+// =====================================================================
+function stepTop(top, dt, now) {
+  if (top.falling) return;
+  const ratio = top.spin / top.launchSpin;
+
+  // Dérive naturelle : la toupie « danse » sur le bureau en décrivant des courbes
+  top.wanderRate = Math.max(-2.5, Math.min(2.5, top.wanderRate + (Math.random() - 0.5) * 10 * dt));
+  top.wander += top.wanderRate * dt;
+  let ax = Math.cos(top.wander) * S.drift * ratio;
+  let az = Math.sin(top.wander) * S.drift * ratio;
+
+  // Agressivité : attirée par l'insecte le plus proche
+  if (S.chase > 0) {
+    let best = null, bd = 0.5;
+    for (const b of bugs) {
+      if (b.dying) continue;
+      const d = Math.hypot(b.x - top.x, b.z - top.z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best) {
+      ax += ((best.x - top.x) / bd) * S.chase * ratio;
+      az += ((best.z - top.z) / bd) * S.chase * ratio;
+    }
+  }
+  top.vx += ax * dt;
+  top.vz += az * dt;
+  const fr = Math.exp(-S.linFric * dt);
+  top.vx *= fr; top.vz *= fr;
+  top.x += top.vx * dt;
+  top.z += top.vz * dt;
+
+  // Rebonds sur les bords du bureau
+  const r = S.radius;
+  if (top.x < -DESK_X + r) { top.x = -DESK_X + r; top.vx = Math.abs(top.vx) * S.restitution; top.spin *= 0.98; }
+  if (top.x > DESK_X - r) { top.x = DESK_X - r; top.vx = -Math.abs(top.vx) * S.restitution; top.spin *= 0.98; }
+  if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
+  if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
+
+  // Rebonds sur le mug et le pot à crayons
+  for (const o of OBSTACLES) {
+    const dx = top.x - o.x, dz = top.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
+    if (d < min && d > 0) {
+      const nx = dx / d, nz = dz / d;
+      top.x = o.x + nx * min; top.z = o.z + nz * min;
+      const vn = top.vx * nx + top.vz * nz;
+      if (vn < 0) { top.vx -= (1 + S.restitution) * vn * nx; top.vz -= (1 + S.restitution) * vn * nz; top.spin *= 0.97; }
+    }
+  }
+
+  // Chocs avec les insectes
+  for (const b of bugs) {
+    if (b.dying) continue;
+    const br = b.t.r * 0.8;
+    const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz), min = r + br;
+    if (d < min && d > 0) {
+      const nx = dx / d, nz = dz / d;
+      const mt = S.mass, mb = b.t.mass;
+      // Séparation selon les masses
+      const overlap = min - d;
+      top.x -= nx * overlap * (mb / (mt + mb));
+      top.z -= nz * overlap * (mb / (mt + mb));
+      b.x += nx * overlap * (mt / (mt + mb));
+      b.z += nz * overlap * (mt / (mt + mb));
+      // Échange de vitesse (choc)
+      const vrel = (b.kx - top.vx) * nx + (b.kz - top.vz) * nz;
+      if (vrel < 0) {
+        const j = -(1.6 * vrel) / (1 / mt + 1 / mb);
+        top.vx -= (j / mt) * nx; top.vz -= (j / mt) * nz;
+        b.kx += (j / mb) * nx; b.kz += (j / mb) * nz;
+      }
+      // La rotation projette l'insecte sur le côté
+      const fling = 0.25 * ratio * Math.min(1, mt / mb / 4);
+      b.kx += -nz * fling; b.kz += nx * fling;
+      hitBug(top, b, now);
+    }
+  }
+
+  // Perte de rotation
+  top.spin *= Math.exp(-S.decay * dt);
+  if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
+    top.falling = 0.001;
+    top.fallDir = top.prec;
+  }
+}
+
+function stepTopsTogether() {
+  // Chocs entre toupies (multi-lancer)
+  for (let i = 0; i < tops.length; i++) {
+    for (let j = i + 1; j < tops.length; j++) {
+      const a = tops[i], b = tops[j];
+      if (a.falling || b.falling) continue;
+      const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = S.radius * 2;
+      if (d < min && d > 0) {
+        const nx = dx / d, nz = dz / d, o = (min - d) / 2;
+        a.x -= nx * o; a.z -= nz * o; b.x += nx * o; b.z += nz * o;
+        const vrel = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
+        if (vrel < 0) {
+          const j2 = -vrel * 0.9;
+          a.vx -= j2 * nx; a.vz -= j2 * nz; b.vx += j2 * nx; b.vz += j2 * nz;
+        }
+      }
+    }
+  }
+}
+
+function stepBug(b, dt) {
+  if (b.dying || b.gone) return;
+  // Au bout d'un moment, l'insecte en a assez et repart par le bord le plus proche
+  b.life -= dt;
+  if (b.life <= 0 && !b.leaving) {
+    b.leaving = true;
+    b.pause = 0;
+    const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
+    exits.sort((a, c) => a[2] - c[2]);
+    b.tx = exits[0][0];
+    b.tz = exits[0][1];
+  }
+  if (b.leaving) {
+    const dx = b.tx - b.x, dz = b.tz - b.z;
+    b.heading = Math.atan2(dz, dx);
+    b.x += Math.cos(b.heading) * b.t.speed * 1.3 * dt;
+    b.z += Math.sin(b.heading) * b.t.speed * 1.3 * dt;
+    b.walk += dt * b.t.speed * 200;
+    if (Math.abs(b.x) > DESK_X + 0.04 || b.z < -DESK_Z - 0.04) b.gone = true;
+    return;
+  }
+  // Peur : certains insectes s'enfuient quand une toupie approche
+  let fleeing = false;
+  if (b.t.fear > 0) {
+    for (const top of tops) {
+      if (top.falling) continue;
+      const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz);
+      if (d < b.t.fear + S.radius) {
+        b.tx = Math.max(-DESK_X, Math.min(DESK_X, b.x + (dx / d) * 0.3));
+        b.tz = Math.max(-DESK_Z, Math.min(DESK_Z, b.z + (dz / d) * 0.3));
+        fleeing = true;
+        b.pause = 0;
+      }
+    }
+  }
+  let speed = 0;
+  if (b.pause > 0) {
+    b.pause -= dt;
+  } else {
+    const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);
+    if (d < 0.03) {
+      newTarget(b);
+      if (Math.random() < 0.5) b.pause = 0.3 + Math.random() * 1.5; // les cafards s'arrêtent souvent
+    }
+    const want = Math.atan2(dz, dx);
+    let diff = want - b.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    b.heading += Math.max(-6 * dt, Math.min(6 * dt, diff));
+    speed = b.t.speed * (fleeing ? 1.6 : 1);
+  }
+  b.x += (Math.cos(b.heading) * speed + b.kx) * dt;
+  b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
+  const kd = Math.exp(-6 * dt);
+  b.kx *= kd; b.kz *= kd;
+  const r = b.t.r;
+  b.x = Math.max(-DESK_X + r, Math.min(DESK_X - r, b.x));
+  b.z = Math.max(-DESK_Z + r, Math.min(DESK_Z - r, b.z));
+  for (const o of OBSTACLES) {
+    const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
+    if (d < min && d > 0) { b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min; newTarget(b); }
+  }
+  b.walk += dt * (speed * 160 + (Math.hypot(b.kx, b.kz) > 0.05 ? 20 : 0));
+}
+
+// =====================================================================
+//  CONTRÔLES : viser, charger, lancer
+// =====================================================================
+const raycaster = new THREE.Raycaster();
+const deskPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const pointerNdc = new THREE.Vector2();
+const aimPoint = new THREE.Vector2(0, -0.2);
+let charging = false, chargeT = 0, cooldown = 0, launcherKick = 0, lastInput = 0;
+
+function pointerToDesk(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNdc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hit = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(deskPlane, hit)) return;
+  aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hit.x)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hit.z)));
+}
+function isReady() { return tops.length === 0 && cooldown <= 0; }
+function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
+
+const canvas = renderer.domElement;
+canvas.addEventListener('pointerdown', e => {
+  lastInput = gameTime;
+  pointerToDesk(e);
+  if (!isReady()) return;
+  charging = true;
+  chargeT = 0;
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* capture impossible : sans gravité */ }
+});
+canvas.addEventListener('pointermove', e => { pointerToDesk(e); });
+function release() {
+  if (!charging) return;
+  charging = false;
+  const g = gaugeValue();
+  const perfect = g >= 1 - S.perfect;
+  if (perfect) popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big');
+  launchTops(aimPoint, g, perfect);
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', () => { charging = false; });
+
+// =====================================================================
+//  INTERFACE : HUD, atelier, stats
+// =====================================================================
+const $ = id => document.getElementById(id);
+const shopEl = $('shop'), shopList = $('shopList'), tabsEl = $('tabs');
+let currentTab = 'toupie', shopDirty = true;
+
+for (const t of TABS) {
+  const b = document.createElement('button');
+  b.textContent = t.label;
+  b.dataset.tab = t.id;
+  b.onclick = () => { currentTab = t.id; shopDirty = true; };
+  tabsEl.appendChild(b);
+}
+$('shopBtn').onclick = () => shopEl.classList.add('open');
+$('closeShop').onclick = () => shopEl.classList.remove('open');
+
+function buy(u) {
+  const c = costOf(u);
+  if (state.money < c || lv(u.id) >= u.max) return;
+  state.money -= c;
+  state.levels[u.id] = lv(u.id) + 1;
+  refreshStats();
+  save();
+  shopDirty = true;
+}
+
+function renderShop() {
+  shopDirty = false;
+  for (const b of tabsEl.children) b.classList.toggle('active', b.dataset.tab === currentTab);
+  shopList.replaceChildren();
+  if (currentTab === 'stats') return renderStats();
+  for (const u of UPGRADES.filter(u => u.tab === currentTab)) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const locked = u.unlock && !u.unlock();
+    const level = lv(u.id), maxed = level >= u.max;
+    const name = document.createElement('div');
+    name.innerHTML = `<span class="name"></span><span class="lvl"></span>`;
+    name.querySelector('.name').textContent = u.name;
+    name.querySelector('.lvl').textContent = maxed ? 'MAX' : `niv. ${level}`;
+    const desc = document.createElement('div');
+    desc.className = 'desc';
+    desc.textContent = locked ? `🔒 Débloqué au ${u.lockText}` : u.desc;
+    const val = document.createElement('div');
+    val.className = 'val';
+    const btn = document.createElement('button');
+    if (locked) {
+      card.classList.add('locked');
+      btn.textContent = '🔒';
+      btn.disabled = true;
+    } else {
+      const next = computeStats(id => lv(id) + (id === u.id ? 1 : 0));
+      val.textContent = u.fmt(S);
+      if (!maxed) {
+        val.append(' → ');
+        const b = document.createElement('b');
+        b.textContent = u.fmt(next);
+        val.append(b);
+      }
+      btn.textContent = maxed ? 'MAX' : fmtMoney(costOf(u));
+      btn.dataset.cost = maxed ? '' : costOf(u);
+      btn.disabled = maxed || state.money < costOf(u);
+      btn.onclick = () => buy(u);
+    }
+    card.append(name, btn, desc, val);
+    shopList.appendChild(card);
+  }
+}
+
+function renderStats() {
+  const rows = (title, list) => {
+    const h = document.createElement('div');
+    h.className = 'statTitle';
+    h.textContent = title;
+    shopList.appendChild(h);
+    for (const [k, v] of list) {
+      const r = document.createElement('div');
+      r.className = 'statRow';
+      const a = document.createElement('span'); a.textContent = k;
+      const b = document.createElement('span'); b.textContent = v;
+      r.append(a, b);
+      shopList.appendChild(r);
+    }
+  };
+  rows('Toupie', [
+    ['Diamètre', `${(S.radius * 200).toFixed(1)} cm`],
+    ['Poids', `${Math.round(S.mass)} g`],
+    ['Inertie (perte au choc)', `${Math.round(S.inertia * 100)} %`],
+    ['Endurance', `${estimatedSpin(S).toFixed(1)} s`],
+    ['Frottement de la pointe', S.linFric.toFixed(2)],
+    ['Multiplicateur de dégâts', `×${S.blades.toFixed(2)}`],
+    ['Dégâts par contact (plein régime)', (1.5 * Math.pow(S.mass / 20, 0.8) * S.blades * Math.sqrt(S.rpm / 600)).toFixed(2)],
+    ['Seuil de chute', `${Math.round(S.fallRatio * 100)} %`],
+    ['Rebond', `${Math.round(S.restitution * 100)} %`],
+    ['Agressivité', S.chase.toFixed(2)],
+    ['Coup critique', `${Math.round(S.crit * 100)} %`],
+  ]);
+  rows('Lanceur', [
+    ['Rotation au lancer', `${fmtInt(S.rpm)} tr/min`],
+    ['Vitesse au lancer', `${(S.speed * 100).toFixed(0)} cm/s`],
+    ['Zone parfaite', `${Math.round(S.perfect * 100)} %`],
+    ['Temps de recharge', `${S.cooldown.toFixed(2)} s`],
+    ['Toupies par lancer', S.tops],
+    ['Lanceur automatique', S.auto ? 'oui' : 'non'],
+  ]);
+  rows('Bureau', [
+    ['Apparition', `${S.spawnRate.toFixed(2)} insecte/s`],
+    ['Insectes max', S.maxBugs + infestLevel() * 2],
+    ['Prime', `×${S.bounty.toFixed(1)}`],
+    ['Combo', `+${Math.round(S.comboBonus * 100)} % (fenêtre ${S.comboWindow.toFixed(1)} s)`],
+  ]);
+  rows('Partie', [
+    ['Argent gagné au total', fmtMoney(state.totalMoney)],
+    ['Lancers', fmtInt(state.launches)],
+    ['Insectes écrasés', fmtInt(state.kills)],
+    ['Meilleur combo', `×${state.bestCombo}`],
+    ...BUG_TYPES.filter(t => state.killsByType[t.id]).map(t => [`  ${t.name}`, fmtInt(state.killsByType[t.id])]),
+  ]);
+  const reset = document.createElement('button');
+  reset.id = 'resetBtn';
+  reset.textContent = 'Recommencer à zéro';
+  let armed = false;
+  reset.onclick = () => {
+    if (!armed) { armed = true; reset.textContent = 'Sûr ? Touche encore pour tout effacer'; setTimeout(() => { armed = false; reset.textContent = 'Recommencer à zéro'; }, 3000); return; }
+    resetting = true;
+    try { localStorage.removeItem(SAVE_KEY); } catch {}
+    location.reload();
+  };
+  shopList.appendChild(reset);
+}
+
+function updateHud() {
+  $('money').textContent = fmtMoney(state.money);
+  $('killsLine').textContent = `${fmtInt(state.kills)} insecte${state.kills > 1 ? 's' : ''} écrasé${state.kills > 1 ? 's' : ''} · ${fmtInt(state.launches)} lancer${state.launches > 1 ? 's' : ''}`;
+  const l = infestLevel();
+  $('infestName').textContent = `Infestation niv. ${l + 1} — ${BUG_TYPES[l].name}`;
+  const next = INFEST_THRESHOLDS[l + 1];
+  $('infestBar').style.width = next ? `${((state.kills - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
+
+  // Boutons d'achat : activés/désactivés selon l'argent, sans tout reconstruire
+  let canBuy = false;
+  for (const btn of shopList.querySelectorAll('button[data-cost]')) {
+    if (btn.dataset.cost === '') continue;
+    btn.disabled = state.money < Number(btn.dataset.cost);
+  }
+  for (const u of UPGRADES) {
+    if ((!u.unlock || u.unlock()) && lv(u.id) < u.max && state.money >= costOf(u)) { canBuy = true; break; }
+  }
+  $('shopBtn').classList.toggle('can', canBuy);
+
+  // Message d'état
+  let msg;
+  const alive = tops.filter(t => !t.falling);
+  if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
+  else if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min`;
+  else if (tops.length) msg = 'La toupie est tombée…';
+  else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s`;
+  else if (S.auto) msg = 'Lanceur automatique prêt (appuie sur le bureau pour lancer toi-même)';
+  else msg = state.launches === 0 ? 'Maintiens le doigt sur le bureau pour viser, relâche pour lancer' : 'Prêt ! Appuie sur le bureau pour lancer';
+  $('status').textContent = msg;
+
+  $('gauge').classList.toggle('on', charging);
+  $('gaugePerfect').style.height = S.perfect * 100 + '%';
+}
+
+// =====================================================================
+//  BOUCLE DE JEU
+// =====================================================================
+let last = performance.now(), hudTimer = 0, saveTimer = 0;
+const camQuat = new THREE.Quaternion();
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+function update(dt) {
+  gameTime += dt;
+
+  // Apparition des insectes
+  const cap = S.maxBugs + infestLevel() * 2;
+  spawnTimer += dt * S.spawnRate;
+  while (spawnTimer >= 1) {
+    spawnTimer -= 1;
+    if (bugs.filter(b => !b.dying && !b.leaving).length < cap) spawnBug();
+  }
+
+  // Physique en petits pas pour éviter que la toupie traverse les insectes
+  const steps = Math.ceil(dt / 0.008);
+  const h = dt / steps;
+  for (let s = 0; s < steps; s++) {
+    for (const top of tops) stepTop(top, h, gameTime);
+    stepTopsTogether();
+    for (const b of bugs) stepBug(b, h);
+  }
+
+  // Animation des toupies
+  for (const top of tops) {
+    const ratio = Math.max(0, top.spin / top.launchSpin);
+    const r = S.radius;
+    top.tilt.position.set(top.x, 0, top.z);
+    top.spinner.scale.set(r, r * 0.95, r);
+    if (!top.falling) {
+      top.angle += (6 + 40 * ratio) * dt;
+      top.prec += (5 + 8 * ratio) * dt;
+      const wob = Math.max(0, (0.65 - ratio) / 0.65) * 0.32 + 0.02;
+      top.tilt.rotation.set(Math.cos(top.prec) * wob, 0, Math.sin(top.prec) * wob);
+    } else {
+      top.falling += dt;
+      const f = Math.min(1, top.falling / 0.35);
+      const lean = 0.34 + f * 1.05;
+      top.tilt.rotation.set(Math.cos(top.fallDir) * lean, 0, Math.sin(top.fallDir) * lean);
+      top.angle += (1 - f) * 6 * dt;
+      if (top.falling > 1.4) top.tilt.position.y = -(top.falling - 1.4) * 0.08;
+      if (top.falling > 1.9) top.dead = true;
+    }
+    top.spinner.rotation.y = top.angle;
+  }
+  for (let i = tops.length - 1; i >= 0; i--) {
+    if (tops[i].dead) {
+      scene.remove(tops[i].tilt);
+      tops[i].tilt.traverse(o => { if (o.isMesh) { o.material.map?.dispose(); o.material.dispose(); } });
+      tops.splice(i, 1);
+      if (tops.length === 0) cooldown = S.cooldown;
+    }
+  }
+  if (tops.length === 0 && cooldown > 0) cooldown -= dt;
+
+  // Lanceur automatique
+  if (S.auto && isReady() && !charging && gameTime - lastInput > 1.5) {
+    const target = bugs.find(b => !b.dying);
+    const aim = target ? new THREE.Vector2(target.x, target.z) : new THREE.Vector2((Math.random() - 0.5) * 0.8, -0.2);
+    launchTops(aim, 0.85, false);
+  }
+
+  // Charge du lanceur
+  if (charging) chargeT += dt;
+  $('gaugeFill').style.height = (charging ? gaugeValue() : 0) * 100 + '%';
+  launcherKick = Math.max(0, launcherKick - dt * 4);
+  lBody.position.z = -launcherKick * 0.02;
+  lRing.rotation.z += (charging ? 25 : 2) * dt;
+
+  // Ligne de visée
+  aimLine.visible = isReady();
+  if (aimLine.visible) {
+    const p = aimGeo.attributes.position;
+    p.setXYZ(0, LAUNCH.x, 0.003, LAUNCH.y);
+    p.setXYZ(1, aimPoint.x, 0.003, aimPoint.y);
+    p.needsUpdate = true;
+  }
+
+  // Animation des insectes
+  camera.getWorldQuaternion(camQuat);
+  for (let i = bugs.length - 1; i >= 0; i--) {
+    const b = bugs[i];
+    if (b.gone) {
+      scene.remove(b.group, b.hpBar.g);
+      b.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
+      b.hpBar.fill.material.dispose();
+      bugs.splice(i, 1);
+      continue;
+    }
+    b.group.position.set(b.x, 0, b.z);
+    b.group.rotation.y = -b.heading;
+    b.legs.forEach((leg, k) => { leg.rotation.y = Math.sin(b.walk + k * Math.PI * 0.5 + (k % 2) * Math.PI) * 0.45; });
+    if (b.maxHp > 1 && b.hp < b.maxHp && !b.dying) {
+      const w = Math.max(0.05, b.t.r * 2.2);
+      b.hpBar.g.visible = true;
+      b.hpBar.g.position.set(b.x, b.t.r * 0.9 + 0.02, b.z);
+      b.hpBar.g.quaternion.copy(camQuat);
+      b.hpBar.g.scale.set(w, 0.008, 1);
+      const f = Math.max(0, b.hp / b.maxHp);
+      b.hpBar.fill.scale.x = f;
+      b.hpBar.fill.position.x = -(1 - f) / 2;
+    }
+    if (b.dying) {
+      b.dying += dt;
+      const s = b.t.r * BUG_VISUAL;
+      b.group.scale.set(s * (1 + b.dying), s * Math.max(0.1, 1 - b.dying * 4), s * (1 + b.dying));
+      if (b.dying > 0.3) {
+        scene.remove(b.group, b.hpBar.g);
+        b.group.traverse(o => { if (o.isMesh && o.material !== hpBgMat) o.material.dispose(); });
+        b.hpBar.fill.material.dispose();
+        bugs.splice(i, 1);
+      }
+    }
+  }
+
+  // Taches qui s'effacent
+  for (let i = splats.length - 1; i >= 0; i--) {
+    const s = splats[i];
+    s.life -= dt;
+    s.m.material.opacity = Math.min(0.55, s.life / 2);
+    if (s.life <= 0) { scene.remove(s.m); s.m.material.dispose(); splats.splice(i, 1); }
+  }
+
+  // Interface (pas à chaque image, pour économiser la batterie)
+  hudTimer -= dt;
+  if (shopDirty) renderShop();
+  if (hudTimer <= 0) { hudTimer = 0.15; updateHud(); }
+  saveTimer -= dt;
+  if (saveTimer <= 0) { saveTimer = 5; save(); }
+}
+
+window.addEventListener('resize', placeCamera);
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+placeCamera();
+updateHud();
+requestAnimationFrame(frame);
+
+// Accès pour les tests (lecture des stats et avance du temps)
+window.__dbg = { state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, buy, costOf, infestLevel, refreshStats, camera, THREE };
+</script>
+</body>
+</html>
