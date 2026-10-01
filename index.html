@@ -205,19 +205,19 @@ const TABS = [
 
 const UPGRADES = [
   // --- Toupie ---
-  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 20, growth: 1.35, max: 40,
+  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 15, growth: 1.35, max: 40,
     skins: [[0, 'Poignée bâton'], [5, 'Poignée boule'], [12, 'Gemme violette'], [22, 'Flamme éternelle']],
     fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
-  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 22, growth: 1.4, max: 30,
+  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 17, growth: 1.4, max: 30,
     skins: [[0, 'Bord lisse'], [5, 'Anneau chromé'], [12, 'Double anneau'], [20, 'Couronne crénelée']],
     fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
-  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 24, growth: 1.4, max: 35,
+  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 19, growth: 1.4, max: 35,
     skins: [[0, 'Plastique'], [3, 'Bois'], [8, 'Acier'], [15, 'Or massif'], [25, 'Obsidienne']],
     fmt: s => `${Math.round(s.mass)} g` },
-  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 25, growth: 1.4, max: 25,
+  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 20, growth: 1.4, max: 25,
     skins: [[0, 'Pointe plastique'], [4, 'Pointe acier'], [10, 'Pointe rubis'], [18, 'Pointe diamant']],
     fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
-  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 25, growth: 1.4, max: 40,
+  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 20, growth: 1.4, max: 40,
     skins: [[0, 'Aucune lame'], [1, '2 lames'], [4, '4 lames'], [10, '6 faux'], [20, '8 dents de scie'], [30, 'Lames de lave']],
     fmt: s => `×${s.blades.toFixed(2)} dégâts` },
   { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.45, max: 30,
@@ -239,15 +239,15 @@ const UPGRADES = [
     fmt: s => `${Math.round(s.crit * 100)} % de chance` },
 
   // --- Lanceur ---
-  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 22, growth: 1.38, max: 40,
+  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 17, growth: 1.38, max: 40,
     skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
     fmt: s => `${fmtInt(s.rpm)} tr/min` },
-  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 20, growth: 1.35, max: 30,
+  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 15, growth: 1.35, max: 30,
     skins: [[0, 'Sans traînée'], [5, 'Traînée blanche'], [12, 'Traînée bleue'], [20, 'Traînée de feu']],
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
-  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 22, growth: 1.5, max: 12,
+  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 17, growth: 1.5, max: 12,
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 24, growth: 1.4, max: 20,
+  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 19, growth: 1.4, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
   { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
@@ -257,7 +257,7 @@ const UPGRADES = [
     fmt: s => s.auto ? 'activé' : 'désactivé' },
 
   // --- Bureau / économie ---
-  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 22, growth: 1.38, max: 30,
+  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 17, growth: 1.38, max: 30,
     fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
   { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 22, growth: 1.4, max: 25,
     fmt: s => `${s.maxBugs} insectes max` },
