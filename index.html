@@ -32,9 +32,12 @@
   .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
   #quotaBar { background: var(--red); }
   #quotaBar.done { background: var(--green); }
+  #snackBar { background: #d9a05b; }
+  #timeBar { background: #7fb2ff; transition: none; }
+  #hud[data-mode="histoire"] .carnageOnly, #hud[data-mode="carnage"] .histoireOnly { display: none; }
   #hud.hurt { animation: hurt .45s; }
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
-  #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; min-height: 0; }
+  #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; }
 
   #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
     border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px);
@@ -47,8 +50,11 @@
   #gaugePerfect { position: absolute; left: 0; right: 0; top: 0; background: rgba(95, 211, 138, 0.45); }
   #gaugeFill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #ff9f43, #ffe08a); }
 
-  #shopBtn { position: fixed; top: 10px; right: 10px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--accent);
-    color: #1a1410; font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  .topBtns { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; }
+  .topBtns button { padding: 10px 14px; border: 0; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  #menuBtn { background: var(--panel); color: var(--text); }
+  #shopBtn { background: var(--accent); color: #1a1410; }
   #shopBtn .dot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-left: 6px; vertical-align: middle; }
   #shopBtn.can .dot { display: inline-block; }
 
@@ -84,11 +90,12 @@
     text-shadow: 0 2px 4px rgba(0,0,0,.8); white-space: nowrap; animation: rise 1s ease-out forwards; }
   .pop.big { font-size: 26px; color: var(--green); }
   .pop.crit { color: var(--red); font-size: 18px; }
+  .pop.bite { color: #ffb36b; font-size: 20px; }
   @keyframes rise { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -50px; } }
 
   #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
     border: 2px solid var(--accent); border-radius: 14px; font-weight: 800; font-size: 18px; text-align: center; opacity: 0;
-    transition: opacity .3s, transform .3s; pointer-events: none; max-width: calc(100vw - 32px); }
+    transition: opacity .3s, transform .3s; pointer-events: none; max-width: calc(100vw - 32px); z-index: 4; }
   #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   #banner small { display: block; color: var(--muted); font-weight: 600; font-size: 13px; margin-top: 4px; }
 
@@ -113,25 +120,64 @@
   .defeat { border-color: var(--red); }
   .defeat h2 { color: var(--red); }
 
+  /* Menu d'accueil */
+  #menu { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at center, rgba(40, 28, 18, .75), rgba(10, 6, 3, .92)); }
+  #menu.open { display: flex; }
+  .menuBox { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; text-align: center; }
+  .menuBox h1 { margin: 0; font-size: clamp(28px, 7vw, 44px); line-height: 1.1; text-shadow: 0 3px 0 #7a3d00; }
+  .menuBox .tag { color: var(--muted); margin: 6px 0 18px; }
+  .modeBtn { display: block; width: 100%; text-align: left; margin-bottom: 12px; padding: 16px; border-radius: 14px; cursor: pointer;
+    border: 2px solid rgba(255,255,255,.14); background: rgba(36, 27, 20, .95); color: var(--text); font: inherit; transition: transform .1s, border-color .1s; }
+  .modeBtn:hover, .modeBtn:focus-visible { border-color: var(--gold); transform: translateY(-2px); outline: none; }
+  .modeBtn .mt { font-size: 20px; font-weight: 800; }
+  .modeBtn .md { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .modeBtn .mr { color: var(--pink); font-size: 12px; margin-top: 6px; }
+  .modeBtn.story { border-color: rgba(255, 201, 74, .5); }
+  .linkBtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
+  .menuNote { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+  /* Dialogue de l'histoire */
+  #dialog { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(620px, calc(100vw - 24px)); z-index: 15;
+    display: none; gap: 12px; align-items: flex-start; padding: 14px 16px; background: rgba(250, 244, 232, .97); color: #2a1d12;
+    border-radius: 16px; border: 3px solid #2a1d12; box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; }
+  #dialog.open { display: flex; }
+  #dialog .face { font-size: 40px; line-height: 1; }
+  #dialog .who { font-weight: 800; font-size: 13px; color: #a0521a; }
+  #dialog .line { font-size: 17px; margin-top: 2px; min-height: 2.6em; }
+  #dialog .next { font-size: 12px; color: #8a7a68; margin-top: 4px; }
+  #skipIntro { position: fixed; top: 64px; right: 12px; z-index: 16; display: none; padding: 8px 14px; border-radius: 10px;
+    background: var(--panel); color: var(--text); text-decoration: none; font-weight: 700; }
+  #skipIntro.open { display: block; }
+
   @media (min-width: 1000px) {
     #shop { transform: none; }
     #shopBtn, #closeShop { display: none; }
     #game { right: 380px; }
+    .topBtns { right: 390px; }
     #status { left: calc(50% - 190px); }
     #gauge { right: 398px; }
     #modal { right: 380px; }
+    #dialog { left: calc(50% - 190px); }
   }
 </style>
 </head>
 <body>
 <div id="game"></div>
 
-<div id="hud">
+<div id="hud" data-mode="histoire">
   <div id="money">0 $</div>
   <div class="sub" id="killsLine"></div>
-  <div class="hudRow"><span id="waveText"></span><b id="launchesText"></b></div>
-  <div class="hudRow"><span>🎯 Objectif</span><b id="quotaText"></b></div>
-  <div class="bar"><div id="quotaBar"></div></div>
+  <div class="hudRow"><span id="waveText"></span><b id="waveSide"></b></div>
+  <div class="histoireOnly">
+    <div class="hudRow"><span>🎯 Objectif</span><b id="quotaText"></b></div>
+    <div class="bar"><div id="quotaBar"></div></div>
+  </div>
+  <div class="carnageOnly">
+    <div class="bar"><div id="timeBar"></div></div>
+    <div class="hudRow"><span>🍪 Goûter</span><b id="snackText"></b></div>
+    <div class="bar"><div id="snackBar"></div></div>
+  </div>
   <div class="hudRow"><span id="infestName"></span></div>
   <div class="bar"><div id="infestBar"></div></div>
   <div id="perksLine"></div>
@@ -139,7 +185,10 @@
 
 <div id="status"></div>
 <div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
-<button id="shopBtn">🛠 Atelier<span class="dot"></span></button>
+<div class="topBtns">
+  <button id="menuBtn" aria-label="Menu">☰</button>
+  <button id="shopBtn">🛠 Atelier<span class="dot"></span></button>
+</div>
 
 <aside id="shop">
   <div class="shopHead">
@@ -153,6 +202,28 @@
 <div id="banner"></div>
 <div id="modal"><div class="modalBox" id="modalBox"></div></div>
 
+<div id="menu">
+  <div class="menuBox">
+    <h1>🌀 Toupie<br>contre Cafards</h1>
+    <p class="tag">Mon bureau est envahi. Il est temps de ressortir les vieux jouets.</p>
+    <button class="modeBtn story" id="storyBtn">
+      <div class="mt">📖 Mode Histoire</div>
+      <div class="md">Repousse l’invasion vague après vague : à chaque vague, un nombre de cafards à écraser avec un nombre de lancers limité. Sinon, ils envahissent tout.</div>
+      <div class="mr" id="storyRecord"></div>
+    </button>
+    <button class="modeBtn" id="carnageBtn">
+      <div class="mt">🍪 Mode Carnage</div>
+      <div class="md">Protège ton goûter ! Des cafards affamés (en rouge) foncent dessus pendant des vagues chronométrées de 40 secondes.</div>
+      <div class="mr" id="carnageRecord"></div>
+    </button>
+    <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
+    <div class="menuNote">L’atelier et l’argent sont communs aux deux modes.</div>
+  </div>
+</div>
+
+<div id="dialog"><div class="face">😩</div><div><div class="who">Moi</div><div class="line" id="dialogLine"></div><div class="next">▶ Touche pour continuer</div></div></div>
+<button class="linkBtn" id="skipIntro">Passer ⏭</button>
+
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
@@ -165,25 +236,41 @@ import * as THREE from 'three';
 const DESK_X = 0.78;          // demi-largeur du bureau (m)
 const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
 const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
-const OBSTACLES = [            // objets posés sur le bureau (la toupie rebondit dessus)
+const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter (mode Carnage)
+const OBS_BASE = [             // objets posés sur le bureau (la toupie rebondit dessus)
   { x: 0.60, z: -0.30, r: 0.045, h: 0.10, color: 0xd9534f, kind: 'mug' },
   { x: -0.62, z: -0.28, r: 0.04, h: 0.11, color: 0x3b6ea5, kind: 'pot' },
 ];
+const OBS_CARNAGE = [...OBS_BASE, { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, kind: 'plate' }];
 const SAVE_KEY = 'toupie-cafards-save-v1';
 const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
+const COMBO_CAP = 4;           // le bonus de combo ne dépasse jamais ×4
+// Mode Histoire
 const WAVE_LAUNCHES = 5;       // lancers disponibles par vague pour atteindre l'objectif
-const COMBO_CAP = 4;          // le bonus de combo ne dépasse jamais ×4
+// Mode Carnage
+const WAVE_LEN = 40;           // durée d'une vague (s)
+const SNACK_MAX = 20;          // bouchées du goûter au début d'une partie
+
+// L'introduction du mode Histoire (le personnage parle à la première personne)
+const INTRO = [
+  { face: '😩', text: 'Pfff… J’arrive définitivement pas à me débarrasser de ces cafards.' },
+  { face: '😤', text: 'Il y en a partout sur mon bureau. J’ai tout essayé : le spray, les pièges, la chaussure…' },
+  { face: '🤔', text: 'Attends… Qu’est-ce qu’il y a au fond de mon vieux carton de jouets ?' },
+  { face: '😮', text: 'Ma vieille toupie ! Heureusement que je l’ai retrouvée.', showTop: true },
+  { face: '😏', text: 'Bon. À nous deux, les cafards. Je vais vous repousser, vague après vague.' },
+  { face: '🎯', text: 'À chaque vague, je dois en écraser un certain nombre avant d’être à court de lancers. Sinon, ils envahissent tout.' },
+];
 
 // =====================================================================
 //  INSECTES
 // =====================================================================
 const BUG_TYPES = [
-  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 1,    speed: 0.07, reward: 1,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 2.5,  speed: 0.13, reward: 5,    mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 15,   speed: 0.11, reward: 22,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 60,   speed: 0.09, reward: 100,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 260,  speed: 0.07, reward: 450,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 1600, speed: 0.05, reward: 3500, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
 ];
 // Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
 const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
@@ -242,12 +329,12 @@ const UPGRADES = [
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
   { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 17, growth: 1.5, max: 12,
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Moins d’attente entre deux lancers.', base: 19, growth: 1.4, max: 20,
+  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 19, growth: 1.4, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
   { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
     fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
-  { id: 'auto', tab: 'lanceur', name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est prête.', base: 3000, growth: 1, max: 1,
+  { id: 'auto', tab: 'lanceur', name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est tombée.', base: 3000, growth: 1, max: 1,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
     fmt: s => s.auto ? 'activé' : 'désactivé' },
 
@@ -270,12 +357,14 @@ const PERKS = [
     desc: n => `La toupie sent bon : certains insectes proches (${Math.round(smellChance(n) * 100)} %) s’approchent d’elle, dans un rayon de ${Math.round(smellRadius(n) * 100)} cm.` },
   { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+30 % de dégâts.' },
   { id: 'roulement', icon: '⚙️', name: 'Roulement à billes', max: 4, desc: () => 'La toupie tourne 25 % plus longtemps.' },
-  { id: 'lancer', icon: '🎯', name: 'Lancer en plus', max: 3, desc: () => '+1 lancer à chaque vague pour atteindre l’objectif.' },
+  { id: 'lancer', icon: '🎯', name: 'Lancer en plus', max: 3, modes: ['histoire'], desc: () => '+1 lancer à chaque vague pour atteindre l’objectif.' },
+  { id: 'cookies', icon: '🍪', name: 'Boîte de cookies', max: 5, modes: ['carnage'], desc: () => '+6 bouchées de goûter tout de suite, et +4 au maximum.' },
+  { id: 'spray', icon: '🧴', name: 'Spray anti-faim', max: 3, modes: ['carnage'], desc: () => 'Les affamés traînent 30 % plus longtemps avant de foncer sur le goûter.' },
+  { id: 'insecticide', icon: '🐌', name: 'Insecticide', max: 3, desc: () => 'Les insectes avancent 15 % moins vite et fuient moins bien.' },
   { id: 'glu', icon: '🪤', name: 'Piège à glu', max: 3, desc: () => 'Pose un piège collant sur le bureau : les insectes y avancent 4 fois moins vite.' },
   { id: 'or', icon: '💰', name: 'Ruée vers l’or', max: 5, desc: () => '+25 % d’argent par insecte.' },
   { id: 'jumelle', icon: '👯', name: 'Toupie jumelle', max: 3, desc: () => '25 % de chance de lancer une toupie en plus.' },
   { id: 'onde', icon: '💥', name: 'Onde de choc', max: 3, desc: () => 'Quand la toupie tombe, elle explose et blesse les insectes autour.' },
-  { id: 'spray', icon: '🧴', name: 'Insecticide', max: 3, desc: () => 'Les insectes avancent 15 % moins vite et fuient moins bien.' },
   { id: 'ressort', icon: '🌀', name: 'Ressort turbo', max: 4, desc: () => '+20 % d’élan et +15 % de rotation au lancer.' },
   { id: 'braise', icon: '🔥', name: 'Combo brûlant', max: 3, desc: () => '+10 % de bonus par insecte dans un combo.' },
   { id: 'epines', icon: '🦔', name: 'Épines empoisonnées', max: 3, desc: () => '+10 % de chance de coup critique.' },
@@ -286,7 +375,7 @@ function smellChance(n) { return Math.min(0.6, 0.2 + 0.13 * n); }
 
 // Calcule toutes les stats à partir des niveaux (atelier) et des bonus de la partie
 function computeStats(L, P = perkLevel) {
-  const s = {
+  return {
     radius: 0.036 * (1 + 0.08 * L('diametre')),
     mass: 20 * (1 + 0.15 * L('poids')) * Math.pow(1.25, P('plomb')),
     inertia: 1 / (1 + 0.12 * L('inertie')),
@@ -301,7 +390,7 @@ function computeStats(L, P = perkLevel) {
     rpm: 600 * (1 + 0.18 * L('puissance')) * Math.pow(1.15, P('ressort')),
     speed: 0.35 * (1 + 0.12 * L('elan')) * Math.pow(1.2, P('ressort')),
     perfect: 0.06 + 0.02 * L('precision'),
-    cooldown: 2.5 / (1 + 0.2 * L('recharge')),
+    cooldown: 2.5 / (1 + 0.2 * L('recharge')), // seulement en mode Carnage
     tops: 1 + L('multi'),
     auto: L('auto') > 0,
     spawnRate: 0.9 * (1 + 0.15 * L('appat')),
@@ -313,49 +402,76 @@ function computeStats(L, P = perkLevel) {
     smellChance: P('odeur') ? smellChance(P('odeur')) : 0,
     twinChance: 0.25 * P('jumelle'),
     shockRadius: P('onde') ? 0.07 + 0.03 * P('onde') : 0,
-    bugSpeed: Math.pow(0.85, P('spray')),
+    bugSpeed: Math.pow(0.85, P('insecticide')),
+    hungerMult: Math.pow(1.3, P('spray')),
   };
-  return s;
 }
-// Bonus permanent d'argent selon la meilleure vague atteinte (+2 % par vague, jusqu'à +100 %)
-function recordBonus() { return 1 + Math.min(1, 0.02 * Math.max(0, (state.bestWave || 1) - 1)); }
+// Bonus permanent d'argent selon la meilleure vague atteinte, tous modes confondus (+2 % par vague, jusqu'à +100 %)
+function recordBonus() {
+  const best = Math.max(state.best?.histoire || 1, state.best?.carnage || 1);
+  return 1 + Math.min(1, 0.02 * (best - 1));
+}
 // Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
 function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
 
 // =====================================================================
 //  SAUVEGARDE
 // =====================================================================
-function newRun() {
-  return { wave: 1, launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false };
+function newRun(mode) {
+  return {
+    mode, wave: 1, perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
+    // Histoire
+    launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false,
+    // Carnage
+    waveTime: 0, raidsSent: 0, snack: SNACK_MAX, maxSnack: SNACK_MAX,
+  };
 }
 const state = {
   money: 0, totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, levels: {}, killsByType: {},
-  bestWave: 1, runs: 1, run: newRun(),
+  mode: 'histoire', introSeen: false,
+  best: { histoire: 1, carnage: 1 },
+  games: { histoire: 0, carnage: 0 },
+  savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
+  run: null,
 };
+const PERSISTED = ['money', 'totalMoney', 'kills', 'launches', 'bestCombo', 'levels', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (data && typeof data === 'object') {
-      for (const k of Object.keys(state)) if (k in data) state[k] = data[k];
-      // Une partie enregistrée avec l'ancien système (goûter) repart de zéro ; l'atelier est conservé
-      state.run = data.run && !('snack' in data.run) ? Object.assign(newRun(), data.run) : newRun();
+      for (const k of PERSISTED) if (k in data) state[k] = data[k];
+      // Anciennes sauvegardes (avant les deux modes)
+      if (!data.savedRuns) {
+        if (data.run && 'snack' in data.run) state.savedRuns.carnage = Object.assign(newRun('carnage'), data.run, { mode: 'carnage' });
+        else if (data.run) state.savedRuns.histoire = Object.assign(newRun('histoire'), data.run, { mode: 'histoire' });
+        if (data.bestWave) state.best.histoire = data.bestWave;
+        if (data.levels && data.kills > 0) state.introSeen = true;
+      }
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
-  // On ignore les bonus qui n'existent plus
-  const known = new Set(PERKS.map(p => p.id));
-  for (const id of Object.keys(state.run.perks)) if (!known.has(id)) delete state.run.perks[id];
-  if (state.run.choice) state.run.choice = state.run.choice.filter(id => known.has(id));
+  for (const m of ['histoire', 'carnage']) {
+    state.savedRuns[m] = Object.assign(newRun(m), state.savedRuns[m] || {}, { mode: m });
+    // On ignore les bonus qui n'existent plus (ou pas dans ce mode)
+    const run = state.savedRuns[m];
+    for (const id of Object.keys(run.perks)) if (!PERKS.some(p => p.id === id && (!p.modes || p.modes.includes(m)))) delete run.perks[id];
+    if (run.choice) run.choice = run.choice.filter(id => PERKS.some(p => p.id === id));
+  }
+  if (!['histoire', 'carnage'].includes(state.mode)) state.mode = 'histoire';
+  state.run = state.savedRuns[state.mode];
   if (!Number.isFinite(state.money)) state.money = 0;
 }
 let resetting = false; // pendant une remise à zéro, on n'enregistre plus rien
 function save() {
   if (resetting) return;
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* stockage indisponible */ }
+  const out = {};
+  for (const k of PERSISTED) out[k] = state[k];
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(out)); } catch { /* stockage indisponible */ }
 }
 load();
 
 const lv = id => state.levels[id] || 0;
 function perkLevel(id) { return state.run.perks[id] || 0; }
+const isStory = () => state.run.mode === 'histoire';
 let S = computeStats(lv);
 function refreshStats() { S = computeStats(lv); }
 function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
@@ -372,6 +488,7 @@ function skinTier(id) {
   u.skins.forEach(([lvl], i) => { if (lv(id) >= lvl) t = i; });
   return t;
 }
+function obstacles() { return isStory() ? OBS_BASE : OBS_CARNAGE; }
 
 // =====================================================================
 //  FORMATAGE
@@ -488,7 +605,7 @@ stand.position.y = 0.06;
 monitor.add(screenMesh, glow, stand);
 monitor.position.set(0, 0, -0.62);
 scene.add(monitor);
-for (const o of OBSTACLES) {
+for (const o of OBS_BASE) {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 0.92, o.h, 24), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.45 }));
   m.position.set(o.x, o.h / 2, o.z);
   m.castShadow = m.receiveShadow = true;
@@ -503,6 +620,38 @@ for (const o of OBSTACLES) {
   }
 }
 
+// L'assiette du goûter et ses cookies (mode Carnage)
+const plateGroup = new THREE.Group();
+scene.add(plateGroup);
+const plate = new THREE.Mesh(new THREE.CylinderGeometry(PLATE.r, PLATE.r * 0.8, 0.012, 32), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.3 }));
+plate.position.set(PLATE.x, 0.006, PLATE.z);
+plate.receiveShadow = plate.castShadow = true;
+plateGroup.add(plate);
+const cookieMat = new THREE.MeshStandardMaterial({ color: 0xc98a45, roughness: 0.9 });
+const chipMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.9 });
+const cookies = [];
+for (let i = 0; i < 5; i++) {
+  const c = new THREE.Group();
+  c.add(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.008, 16), cookieMat));
+  for (let k = 0; k < 4; k++) {
+    const chip = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 4), chipMat);
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 0.015;
+    chip.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r);
+    c.add(chip);
+  }
+  const a = (i / 4) * Math.PI * 2;
+  c.position.set(PLATE.x + (i === 4 ? 0 : Math.cos(a) * 0.03), 0.017 + (i === 4 ? 0.008 : 0), PLATE.z + (i === 4 ? 0 : Math.sin(a) * 0.03));
+  c.rotation.y = Math.random() * 3;
+  c.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  plateGroup.add(c);
+  cookies.push(c);
+}
+function updateCookies() {
+  plateGroup.visible = !isStory();
+  const run = state.run;
+  const shown = Math.ceil((Math.max(0, run.snack) / run.maxSnack) * 5);
+  cookies.forEach((c, i) => { c.visible = i < shown; });
+}
 
 // Lanceur posé devant le joueur (son apparence dépend de la Puissance)
 const launcher = new THREE.Group();
@@ -559,7 +708,7 @@ function rebuildTraps() {
 function addTrap() {
   for (let tries = 0; tries < 30; tries++) {
     const t = { x: (Math.random() * 2 - 1) * (DESK_X - 0.12), z: -DESK_Z + 0.1 + Math.random() * 0.55, w: 0.13, d: 0.09 };
-    const clear = OBSTACLES.every(o => Math.hypot(o.x - t.x, o.z - t.z) > o.r + 0.1) && state.run.traps.every(o => Math.hypot(o.x - t.x, o.z - t.z) > 0.18);
+    const clear = obstacles().every(o => Math.hypot(o.x - t.x, o.z - t.z) > o.r + 0.1) && state.run.traps.every(o => Math.hypot(o.x - t.x, o.z - t.z) > 0.18);
     if (clear) { state.run.traps.push(t); break; }
   }
   rebuildTraps();
@@ -627,8 +776,7 @@ function makeTopMesh() {
 
   // Poignée (selon l'Endurance)
   const knobT = skinTier('endurance');
-  const stickMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.4 });
-  add(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 10), stickMat, 0, 0.8, 0);
+  add(new THREE.CylinderGeometry(0.1, 0.12, 0.3, 10), new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.4 }), 0, 0.8, 0);
   if (knobT === 1) add(new THREE.SphereGeometry(0.17, 14, 10), new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.3 }), 0, 1.0, 0);
   if (knobT === 2) add(new THREE.OctahedronGeometry(0.22), new THREE.MeshStandardMaterial({ color: 0xa25cff, emissive: 0x5a1fb0, emissiveIntensity: 0.9, roughness: 0.1 }), 0, 1.05, 0);
   if (knobT === 3) parts.flame = add(new THREE.ConeGeometry(0.16, 0.45, 10), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.85 }), 0, 1.15, 0);
@@ -741,6 +889,7 @@ const smellGeo = new THREE.RingGeometry(0.97, 1, 48);
 smellGeo.rotateX(-Math.PI / 2);
 
 const tops = [];
+const aliveTops = () => tops.filter(t => !t.falling);
 function launchTops(aim, power, perfect) {
   const dir = new THREE.Vector2(aim.x - LAUNCH.x, aim.y - LAUNCH.y);
   if (dir.y > -0.05) dir.set(dir.x, -0.05);
@@ -766,7 +915,7 @@ function launchTops(aim, power, perfect) {
   }
   if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
-  state.run.launchesLeft--;
+  if (isStory()) state.run.launchesLeft--;
   launcherKick = 1;
 }
 function disposeTop(top) {
@@ -858,10 +1007,12 @@ let spawnTimer = 0;
 
 // Difficulté selon la vague
 function waveSpawnMult() { return 1 + 0.08 * (state.run.wave - 1); }
-// Objectif de la vague : X insectes à écraser en un nombre limité de lancers
+function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
+// Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
 function waveQuota() { return Math.ceil(3 + Math.pow(state.run.wave - 1, 1.15)); }
-function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
+// Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
+function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
 function pickBugType() {
   const lvl = infestLevel();
@@ -876,10 +1027,11 @@ function pickBugType() {
   return BUG_TYPES[0];
 }
 
-function spawnBug() {
+function spawnBug(hungry = false) {
   const t = pickBugType();
-  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur)
-  const side = Math.floor(Math.random() * 3);
+  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur).
+  // Les affamés partent du fond, pour laisser le temps de les intercepter.
+  const side = hungry ? 0 : Math.floor(Math.random() * 3);
   let x, z;
   if (side === 0) { x = (Math.random() * 2 - 1) * DESK_X; z = -DESK_Z + 0.01; }
   else if (side === 1) { x = -DESK_X + 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
@@ -890,6 +1042,7 @@ function spawnBug() {
     t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
     tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
     life: 20 + Math.random() * 20, // au bout de ce temps, l'insecte s'en va
+    hunger: hungry ? 3 * S.hungerMult : Infinity, // les affamés hésitent un peu, puis filent vers le goûter
     mode: 'wander', gone: false, sniff: Math.random(),
   };
   newTarget(bug);
@@ -906,6 +1059,13 @@ function removeBug(i) {
   b.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
   b.hpBar.fill.material.dispose();
   bugs.splice(i, 1);
+}
+function clearBoard() {
+  for (let i = bugs.length - 1; i >= 0; i--) removeBug(i);
+  for (const t of tops) disposeTop(t);
+  tops.length = 0;
+  spawnTimer = 0;
+  cooldown = 0;
 }
 
 // =====================================================================
@@ -954,7 +1114,7 @@ function banner(title, sub) {
   if (sub) { const s = document.createElement('small'); s.textContent = sub; bannerEl.appendChild(s); }
   bannerEl.classList.add('show');
   clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 2600);
+  bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 2800);
 }
 
 // =====================================================================
@@ -963,6 +1123,7 @@ function banner(title, sub) {
 let combo = 0, lastKillTime = -99, gameTime = 0;
 
 function killBug(b) {
+  const run = state.run;
   const prevLevel = infestLevel();
   combo = gameTime - lastKillTime <= S.comboWindow ? combo + 1 : 1;
   lastKillTime = gameTime;
@@ -972,14 +1133,16 @@ function killBug(b) {
   state.money += gain;
   state.totalMoney += gain;
   state.kills++;
-  state.run.kills++;
-  state.run.waveKills++;
-  if (!state.run.cleared && state.run.waveKills >= waveQuota()) {
-    state.run.cleared = true;
-    banner('🎯 Objectif atteint !', 'La vague sera repoussée quand la toupie s’arrêtera');
-  }
-  state.run.money += gain;
+  run.kills++;
+  run.money += gain;
   state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
+  if (isStory()) {
+    run.waveKills++;
+    if (!run.cleared && run.waveKills >= waveQuota()) {
+      run.cleared = true;
+      banner('🎯 Objectif atteint !', 'La vague sera repoussée quand la toupie s’arrêtera');
+    }
+  }
   popup('+' + fmtMoney(gain), b.x, b.z);
   if (combo >= 3) popup('Combo ×' + combo, b.x, b.z - 0.05, 'crit');
   addSplat(b.x, b.z, b.t.r);
@@ -1022,6 +1185,19 @@ function shockwave(top) {
   }
 }
 
+// Carnage : un insecte affamé atteint le goûter
+function biteSnack(b) {
+  state.run.snack -= b.t.bite;
+  popup(`−${b.t.bite} 🍪`, PLATE.x, PLATE.z, 'bite');
+  const hud = document.getElementById('hud');
+  hud.classList.remove('hurt');
+  void hud.offsetWidth;
+  hud.classList.add('hurt');
+  updateCookies();
+  b.gone = true;
+  if (state.run.snack <= 0) defeat();
+}
+
 // =====================================================================
 //  PHYSIQUE
 // =====================================================================
@@ -1062,8 +1238,8 @@ function stepTop(top, dt, now) {
   if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
   if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
 
-  // Rebonds sur le mug, le pot à crayons et l'assiette
-  for (const o of OBSTACLES) {
+  // Rebonds sur le mug, le pot à crayons (et l'assiette en mode Carnage)
+  for (const o of obstacles()) {
     const dx = top.x - o.x, dz = top.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
       const nx = dx / d, nz = dz / d;
@@ -1131,10 +1307,16 @@ function stepBug(b, dt) {
   if (b.dying || b.gone) return;
   const slow = (onTrap(b.x, b.z) ? 0.25 : 1) * S.bugSpeed;
 
-  // Au bout d'un moment, l'insecte s'en va par le bord le plus proche
+  // Les affamés (Carnage) partent manger le goûter ; les autres finissent par s'en aller
   if (b.mode === 'wander') {
+    b.hunger -= dt;
     b.life -= dt;
-    if (b.life <= 0) {
+    if (b.hunger <= 0 && !isStory()) {
+      b.pause = 0;
+      b.mode = 'hungry';
+      b.mat.emissive.setHex(0x8a1a00); // les affamés rougissent : à écraser en priorité !
+      b.mat.emissiveIntensity = 0.7;
+    } else if (b.life <= 0) {
       b.pause = 0;
       b.mode = 'leaving';
       const exits = [[-DESK_X - 0.08, b.z, DESK_X + b.x], [DESK_X + 0.08, b.z, DESK_X - b.x], [b.x, -DESK_Z - 0.08, DESK_Z + b.z]];
@@ -1155,7 +1337,7 @@ function stepBug(b, dt) {
   // Peur : certains insectes s'enfuient quand une toupie approche
   let fleeing = false, smelling = null;
   for (const top of tops) {
-    if (top.falling) continue;
+    if (top.falling || top.display) continue;
     const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz);
     // Odeur sucrée : certains insectes sont attirés (pas tous, et seulement de près)
     if (S.smellRadius > 0 && b.sniff < S.smellChance && d < S.smellRadius + S.radius) smelling = top;
@@ -1167,6 +1349,7 @@ function stepBug(b, dt) {
     }
   }
   if (smelling) { b.tx = smelling.x; b.tz = smelling.z; b.pause = 0; }
+  else if (b.mode === 'hungry' && !fleeing) { b.tx = PLATE.x; b.tz = PLATE.z; b.pause = 0; }
 
   let speed = 0;
   if (b.pause > 0) {
@@ -1181,7 +1364,7 @@ function stepBug(b, dt) {
     let diff = want - b.heading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     b.heading += Math.max(-6 * dt, Math.min(6 * dt, diff));
-    speed = b.t.speed * (fleeing ? 1.6 * S.bugSpeed : 1) * slow;
+    speed = b.t.speed * (fleeing ? 1.6 * S.bugSpeed : b.mode === 'hungry' ? 1.2 : 1) * slow;
   }
   b.x += (Math.cos(b.heading) * speed + b.kx) * dt;
   b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
@@ -1190,9 +1373,10 @@ function stepBug(b, dt) {
   const r = b.t.r;
   b.x = Math.max(-DESK_X + r, Math.min(DESK_X - r, b.x));
   b.z = Math.max(-DESK_Z + r, Math.min(DESK_Z - r, b.z));
-  for (const o of OBSTACLES) {
+  for (const o of obstacles()) {
     const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
+      if (o.kind === 'plate' && b.mode === 'hungry') { biteSnack(b); return; }
       b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min;
       if (b.mode === 'wander') newTarget(b);
     }
@@ -1203,10 +1387,14 @@ function stepBug(b, dt) {
 // =====================================================================
 //  VAGUES, BONUS ET DÉFAITE
 // =====================================================================
-let paused = false;
+let paused = true;      // en pause tant que le menu, une fenêtre ou l'intro est ouverte
+let introStep = -1;     // étape de l'introduction en cours (-1 = pas d'intro)
 const modal = document.getElementById('modal'), modalBox = document.getElementById('modalBox');
 
-function availablePerks() { return PERKS.filter(p => perkLevel(p.id) < p.max); }
+function availablePerks() {
+  const m = state.run.mode;
+  return PERKS.filter(p => perkLevel(p.id) < p.max && (!p.modes || p.modes.includes(m)));
+}
 function pickChoices() {
   const pool = availablePerks().slice();
   const out = [];
@@ -1214,20 +1402,26 @@ function pickChoices() {
   return out;
 }
 
-// Vague réussie : prime pour chaque lancer non utilisé, puis choix d'un bonus
 function endWave() {
   const run = state.run;
-  const spare = run.launchesLeft;
-  const reward = Math.round(0.5 * (1 + spare) * Math.pow(run.wave, 1.3) * S.bounty);
+  let reward;
+  if (isStory()) {
+    // Prime plus grosse si on a atteint l'objectif sans utiliser tous les lancers
+    run.lastSpare = run.launchesLeft;
+    reward = Math.round(0.5 * (1 + run.lastSpare) * Math.pow(run.wave, 1.3) * S.bounty);
+  } else {
+    reward = Math.round(0.5 * Math.pow(run.wave, 1.5) * S.bounty);
+    run.snack = Math.min(run.maxSnack, run.snack + 2);
+    updateCookies();
+  }
   state.money += reward;
   state.totalMoney += reward;
   run.money += reward;
+  run.lastReward = reward;
   run.wave++;
   startWave();
-  if (run.wave > state.bestWave) { state.bestWave = run.wave; refreshStats(); }
+  if (run.wave > state.best[run.mode]) { state.best[run.mode] = run.wave; refreshStats(); }
   run.choice = pickChoices();
-  run.lastReward = reward;
-  run.lastSpare = spare;
   save();
   showPerkChoice();
 }
@@ -1236,11 +1430,13 @@ function startWave() {
   run.launchesLeft = waveLaunches();
   run.waveKills = 0;
   run.cleared = false;
+  run.waveTime = 0;
+  run.raidsSent = 0;
 }
 
 function showPerkChoice() {
   const run = state.run;
-  if (!run.choice || !run.choice.length) { run.choice = null; return; }
+  if (!run.choice || !run.choice.length) { run.choice = null; paused = false; return; }
   paused = true;
   charging = false;
   modalBox.className = 'modalBox';
@@ -1249,8 +1445,10 @@ function showPerkChoice() {
   h.textContent = `Vague ${run.wave - 1} repoussée !`;
   const lead = document.createElement('p');
   lead.className = 'lead';
-  lead.textContent = `+${fmtMoney(run.lastReward || 0)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
-    + ` · Choisis un bonus pour cette partie. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`;
+  lead.textContent = isStory()
+    ? `+${fmtMoney(run.lastReward)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
+      + ` · Choisis un bonus. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`
+    : `+${fmtMoney(run.lastReward)} · +2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
   const grid = document.createElement('div');
   grid.className = 'perkChoices';
   for (const id of run.choice) {
@@ -1273,15 +1471,16 @@ function showPerkChoice() {
 function takePerk(id) {
   const run = state.run;
   run.perks[id] = perkLevel(id) + 1;
+  if (id === 'cookies') { run.maxSnack += 4; run.snack = Math.min(run.maxSnack, run.snack + 6); updateCookies(); }
   if (id === 'glu') addTrap();
   run.choice = null;
   refreshStats();
-  run.launchesLeft = waveLaunches(); // le bonus « lancer en plus » compte dès cette vague
+  if (isStory()) run.launchesLeft = waveLaunches(); // le bonus « lancer en plus » compte dès cette vague
   save();
   modal.classList.remove('open');
   paused = false;
   const p = PERKS.find(x => x.id === id);
-  banner(`${p.icon} ${p.name}`, `Vague ${run.wave} : ça repart !`);
+  banner(`${p.icon} ${p.name}`, isStory() ? `Vague ${run.wave} : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers` : `Vague ${run.wave} : ça repart !`);
   shopDirty = true;
 }
 
@@ -1291,21 +1490,23 @@ function defeat() {
   run.over = true;
   paused = true;
   charging = false;
-  state.bestWave = Math.max(state.bestWave, run.wave);
+  state.best[run.mode] = Math.max(state.best[run.mode], run.wave);
   save();
   modalBox.className = 'modalBox defeat';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = 'Défaite ! Le bureau est envahi 🪳🪳🪳';
+  h.textContent = isStory() ? 'Défaite ! Le bureau est envahi 🪳🪳🪳' : 'Défaite ! 🪳🍪';
   const lead = document.createElement('p');
   lead.className = 'lead';
-  lead.textContent = `Il fallait écraser ${waveQuota()} insectes en ${waveLaunches()} lancers : tu en as eu ${run.waveKills}.`;
+  lead.textContent = isStory()
+    ? `Il fallait écraser ${waveQuota()} insectes en ${waveLaunches()} lancers : j’en ai eu ${run.waveKills}.`
+    : 'Les cafards ont dévoré tout ton goûter.';
   const sum = document.createElement('div');
   sum.className = 'summary';
   const perkNames = Object.entries(run.perks).map(([id, n]) => { const p = PERKS.find(x => x.id === id); return `${p.icon} ${p.name}${n > 1 ? ' ×' + n : ''}`; });
   for (const [k, v] of [
     ['Vague atteinte', `${run.wave}`],
-    ['Record', `vague ${state.bestWave}`],
+    ['Record', `vague ${state.best[run.mode]}`],
     ['Insectes écrasés', fmtInt(run.kills)],
     ['Argent gagné', fmtMoney(run.money)],
     ['Bonus perdus', perkNames.length ? perkNames.join(', ') : 'aucun'],
@@ -1330,22 +1531,117 @@ function defeat() {
 }
 
 function restartRun() {
-  state.runs++;
-  state.run = newRun();
-  for (let i = bugs.length - 1; i >= 0; i--) removeBug(i);
-  for (const t of tops) disposeTop(t);
-  tops.length = 0;
-  cooldown = 0;
-  spawnTimer = 0;
+  const mode = state.run.mode;
+  state.games[mode]++;
+  state.run = state.savedRuns[mode] = newRun(mode);
+  clearBoard();
   rebuildTraps();
+  updateCookies();
   refreshStats();
   startWave();
   save();
   modal.classList.remove('open');
   paused = false;
-  banner('Nouvelle partie', `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
+  banner('Nouvelle partie', mode === 'histoire' ? `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !` : 'Protège ton goûter !');
   shopDirty = true;
 }
+
+// =====================================================================
+//  MENU D'ACCUEIL ET INTRODUCTION
+// =====================================================================
+const menuEl = document.getElementById('menu');
+const dialogEl = document.getElementById('dialog'), dialogLine = document.getElementById('dialogLine'), dialogFace = dialogEl.querySelector('.face');
+const skipBtn = document.getElementById('skipIntro');
+let introTop = null; // la toupie qui apparaît pendant l'intro
+
+function runLabel(m) {
+  const run = state.savedRuns[m];
+  const started = run.wave > 1 || run.kills > 0;
+  const parts = [];
+  if (started && !run.over) parts.push(`▶ Partie en cours : vague ${run.wave}`);
+  parts.push(`Record : vague ${state.best[m]}`);
+  return parts.join(' · ');
+}
+function openMenu() {
+  paused = true;
+  charging = false;
+  modal.classList.remove('open');
+  document.getElementById('storyRecord').textContent = runLabel('histoire');
+  document.getElementById('carnageRecord').textContent = runLabel('carnage');
+  document.getElementById('replayIntro').style.display = state.introSeen ? '' : 'none';
+  menuEl.classList.add('open');
+}
+function enterMode(mode, { forceIntro = false } = {}) {
+  menuEl.classList.remove('open');
+  if (state.run.mode !== mode) {
+    clearBoard();
+    state.mode = mode;
+    state.run = state.savedRuns[mode];
+    refreshStats();
+  }
+  document.getElementById('hud').dataset.mode = mode;
+  rebuildTraps();
+  updateCookies();
+  shopDirty = true;
+  save();
+  if (mode === 'histoire' && (forceIntro || !state.introSeen)) { startIntro(); return; }
+  resumeRun();
+}
+function resumeRun() {
+  const run = state.run;
+  if (run.over) { run.over = false; defeat(); return; }
+  if (run.choice) { showPerkChoice(); return; }
+  paused = false;
+  if (isStory()) banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`);
+  else banner(`🍪 Mode Carnage — vague ${run.wave}`, 'Protège ton goûter des cafards affamés (en rouge) !');
+}
+
+function startIntro() {
+  // On repart d'une partie neuve pour l'histoire
+  if (state.run.wave > 1 || state.run.kills > 0) {
+    state.run = state.savedRuns.histoire = newRun('histoire');
+    clearBoard();
+    rebuildTraps();
+    refreshStats();
+  }
+  paused = false;  // les cafards bougent pendant l'intro, mais on ne peut pas encore lancer
+  introStep = 0;
+  for (let i = 0; i < 8; i++) spawnBug();
+  showIntroLine();
+  dialogEl.classList.add('open');
+  skipBtn.classList.add('open');
+}
+function showIntroLine() {
+  const l = INTRO[introStep];
+  dialogFace.textContent = l.face;
+  dialogLine.textContent = l.text;
+  if (l.showTop && !introTop) {
+    introTop = { ...makeTopMesh(), t: 0 };
+    introTop.tilt.scale.setScalar(S.radius * 1.6);
+  }
+}
+function nextIntroLine() {
+  if (introStep < 0) return;
+  introStep++;
+  if (introStep >= INTRO.length) endIntro();
+  else showIntroLine();
+}
+function endIntro() {
+  introStep = -1;
+  dialogEl.classList.remove('open');
+  skipBtn.classList.remove('open');
+  if (introTop) { disposeTop(introTop); introTop = null; }
+  state.introSeen = true;
+  startWave();
+  save();
+  banner('📖 Vague 1', `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
+}
+dialogEl.addEventListener('click', nextIntroLine);
+skipBtn.addEventListener('click', endIntro);
+document.getElementById('storyBtn').onclick = () => enterMode('histoire');
+document.getElementById('carnageBtn').onclick = () => enterMode('carnage');
+document.getElementById('replayIntro').onclick = () => enterMode('histoire', { forceIntro: true });
+document.getElementById('menuBtn').onclick = () => { if (introStep >= 0) endIntro(); save(); openMenu(); };
 
 // =====================================================================
 //  CONTRÔLES : viser, charger, lancer
@@ -1354,7 +1650,7 @@ const raycaster = new THREE.Raycaster();
 const deskPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const pointerNdc = new THREE.Vector2();
 const aimPoint = new THREE.Vector2(0, -0.2);
-let charging = false, chargeT = 0, cooldown = 0, launcherKick = 0, lastInput = 0;
+let charging = false, chargeT = 0, launcherKick = 0, lastInput = 0, cooldown = 0;
 
 function pointerToDesk(e) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -1364,13 +1660,18 @@ function pointerToDesk(e) {
   if (!raycaster.ray.intersectPlane(deskPlane, hit)) return;
   aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hit.x)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hit.z)));
 }
-function isReady() { return tops.length === 0 && cooldown <= 0 && !paused && state.run.launchesLeft > 0 && !state.run.cleared; }
+// Histoire : on relance dès que la toupie tombe. Carnage : il faut attendre la recharge.
+function isReady() {
+  if (paused || introStep >= 0 || aliveTops().length) return false;
+  return isStory() ? state.run.launchesLeft > 0 && !state.run.cleared : cooldown <= 0;
+}
 function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
 
 const canvas = renderer.domElement;
 canvas.addEventListener('pointerdown', e => {
   lastInput = gameTime;
   pointerToDesk(e);
+  if (introStep >= 0) { nextIntroLine(); return; }
   if (!isReady()) return;
   charging = true;
   chargeT = 0;
@@ -1380,6 +1681,7 @@ canvas.addEventListener('pointermove', e => { pointerToDesk(e); });
 function release() {
   if (!charging) return;
   charging = false;
+  if (!isReady()) return;
   const g = gaugeValue();
   const perfect = g >= 1 - S.perfect;
   if (perfect) popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big');
@@ -1485,10 +1787,11 @@ function renderStats() {
     }
   };
   const run = state.run;
-  rows('Partie en cours', [
-    ['Vague', `${run.wave} (record : ${state.bestWave})`],
-    ['Objectif de la vague', `${run.waveKills} / ${waveQuota()} insectes`],
-    ['Lancers restants', `${run.launchesLeft} / ${waveLaunches()}`],
+  rows(isStory() ? 'Partie en cours (Histoire)' : 'Partie en cours (Carnage)', [
+    ['Vague', `${run.wave} (record : ${state.best[run.mode]})`],
+    ...(isStory()
+      ? [['Objectif de la vague', `${run.waveKills} / ${waveQuota()} insectes`], ['Lancers restants', `${run.launchesLeft} / ${waveLaunches()}`]]
+      : [['Goûter', `${Math.max(0, run.snack)} / ${run.maxSnack} 🍪`], ['Insectes affamés cette vague', `${waveRaiders()}`]]),
     ['Bonus', Object.keys(run.perks).length ? Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? '×' + n : '')).join(' ') : 'aucun'],
     ['Insectes écrasés', fmtInt(run.kills)],
     ['Argent gagné', fmtMoney(run.money)],
@@ -1511,7 +1814,7 @@ function renderStats() {
     ['Rotation au lancer', `${fmtInt(S.rpm)} tr/min`],
     ['Vitesse au lancer', `${(S.speed * 100).toFixed(0)} cm/s`],
     ['Zone parfaite', `${Math.round(S.perfect * 100)} %`],
-    ['Temps de recharge', `${S.cooldown.toFixed(2)} s`],
+    ['Recharge (Carnage)', `${S.cooldown.toFixed(2)} s`],
     ['Toupies par lancer', S.tops],
     ['Lanceur automatique', S.auto ? 'oui' : 'non'],
   ]);
@@ -1523,8 +1826,8 @@ function renderStats() {
   ]);
   rows('Carrière', [
     ['Argent gagné au total', fmtMoney(state.totalMoney)],
-    ['Parties jouées', fmtInt(state.runs)],
-    ['Meilleure vague', state.bestWave],
+    ['Record Histoire', `vague ${state.best.histoire}`],
+    ['Record Carnage', `vague ${state.best.carnage}`],
     ['Lancers', fmtInt(state.launches)],
     ['Insectes écrasés', fmtInt(state.kills)],
     ['Meilleur combo', `×${state.bestCombo}`],
@@ -1547,12 +1850,19 @@ function updateHud() {
   const run = state.run;
   $('money').textContent = fmtMoney(state.money);
   $('killsLine').textContent = `${fmtInt(state.kills)} insecte${state.kills > 1 ? 's' : ''} écrasé${state.kills > 1 ? 's' : ''} · ${fmtInt(state.launches)} lancer${state.launches > 1 ? 's' : ''}`;
-  const quota = waveQuota();
-  $('waveText').textContent = `🌊 Vague ${run.wave}`;
-  $('launchesText').textContent = `🚀 ${run.launchesLeft} lancer${run.launchesLeft > 1 ? 's' : ''}`;
-  $('quotaText').textContent = `${Math.min(run.waveKills, quota)} / ${quota}`;
-  $('quotaBar').style.width = `${Math.min(1, run.waveKills / quota) * 100}%`;
-  $('quotaBar').classList.toggle('done', run.cleared);
+  $('waveText').textContent = `${isStory() ? '📖' : '🍪'} Vague ${run.wave}`;
+  if (isStory()) {
+    const quota = waveQuota();
+    $('waveSide').textContent = `🚀 ${run.launchesLeft} lancer${run.launchesLeft > 1 ? 's' : ''}`;
+    $('quotaText').textContent = `${Math.min(run.waveKills, quota)} / ${quota}`;
+    $('quotaBar').style.width = `${Math.min(1, run.waveKills / quota) * 100}%`;
+    $('quotaBar').classList.toggle('done', run.cleared);
+  } else {
+    $('waveSide').textContent = `${Math.ceil(WAVE_LEN - run.waveTime)} s`;
+    $('timeBar').style.width = `${(run.waveTime / WAVE_LEN) * 100}%`;
+    $('snackText').textContent = `${Math.max(0, run.snack)} / ${run.maxSnack}`;
+    $('snackBar').style.width = `${(Math.max(0, run.snack) / run.maxSnack) * 100}%`;
+  }
   const l = infestLevel();
   $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
   const next = INFEST_THRESHOLDS[l + 1];
@@ -1572,16 +1882,24 @@ function updateHud() {
 
   // Message d'état
   let msg;
-  const alive = tops.filter(t => !t.falling);
-  const missing = quota - run.waveKills;
-  if (paused) msg = run.over ? 'Défaite…' : 'Choisis un bonus';
+  const alive = aliveTops();
+  if (introStep >= 0) msg = '…';
+  else if (paused) msg = run.over ? 'Défaite…' : run.choice ? 'Choisis un bonus' : 'Pause';
   else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
-  else if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
-  else if (!run.cleared && run.launchesLeft === 1 && cooldown <= 0) msg = `⚠️ Dernier lancer ! Il en faut encore ${missing}`;
-  else if (tops.length) msg = 'La toupie est tombée…';
-  else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s`;
-  else if (S.auto) msg = 'Lanceur automatique prêt (appuie sur le bureau pour lancer toi-même)';
-  else msg = state.launches === 0 ? 'Maintiens le doigt sur le bureau pour viser, relâche pour lancer' : 'Prêt ! Appuie sur le bureau pour lancer';
+  else if (isStory()) {
+    const missing = waveQuota() - run.waveKills;
+    if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
+    else if (run.cleared) msg = 'Objectif atteint ✅';
+    else if (run.launchesLeft === 1) msg = `⚠️ Dernier lancer ! Il en faut encore ${missing}`;
+    else if (state.launches === 0) msg = 'Maintiens le doigt sur le bureau pour viser, relâche pour lancer';
+    else msg = `Prêt ! Encore ${missing} cafard${missing > 1 ? 's' : ''} à écraser`;
+  } else {
+    const hungry = bugs.filter(b => b.mode === 'hungry' && !b.dying && !b.gone).length;
+    if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min`;
+    else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s` + (hungry ? ` · ⚠️ ${hungry} affamé${hungry > 1 ? 's' : ''} !` : '');
+    else if (hungry) msg = `⚠️ ${hungry} insecte${hungry > 1 ? 's' : ''} affamé${hungry > 1 ? 's' : ''} (en rouge) vers ton goûter !`;
+    else msg = 'Prêt ! Appuie sur le bureau pour lancer';
+  }
   $('status').textContent = msg;
 
   $('gauge').classList.toggle('on', charging);
@@ -1591,7 +1909,7 @@ function updateHud() {
 // =====================================================================
 //  BOUCLE DE JEU
 // =====================================================================
-let last = performance.now(), hudTimer = 0, saveTimer = 0;
+let last = performance.now(), hudTimer = 0, saveTimer = 0, aliveBefore = 0;
 const camQuat = new THREE.Quaternion();
 
 function frame(now) {
@@ -1600,12 +1918,37 @@ function frame(now) {
   last = now;
   if (!paused) update(dt);
   else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); }
+  if (introTop) animateIntroTop(dt);
   renderer.render(scene, camera);
+}
+
+// Pendant l'intro, la toupie tombe du carton sur le bureau et se met à tourner
+function animateIntroTop(dt) {
+  introTop.t += dt;
+  const f = Math.min(1, introTop.t / 0.7);
+  const y = 0.45 * (1 - f) * (1 - f);
+  introTop.tilt.position.set(0, y, -0.02);
+  introTop.spinner.rotation.y += 25 * dt;
+  introTop.gyro.rotation.y -= 3 * dt;
+  const wob = 0.06 + (1 - f) * 0.3;
+  introTop.tilt.rotation.set(Math.cos(introTop.t * 9) * wob, 0, Math.sin(introTop.t * 9) * wob);
 }
 
 function update(dt) {
   gameTime += dt;
   const run = state.run;
+  const playing = introStep < 0;
+
+  // Carnage : vagues chronométrées et raids d'affamés
+  if (!isStory() && playing) {
+    run.waveTime += dt;
+    if (run.waveTime >= WAVE_LEN) { endWave(); return; }
+    const raiders = waveRaiders();
+    if (run.raidsSent < raiders && run.waveTime >= (WAVE_LEN * (run.raidsSent + 0.5)) / (raiders + 0.5)) {
+      run.raidsSent++;
+      spawnBug(true);
+    }
+  }
 
   // Apparition des insectes
   spawnTimer += dt * S.spawnRate * waveSpawnMult();
@@ -1637,12 +1980,12 @@ function update(dt) {
       top.tilt.rotation.set(Math.cos(top.prec) * wob, 0, Math.sin(top.prec) * wob);
     } else {
       top.falling += dt;
-      const f = Math.min(1, top.falling / 0.35);
+      const f = Math.min(1, top.falling / 0.3);
       const lean = 0.34 + f * 1.05;
       top.tilt.rotation.set(Math.cos(top.fallDir) * lean, 0, Math.sin(top.fallDir) * lean);
       top.angle += (1 - f) * 6 * dt;
-      if (top.falling > 1.4) top.tilt.position.y = -(top.falling - 1.4) * 0.08;
-      if (top.falling > 1.9) top.dead = true;
+      if (top.falling > 0.8) top.tilt.position.y = -(top.falling - 0.8) * 0.08;
+      if (top.falling > 1.2) top.dead = true;
     }
     top.spinner.rotation.y = top.angle;
     top.gyro.rotation.y = -top.angle * 0.15;
@@ -1664,25 +2007,28 @@ function update(dt) {
     }
   }
   for (let i = tops.length - 1; i >= 0; i--) {
-    if (tops[i].dead) {
-      disposeTop(tops[i]);
-      tops.splice(i, 1);
-      if (tops.length === 0) cooldown = S.cooldown;
-    }
+    if (tops[i].dead) { disposeTop(tops[i]); tops.splice(i, 1); }
   }
-  if (tops.length === 0 && cooldown > 0) cooldown -= dt;
 
-  // Fin de vague, une fois toutes les toupies tombées :
-  // objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi
-  if (tops.length === 0) {
+  // Carnage : la recharge démarre quand la dernière toupie tombe
+  const aliveNow = aliveTops().length;
+  if (!isStory()) {
+    if (aliveBefore > 0 && aliveNow === 0) cooldown = S.cooldown;
+    if (aliveNow === 0 && cooldown > 0) cooldown -= dt;
+  }
+  aliveBefore = aliveNow;
+
+  // Histoire : fin de vague une fois les toupies tombées
+  // (objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi)
+  if (isStory() && playing && tops.length === 0) {
     if (run.cleared) { endWave(); return; }
     if (run.launchesLeft <= 0) { defeat(); return; }
   }
 
-  // Lanceur automatique
+  // Lanceur automatique (en Carnage, vise d'abord les affamés)
   if (S.auto && isReady() && !charging && gameTime - lastInput > 1.5) {
     const alive = bugs.filter(b => !b.dying && !b.gone);
-    const target = alive[Math.floor(Math.random() * alive.length)];
+    const target = alive.find(b => b.mode === 'hungry') || alive[Math.floor(Math.random() * alive.length)];
     const aim = target ? new THREE.Vector2(target.x, target.z) : new THREE.Vector2((Math.random() - 0.5) * 0.8, -0.2);
     launchTops(aim, 0.85, false);
   }
@@ -1757,17 +2103,18 @@ window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 placeCamera();
 updateLauncherSkin();
+$('hud').dataset.mode = state.run.mode;
 rebuildTraps();
+updateCookies();
 updateHud();
-// Reprise d'une partie interrompue pendant un choix de bonus ou une défaite
-if (state.run.over) { state.run.over = false; defeat(); }
-else if (state.run.choice) showPerkChoice(0);
+openMenu();
 requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
   state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
+  enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine,
 };
 </script>
 </body>
