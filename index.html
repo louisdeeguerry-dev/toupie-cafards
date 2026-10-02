@@ -2024,7 +2024,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.10';
+const VERSION = '2026-10-02.11';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2109,11 +2109,10 @@ for (const t of TABS) {
   b.onclick = () => { currentTab = t.id; shopDirty = true; };
   tabsEl.appendChild(b);
 }
-// Entrer dans l'atelier de la maison : on quitte le bureau, le jeu se met en pause
+// Entrer dans l'atelier de la maison : le jeu continue derrière (la toupie lancée tourne toujours sur le bureau)
 function openWorkshop() {
   if (introStep >= 0) return;
   charging = false;
-  paused = true;
   previewDirty = true;
   shopDirty = true;
   shopEl.classList.add('open');
@@ -2121,8 +2120,6 @@ function openWorkshop() {
 }
 function closeWorkshop() {
   shopEl.classList.remove('open');
-  // Si une fenêtre (choix de bonus, défaite) était ouverte, le jeu reste en pause derrière elle
-  paused = modal.classList.contains('open') || menuEl.classList.contains('open') || pauseEl.classList.contains('open');
 }
 $('shopBtn').onclick = openWorkshop;
 $('closeShop').onclick = closeWorkshop;
