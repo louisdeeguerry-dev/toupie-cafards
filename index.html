@@ -43,8 +43,9 @@
     border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px);
     overflow: hidden; text-overflow: ellipsis; }
 
-  #gauge { position: fixed; right: 18px; top: 50%; transform: translateY(-50%); width: 26px; height: 46vh; max-height: 300px;
-    background: var(--panel); border-radius: 13px; padding: 4px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+  /* Jauge de lancement, placée juste à droite du lanceur (position calculée à chaque image) */
+  #gauge { position: fixed; left: 0; top: 0; transform: translate(26px, -100%); width: 22px; height: min(150px, 28vh);
+    background: var(--panel); border-radius: 11px; padding: 3px; opacity: 0; transition: opacity .15s; pointer-events: none; }
   #gauge.on { opacity: 1; }
   #gaugeInner { position: relative; width: 100%; height: 100%; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,0.08); }
   #gaugePerfect { position: absolute; left: 0; right: 0; top: 0; background: rgba(95, 211, 138, 0.45); }
@@ -53,7 +54,10 @@
   .topBtns { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; }
   .topBtns button { padding: 10px 14px; border: 0; border-radius: 12px; font-weight: 800; font-size: 15px; cursor: pointer;
     box-shadow: 0 2px 10px rgba(0,0,0,.4); }
-  #menuBtn { background: var(--panel); color: var(--text); }
+  #menuBtn, #speedBtn { background: var(--panel); color: var(--text); }
+  #speedBtn { display: none; }
+  #speedBtn.owned { display: block; }
+  #speedBtn.fast { background: #7fd1ff; color: #10202a; }
   #shopBtn { background: var(--accent); color: #1a1410; }
   #shopBtn .dot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-left: 6px; vertical-align: middle; }
   #shopBtn.can .dot { display: inline-block; }
@@ -67,6 +71,8 @@
     font-weight: 700; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .tabs button.active { background: var(--accent); color: #1a1410; }
   #shopList { overflow-y: auto; padding: 10px; flex: 1; }
+  #preview { display: block; width: 100%; height: 140px; flex: none; border-bottom: 1px solid rgba(255,255,255,.1);
+    background: radial-gradient(ellipse at center 70%, #5a4330, #20170f); }
   .card { background: var(--panel-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: grid;
     grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
   .card .name { font-weight: 800; }
@@ -172,7 +178,6 @@
     #game { right: 380px; }
     .topBtns { right: 390px; }
     #status { left: calc(50% - 190px); }
-    #gauge { right: 398px; }
     #modal { right: 380px; }
     #dialog { left: calc(50% - 190px); }
   }
@@ -202,6 +207,7 @@
 <div id="status"></div>
 <div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
 <div class="topBtns">
+  <button id="speedBtn" aria-label="Vitesse du jeu">⏩ ×1</button>
   <button id="menuBtn" aria-label="Menu">☰</button>
   <button id="shopBtn">🛠 Atelier<span class="dot"></span></button>
 </div>
@@ -211,6 +217,7 @@
     <div class="tabs" id="tabs"></div>
     <button id="closeShop" aria-label="Fermer">✕</button>
   </div>
+  <canvas id="preview"></canvas>
   <div id="shopList"></div>
 </aside>
 
@@ -320,12 +327,12 @@ const INTRO = [
 // =====================================================================
 const BUG_TYPES = [
   // Les petits cafards meurent toujours en un coup ; la résistance arrive à l'infestation 2
-  { id: 'petit',    name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   name: 'Cafard',              r: 0.024, hp: 8,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     name: 'Gros cafard',         r: 0.034, hp: 35,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 150,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 600,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 4000, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'petit',    pts: 1,   name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   pts: 2,   name: 'Cafard',              r: 0.024, hp: 6,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     pts: 5,   name: 'Gros cafard',         r: 0.034, hp: 35,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   pts: 15,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 150,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', pts: 40,  name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 600,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    pts: 150, name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 4000, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
 ];
 // Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
 const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
@@ -389,9 +396,6 @@ const UPGRADES = [
   { id: 'multi', tab: 'lanceur', wave: 14, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
     fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
-  { id: 'auto', tab: 'lanceur', wave: 16, name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est tombée.', base: 3000, growth: 1, max: 1,
-    unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
-    fmt: s => s.auto ? 'activé' : 'désactivé' },
 
   // --- Bureau / économie ---
   { id: 'appat', tab: 'bureau', wave: 4, name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 34, growth: 1.5, max: 30,
@@ -441,6 +445,8 @@ const TOYBOX = [
     desc: () => 'Entre deux vagues, tu choisis parmi 4 bonus au lieu de 3.' },
   { id: 'secours', icon: '🩹', name: 'Toupie de secours', max: 1, cost: () => 40,
     desc: () => 'Une fois par partie, au moment de perdre : +3 lancers (Histoire) ou +6 bouchées de goûter (Carnage).' },
+  { id: 'montre', icon: '⌚', name: 'Montre de grand-père', max: 1, cost: () => 20,
+    desc: () => 'Ajoute un bouton ⏩ pour jouer en vitesse ×2 (les toupies, les cafards et les vagues vont deux fois plus vite).' },
   { id: 'punaises', icon: '📌', name: 'Punaises au sol', max: 3, cost: n => 50 + 40 * n,
     desc: n => `Une zone de punaises au milieu du bureau (${[0, 12, 16, 20][n]} cm) : ${[0, 2, 4, 8][n]} dégâts par seconde aux insectes qui marchent dessus.` },
 ];
@@ -469,7 +475,6 @@ function computeStats(L, P = perkLevel) {
     perfect: 0.06 + 0.02 * L('precision'),
     cooldown: 2.5 / (1 + 0.2 * L('recharge')), // seulement en mode Carnage
     tops: 1 + L('multi'),
-    auto: L('auto') > 0,
     spawnRate: 0.9 * (1 + 0.15 * L('appat')),
     maxBugs: 12 + 2 * L('nid'),
     bounty: (1 + 0.1 * L('prime')) * (1 + 0.25 * P('or')),
@@ -492,7 +497,7 @@ function estimatedSpin(s) { return Math.log(1 / s.fallRatio) / s.decay; }
 // Une partie contient TOUT ce qui est perdu en cas de défaite : argent, améliorations, infestation, bonus
 function newRun(mode) {
   return {
-    mode, wave: 1, cash: 0, levels: {}, launches: 0,
+    mode, wave: 1, cash: 0, levels: {}, launches: 0, infest: 0,
     perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
     rescueUsed: false, wavesCleared: 0,
     // Histoire
@@ -509,9 +514,10 @@ const state = {
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
   meta: { earned: 0, spent: 0, items: {} }, // le Carton à Jouets (jamais remis à zéro par une défaite)
+  speedX2: false,
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns', 'meta'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns', 'meta', 'speedX2'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -543,6 +549,8 @@ function load() {
     state.savedRuns[m] = Object.assign(newRun(m), state.savedRuns[m] || {}, { mode: m });
     // On ignore les bonus qui n'existent plus (ou pas dans ce mode)
     const run = state.savedRuns[m];
+    if (!run.infest && run.kills) run.infest = run.kills; // anciennes parties : 1 point par insecte
+    delete run.levels.auto; // le lanceur automatique a été retiré
     for (const id of Object.keys(run.perks)) if (!PERKS.some(p => p.id === id && (!p.modes || p.modes.includes(m)))) delete run.perks[id];
     if (run.choice) run.choice = run.choice.filter(id => PERKS.some(p => p.id === id));
   }
@@ -565,10 +573,17 @@ const isStory = () => state.run.mode === 'histoire';
 let S = computeStats(lv);
 function refreshStats() { S = computeStats(lv); }
 function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
+// L'infestation monte avec les points des insectes écrasés (petit cafard 1, gros cafard 5…)
 function infestLevel() {
   let l = 0;
-  for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.run.kills >= INFEST_THRESHOLDS[i]) l = i;
+  for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.run.infest >= INFEST_THRESHOLDS[i]) l = i;
   return l;
+}
+// Remplit le bureau jusqu'au maximum du Nid (quand la toupie tombe et au début d'une partie)
+function refillBoard() {
+  let n = bugs.filter(b => !b.dying && !b.gone).length;
+  while (n < bugCap()) { spawnBug(); n++; }
+  spawnTimer = 0;
 }
 // Palier de skin actuel d'une amélioration
 function skinTier(id) {
@@ -876,7 +891,7 @@ function bodyMaterial() {
   }
 }
 
-function makeTopMesh() {
+function makeTopMesh(target = scene) {
   const tilt = new THREE.Group();   // inclinaison (vacillement)
   const spinner = new THREE.Group(); // tout ce qui tourne
   tilt.add(spinner);
@@ -991,12 +1006,12 @@ function makeTopMesh() {
     tilt.add(parts.aura);
   }
 
-  scene.add(tilt);
+  target.add(tilt);
 
-  // Traînée (selon l'Élan)
+  // Traînée (selon l'Élan) — pas dans l'aperçu de l'atelier
   const trailT = skinTier('elan');
   let trail = null;
-  if (trailT >= 1) {
+  if (trailT >= 1 && target === scene) {
     const n = 24;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
@@ -1060,9 +1075,31 @@ const antGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.3, 4);
 antGeo.rotateZ(Math.PI / 2);
 antGeo.translate(0.65, 0, 0);
 
-function makeBugMesh(t) {
+// La Prime fait briller les insectes, jusqu'à les rendre dorés au niveau maximum
+const PRIME_MAX = 40;
+const GOLD = new THREE.Color(0xffcc33);
+function applyPrimeGlow(mat, t) {
+  const f = Math.min(1, lv('prime') / PRIME_MAX);
+  if (f >= 1) {
+    mat.color.copy(GOLD);
+    mat.metalness = 1;
+    mat.roughness = 0.2;
+    mat.emissive.setHex(0x7a5200);
+    mat.emissiveIntensity = 0.5;
+  } else {
+    // Une lueur discrète qui grandit avec le niveau (f au carré : douce au début, plus forte vers la fin)
+    mat.color.setHex(t.color).lerp(GOLD, f * f * 0.5);
+    mat.metalness = (t.metal || 0.15) + f * 0.4;
+    mat.roughness = 0.35;
+    mat.emissive.setHex(0xffb000);
+    mat.emissiveIntensity = 0.12 * f + 0.2 * f * f;
+  }
+}
+
+function makeBugMesh(t, target = scene) {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.35, metalness: t.metal || 0.15 });
+  applyPrimeGlow(mat, t);
   const dark = new THREE.MeshStandardMaterial({ color: 0x1a0f08, roughness: 0.6 });
   const body = new THREE.Mesh(unitSphere, mat);
   body.scale.set(1, 0.32, 0.62);
@@ -1107,7 +1144,7 @@ function makeBugMesh(t) {
   }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   g.scale.setScalar(t.r * BUG_VISUAL);
-  scene.add(g);
+  target.add(g);
   return { group: g, legs, mat };
 }
 
@@ -1135,20 +1172,23 @@ function waveSpawnMult() { return isStory() ? 1 : 1 + 0.08 * (state.run.wave - 1
 function bugCap() { return S.maxBugs + infestLevel() * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
-// L'objectif accélère : 3 à la vague 1, 18 à la vague 10, 56 à la vague 20, 119 à la vague 30
-function waveQuota() { const w = state.run.wave - 1; return Math.ceil(3 + 0.5 * w + 0.12 * w * w); }
+// L'objectif accélère : 3 à la vague 1, 19 à la vague 10, 70 à la vague 20, 194 à la vague 30, 455 à la vague 40.
+// La part exponentielle finit par dépasser ce qu'un bureau plein peut fournir : la défaite arrive toujours.
+function waveQuota() { const w = state.run.wave - 1; return Math.ceil((3 + 0.4 * w + 0.06 * w * w) * Math.pow(1.035, w)); }
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
 function pickBugType() {
-  // Les insectes ne partent jamais : on réserve 60 % des places aux petits cafards,
-  // pour que le bureau ne se remplisse pas d'insectes trop résistants
-  const tough = bugs.filter(b => !b.dying && !b.gone && b.t.hp > 1).length;
-  if (tough >= Math.floor(bugCap() * 0.4)) return BUG_TYPES[0];
   const lvl = infestLevel();
+  // Garde-fou : les insectes résistants ne peuvent pas occuper tout le bureau
+  // (de 60 % des places à l'infestation 2 jusqu'à 90 % ensuite)
+  const tough = bugs.filter(b => !b.dying && !b.gone && b.t.hp > 1).length;
+  if (tough >= Math.floor(bugCap() * Math.min(0.9, 0.5 + 0.1 * lvl))) return BUG_TYPES[0];
+  // Plus l'infestation monte, plus les petits deviennent rares et les gros fréquents :
+  // le dernier type débloqué est assez courant, le précédent est le plus courant, les plus anciens disparaissent peu à peu
   const pool = [];
   for (let t = 0; t <= lvl; t++) {
-    let w = (t < lvl ? 1 : 0.55) * Math.pow(1 + 0.12 * (state.run.wave - 1), t); // les vagues avancées amènent plus de gros insectes
+    let w = t === lvl ? 0.7 : Math.pow(0.5, lvl - 1 - t);
     if (BUG_TYPES[t].rare) w *= 0.25;
     pool.push([t, w]);
   }
@@ -1225,9 +1265,13 @@ function addShock(x, z, r) {
 // =====================================================================
 const popLayer = document.getElementById('popups');
 const tmpV = new THREE.Vector3();
+// Position du jeu à l'écran, mesurée une seule fois par image (mesurer la page à chaque texte est très lent)
+let canvasRect = null;
+const MAX_POPUPS = 40; // au-delà, on n'affiche plus de nouveaux textes (évite d'engorger l'écran et le téléphone)
 function popup(text, x, z, cls = '') {
+  if (popLayer.childElementCount >= MAX_POPUPS && cls !== 'big') return;
   tmpV.set(x, 0.05, z).project(camera);
-  const rect = renderer.domElement.getBoundingClientRect();
+  const rect = canvasRect || (canvasRect = renderer.domElement.getBoundingClientRect());
   const el = document.createElement('div');
   el.className = 'pop ' + cls;
   el.textContent = text;
@@ -1263,6 +1307,7 @@ function killBug(b) {
   state.totalMoney += gain;
   state.kills++;
   run.kills++;
+  run.infest += b.t.pts || 1; // l'infestation monte selon la taille des insectes écrasés
   run.money += gain;
   state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
   if (isStory()) {
@@ -1281,6 +1326,7 @@ function killBug(b) {
   if (newLevel > prevLevel) {
     banner(`Infestation niveau ${newLevel + 1} !`, `Nouveaux insectes : ${BUG_TYPES[newLevel].name}`);
     shopDirty = true;
+    previewDirty = true;
   }
 }
 
@@ -1331,7 +1377,7 @@ function biteSnack(b) {
   // Rassasié, l'insecte reste sur le bureau et repart se promener (il ne disparaît que si on l'écrase)
   b.mode = 'wander';
   b.hunger = Infinity;
-  b.mat.emissiveIntensity = 0;
+  applyPrimeGlow(b.mat, b.t);
   b.pause = 0.5;
   b.tx = (Math.random() - 0.5) * DESK_X;
   b.tz = -Math.random() * DESK_Z * 0.8;
@@ -1519,9 +1565,23 @@ function stepBug(b, dt) {
     const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz), min = o.r + r;
     if (d < min && d > 0) {
       if (o.kind === 'plate' && b.mode === 'hungry') { biteSnack(b); return; }
-      b.x = o.x + (dx / d) * min; b.z = o.z + (dz / d) * min;
-      if (b.mode === 'wander') newTarget(b);
+      const nx = dx / d, nz = dz / d;
+      b.x = o.x + nx * min; b.z = o.z + nz * min;
+      // Contourne l'obstacle : on longe son bord du côté de la destination
+      const side = (b.tx - b.x) * -nz + (b.tz - b.z) * nx >= 0 ? 1 : -1;
+      b.heading = Math.atan2(nx * side, -nz * side);
     }
+  }
+  // Coincé ? (par exemple une grosse reine dans un recoin) : on repart vers le centre du bureau
+  b.stuckT = (b.stuckT || 0) + dt;
+  if (b.stuckT >= 1) {
+    const moved = Math.hypot(b.x - (b.lastX ?? b.x), b.z - (b.lastZ ?? b.z));
+    if (moved < 0.01 && b.pause <= 0 && b.mode !== 'hungry') {
+      b.tx = (Math.random() - 0.5) * DESK_X * 0.6;
+      b.tz = (Math.random() - 0.5) * DESK_Z * 0.6;
+      b.heading = Math.atan2(b.tz - b.z, b.tx - b.x);
+    }
+    b.lastX = b.x; b.lastZ = b.z; b.stuckT = 0;
   }
   b.walk += dt * (speed * 160 + (Math.hypot(b.kx, b.kz) > 0.05 ? 20 : 0));
 }
@@ -1725,6 +1785,7 @@ function restartRun() {
   const mode = state.run.mode;
   state.games[mode]++;
   state.run = state.savedRuns[mode] = newRun(mode);
+  previewDirty = true;
   applyToybox(state.run);
   if (state.run.perks.cookies) { state.run.maxSnack += 4; state.run.snack += 6; }
   clearBoard();
@@ -1733,6 +1794,7 @@ function restartRun() {
   refreshStats();
   updateLauncherSkin();
   startWave();
+  refillBoard();
   save();
   modal.classList.remove('open');
   document.getElementById('toybox').classList.remove('open');
@@ -1784,6 +1846,7 @@ function enterMode(mode, { forceIntro = false } = {}) {
   }
   document.getElementById('hud').dataset.mode = mode;
   updateLauncherSkin();
+  previewDirty = true;
   rebuildTraps();
   updateCookies();
   shopDirty = true;
@@ -1796,6 +1859,7 @@ function resumeRun() {
   if (run.over) { run.over = false; defeat(); return; }
   if (run.choice) { showPerkChoice(); return; }
   paused = false;
+  if (!aliveTops().length) refillBoard();
   if (isStory()) banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`);
   else banner(`🍪 Mode Carnage — vague ${run.wave}`, 'Protège ton goûter des cafards affamés (en rouge) !');
 }
@@ -1804,7 +1868,7 @@ function startIntro() {
   // L'intro ne touche jamais à la partie en cours (argent, améliorations…)
   paused = false;  // les cafards bougent pendant l'intro, mais on ne peut pas encore lancer
   introStep = 0;
-  while (bugs.length < 8) spawnBug();
+  refillBoard();
   showIntroLine();
   dialogEl.classList.add('open');
   skipBtn.classList.add('open');
@@ -1867,6 +1931,7 @@ function renderToybox() {
       state.meta.spent += cost;
       state.meta.items[t.id] = n + 1;
       if (t.id === 'punaises') rebuildTacks();
+      if (t.id === 'montre') updateSpeedBtn();
       save();
       banner(`${t.icon} ${t.name}`, 'Effet dès la prochaine partie' + (t.id === 'punaises' || t.id === 'catalogue' || t.id === 'carte' || t.id === 'secours' ? ' (et déjà maintenant)' : ''));
       renderToybox();
@@ -1908,6 +1973,15 @@ function disarmRestart() {
   restartBtn.querySelector('.mt').textContent = '🔁 Recommencer la partie';
 }
 document.getElementById('menuBtn').onclick = openPause;
+// Bouton ⏩ (si on possède la montre du Carton à Jouets)
+const speedBtn = document.getElementById('speedBtn');
+function updateSpeedBtn() {
+  speedBtn.classList.toggle('owned', metaLevel('montre') > 0);
+  speedBtn.classList.toggle('fast', gameSpeed() === 2);
+  speedBtn.textContent = gameSpeed() === 2 ? '⏩ ×2' : '▶ ×1';
+}
+speedBtn.onclick = () => { state.speedX2 = !state.speedX2; updateSpeedBtn(); save(); };
+updateSpeedBtn();
 document.getElementById('resumeBtn').onclick = () => {
   pauseEl.classList.remove('open');
   // Si une fenêtre (choix de bonus, défaite) était ouverte, le jeu reste en pause derrière elle
@@ -1936,7 +2010,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.8';
+const VERSION = '2026-10-02.9';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2024,6 +2098,73 @@ for (const t of TABS) {
 $('shopBtn').onclick = () => shopEl.classList.add('open');
 $('closeShop').onclick = () => shopEl.classList.remove('open');
 
+// Aperçu 3D en haut de l'atelier : la toupie, le lanceur ou les cafards selon l'onglet
+const previewCanvas = $('preview');
+const previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
+previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const previewScene = new THREE.Scene();
+previewScene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 1.1));
+const previewLight = new THREE.DirectionalLight(0xffffff, 1.6);
+previewLight.position.set(1, 2, 1.5);
+previewScene.add(previewLight);
+const previewCam = new THREE.PerspectiveCamera(32, 2, 0.01, 10);
+const previewRoot = new THREE.Group();
+previewScene.add(previewRoot);
+let previewDirty = true, previewTab = null, previewSpinners = [];
+function buildPreview() {
+  previewDirty = false;
+  previewTab = currentTab;
+  previewRoot.clear();
+  previewSpinners = [];
+  previewCanvas.style.display = currentTab === 'stats' ? 'none' : 'block';
+  if (currentTab === 'toupie') {
+    const m = makeTopMesh(previewRoot);
+    m.tilt.scale.setScalar(0.05);
+    m.tilt.rotation.x = 0.3;
+    previewSpinners.push([m.spinner, 5]);
+    previewCam.position.set(0, 0.075, 0.2);
+    previewCam.lookAt(0, 0.025, 0);
+  } else if (currentTab === 'lanceur') {
+    const l = launcher.clone();
+    l.position.set(0, 0, 0);
+    previewRoot.add(l);
+    previewSpinners.push([l, 0.8]);
+    previewCam.position.set(0, 0.11, 0.24);
+    previewCam.lookAt(0, 0.045, 0);
+  } else if (currentTab === 'bureau') {
+    // Les insectes déjà rencontrés, avec la lueur de la Prime
+    const types = BUG_TYPES.slice(0, infestLevel() + 1);
+    // Taille réelle de chaque insecte, alignés côte à côte, puis caméra reculée pour tout voir
+    const widths = types.map(t => t.r * BUG_VISUAL * 2.6);
+    const total = widths.reduce((a, b) => a + b, 0);
+    let x = -total / 2;
+    types.forEach((t, i) => {
+      const { group } = makeBugMesh(t, previewRoot);
+      group.position.set(x + widths[i] / 2, 0, 0);
+      x += widths[i];
+      previewSpinners.push([group, 0.9]);
+    });
+    const aspect = previewCanvas.clientWidth / Math.max(1, previewCanvas.clientHeight);
+    const dist = Math.max(0.12, (total * 0.8) / (Math.tan(THREE.MathUtils.degToRad(16)) * aspect));
+    previewCam.position.set(0, dist * 0.55, dist * 0.85);
+    previewCam.lookAt(0, 0.005, 0);
+  }
+}
+function renderPreview(dt) {
+  const visible = shopEl.classList.contains('open') || window.innerWidth >= 1000;
+  if (!visible) return;
+  if (previewDirty || previewTab !== currentTab) buildPreview();
+  if (currentTab === 'stats') return;
+  const w = previewCanvas.clientWidth, h = previewCanvas.clientHeight;
+  if (previewCanvas.width !== Math.round(w * previewRenderer.getPixelRatio())) {
+    previewRenderer.setSize(w, h, false);
+    previewCam.aspect = w / h;
+    previewCam.updateProjectionMatrix();
+  }
+  for (const [o, speed] of previewSpinners) o.rotation.y += speed * dt;
+  previewRenderer.render(previewScene, previewCam);
+}
+
 // Une amélioration se débloque à une certaine vague de la partie (et parfois un niveau d'infestation)
 function upgradeLock(u) {
   if (u.modes && !u.modes.includes(state.run.mode)) return 'Mode Carnage uniquement';
@@ -2041,9 +2182,12 @@ function buy(u) {
   state.run.levels[u.id] = lv(u.id) + 1;
   refreshStats();
   updateLauncherSkin();
+  if (u.id === 'prime') for (const b of bugs) if (b.mode !== 'hungry') applyPrimeGlow(b.mat, b.t);
   save();
   shopDirty = true;
+  previewDirty = true;
   if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
+  else if (u.id === 'prime' && lv('prime') >= PRIME_MAX) banner('✨ Cafards dorés !', 'La Prime est au maximum');
 }
 
 function renderShop() {
@@ -2143,7 +2287,6 @@ function renderStats() {
     ['Zone parfaite', `${Math.round(S.perfect * 100)} %`],
     ['Recharge (Carnage)', `${S.cooldown.toFixed(2)} s`],
     ['Toupies par lancer', S.tops],
-    ['Lanceur automatique', S.auto ? 'oui' : 'non'],
   ]);
   rows('Bureau', [
     ['Apparition', `${(S.spawnRate * waveSpawnMult()).toFixed(2)} insecte/s`],
@@ -2193,7 +2336,7 @@ function updateHud() {
   const l = infestLevel();
   $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
   const next = INFEST_THRESHOLDS[l + 1];
-  $('infestBar').style.width = next ? `${((state.run.kills - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
+  $('infestBar').style.width = next ? `${((state.run.infest - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
   $('perksLine').textContent = Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? n : '')).join(' ');
 
   // Boutons d'achat : activés/désactivés selon l'argent, sans tout reconstruire
@@ -2243,11 +2386,15 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (!paused) update(dt);
+  canvasRect = null; // re-mesurée au premier texte flottant de cette image
+  // La montre du Carton à Jouets : tout le jeu tourne deux fois plus vite
+  if (!paused) update(dt * gameSpeed());
   else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); }
   if (introTop) animateIntroTop(dt);
   renderer.render(scene, camera);
+  renderPreview(dt);
 }
+function gameSpeed() { return metaLevel('montre') && state.speedX2 ? 2 : 1; }
 
 // Pendant l'intro, la toupie tombe du carton sur le bureau et se met à tourner
 function animateIntroTop(dt) {
@@ -2339,6 +2486,8 @@ function update(dt) {
 
   // Carnage : la recharge démarre quand la dernière toupie tombe
   const aliveNow = aliveTops().length;
+  // Quand la dernière toupie tombe, le bureau se remplit de cafards jusqu'au maximum du Nid
+  if (aliveBefore > 0 && aliveNow === 0 && playing) refillBoard();
   if (!isStory()) {
     if (aliveBefore > 0 && aliveNow === 0) cooldown = S.cooldown;
     if (aliveNow === 0 && cooldown > 0) cooldown -= dt;
@@ -2352,17 +2501,17 @@ function update(dt) {
     if (run.launchesLeft <= 0 && !tryRescue()) { defeat(); return; }
   }
 
-  // Lanceur automatique (en Carnage, vise d'abord les affamés)
-  if (S.auto && isReady() && !charging && gameTime - lastInput > 1.5) {
-    const alive = bugs.filter(b => !b.dying && !b.gone);
-    const target = alive.find(b => b.mode === 'hungry') || alive[Math.floor(Math.random() * alive.length)];
-    const aim = target ? new THREE.Vector2(target.x, target.z) : new THREE.Vector2((Math.random() - 0.5) * 0.8, -0.2);
-    launchTops(aim, 0.85, false);
-  }
-
-  // Charge du lanceur
-  if (charging) chargeT += dt;
+  // Charge du lanceur (en temps réel, même en vitesse ×2, pour garder la même difficulté de visée)
+  if (charging) chargeT += dt / gameSpeed();
   $('gaugeFill').style.height = (charging ? gaugeValue() : 0) * 100 + '%';
+  if (charging) {
+    // La jauge se place juste à droite du lanceur, à l'écran
+    tmpV.set(LAUNCH.x, 0.07, LAUNCH.y + 0.03).project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    const g = $('gauge');
+    g.style.left = rect.left + (tmpV.x * 0.5 + 0.5) * rect.width + 'px';
+    g.style.top = rect.top + (-tmpV.y * 0.5 + 0.5) * rect.height + 'px';
+  }
   launcherKick = Math.max(0, launcherKick - dt * 4);
   lBody.position.z = -launcherKick * 0.02;
   lRing.rotation.z += (charging ? 25 : 2) * dt;
@@ -2456,7 +2605,7 @@ window.__dbg = {
   state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
-  upgradeLock, applyToybox, metaBalance, openToybox, rebuildTacks, waveQuota, TOYBOX,
+  upgradeLock, applyToybox, metaBalance, openToybox, rebuildTacks, waveQuota, TOYBOX, previewRoot, previewCam,
 };
 </script>
 </body>
