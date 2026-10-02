@@ -372,9 +372,59 @@ const BUG_TYPES = [
   { id: 'blinde',   pts: 15,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 150,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
   { id: 'scarabee', pts: 40,  name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 600,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
   { id: 'reine',    pts: 150, name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 4000, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  // --- Stade 2 : les insectes mutants (une fois la barre des reines remplie) ---
+  { id: 'perce',    pts: 20,  name: 'Perce-oreille',       r: 0.030, hp: 300,  speed: 0.12, reward: 260,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
+    tip: 'Rapide, avec des pinces à l’arrière.' },
+  { id: 'millepattes', pts: 35, name: 'Mille-pattes',      r: 0.036, hp: 650,  speed: 0.10, reward: 560,  mass: 25,  bite: 2, color: 0x9a4a12, fear: 0.0,  shape: 'centipede', dash: true,
+    tip: 'Il fonce par à-coups !' },
+  { id: 'lucane',   pts: 60,  name: 'Lucane cerf-volant',  r: 0.050, hp: 1200, speed: 0.07, reward: 1050, mass: 70,  bite: 3, color: 0x4a2412, fear: 0.0,  metal: 0.5, shape: 'stag',
+    tip: 'Lourd : il freine la toupie.' },
+  { id: 'criquet',  pts: 100, name: 'Criquet géant',       r: 0.040, hp: 1900, speed: 0.09, reward: 1700, mass: 30,  bite: 2, color: 0x5c8a2a, fear: 0.0,  shape: 'cricket', jump: true,
+    tip: 'Il saute pour esquiver la toupie !' },
+  { id: 'goliath',  pts: 160, name: 'Scarabée goliath',    r: 0.065, hp: 3500, speed: 0.05, reward: 3100, mass: 140, bite: 3, color: 0x7a4a20, fear: 0.0,  metal: 0.3, shape: 'goliath',
+    tip: 'Énorme et très résistant.' },
+  { id: 'reinefourmi', pts: 500, name: 'Reine des fourmis', r: 0.080, hp: 6000, speed: 0.04, reward: 6000, mass: 150, bite: 4, color: 0x5a1010, fear: 0.0,  metal: 0.2, shape: 'ant', queen: true, crown: true, rare: true, brood: 'fourmi',
+    tip: 'Elle pond des fourmis sans arrêt !' },
+  // --- Stade 3 : les araignées ---
+  { id: 'faucheux', pts: 30,  name: 'Faucheux',            r: 0.030, hp: 500,  speed: 0.17, reward: 450,  mass: 8,   bite: 2, color: 0x8a6a4a, fear: 0.20, shape: 'spider', legScale: 2.0, legThick: 0.45, bodyScale: 0.55,
+    tip: 'Ses longues pattes le rendent insaisissable.' },
+  { id: 'loup',     pts: 50,  name: 'Araignée-loup',       r: 0.040, hp: 900,  speed: 0.11, reward: 820,  mass: 30,  bite: 2, color: 0x5a4632, fear: 0.0,  shape: 'spider', stripes: true, dash: true,
+    tip: 'Elle chasse en sprintant !' },
+  { id: 'scorpion', pts: 80,  name: 'Scorpion',            r: 0.050, hp: 1600, speed: 0.08, reward: 1450, mass: 60,  bite: 3, color: 0xc0953e, fear: 0.0,  metal: 0.2, shape: 'scorpion', sting: true,
+    tip: 'Son dard fait perdre de la vitesse à la toupie.' },
+  { id: 'veuve',    pts: 130, name: 'Veuve noire',         r: 0.045, hp: 2800, speed: 0.07, reward: 2600, mass: 50,  bite: 3, color: 0x141418, fear: 0.0,  metal: 0.3, shape: 'spider', hourglass: true, web: true,
+    tip: 'Ses toiles ralentissent la toupie.' },
+  { id: 'mygale',   pts: 200, name: 'Mygale',              r: 0.070, hp: 4500, speed: 0.06, reward: 4200, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
+    tip: 'Une montagne de poils… et de points de vie.' },
+  { id: 'mere',     pts: 700, name: 'Mère araignée',       r: 0.090, hp: 9000, speed: 0.04, reward: 9000, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
+    tip: 'Elle tisse des toiles et lâche ses bébés !' },
 ];
-// Nombre total de cafards écrasés pour débloquer chaque niveau d'infestation
-const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000];
+// Les « petits » de chaque stade : ils meurent toujours en un coup et évitent que le bureau se bouche
+const FODDER_TYPES = [
+  { id: 'fourmi', pts: 2, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
+  { id: 'bebe',   pts: 3, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
+];
+const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES];
+const bugType = id => ALL_BUG_TYPES.find(t => t.id === id);
+// Les stades : quand la barre du dernier insecte d'un stade est remplie, les insectes mutent
+const STAGES = [
+  { from: 0,  name: 'Les cafards',          fodder: 'petit' },
+  { from: 6,  name: 'Les insectes mutants', fodder: 'fourmi', lines: [
+    { face: '😳', text: 'Hein ?! Les cafards… ils ont changé. On dirait qu’ils ont muté !' },
+    { face: '😤', text: 'Ils ne lâchent pas l’affaire, ces bestioles. Fourmis, perce-oreilles, mille-pattes… tout le jardin débarque sur mon bureau !' },
+    { face: '😏', text: 'Pas grave. Ma vieille toupie en a vu d’autres.' },
+  ] },
+  { from: 12, name: 'Les araignées',        fodder: 'bebe', lines: [
+    { face: '😱', text: 'Des araignées maintenant ?! C’est vraiment de la mauvaise herbe, ces bêtes-là…' },
+    { face: '🕸️', text: 'Attention aux toiles de la veuve noire : elles ralentissent la toupie.' },
+    { face: '😠', text: 'Allez, on ne lâche rien !' },
+  ] },
+];
+BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.from ? k : a), 0); });
+FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
+// Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
+const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000, 16000, 22000, 30000, 40000, 55000, 75000, 100000, 130000, 170000, 220000, 290000, 380000];
+const INFEST_MAX = 500000; // la barre du tout dernier insecte
 
 // =====================================================================
 //  AMÉLIORATIONS PERMANENTES (atelier) — avec leurs skins
@@ -538,7 +588,7 @@ function newRun(mode) {
   return {
     mode, wave: 1, cash: 0, levels: {}, launches: 0, infest: 0,
     perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
-    rescueUsed: false, wavesCleared: 0,
+    rescueUsed: false, wavesCleared: 0, stageSeen: 0,
     // Histoire
     launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false,
     // Carnage
@@ -617,6 +667,13 @@ function infestLevel() {
   let l = 0;
   for (let i = 0; i < INFEST_THRESHOLDS.length; i++) if (state.run.infest >= INFEST_THRESHOLDS[i]) l = i;
   return l;
+}
+function stageIndex(l = infestLevel()) { return BUG_TYPES[l].stage; }
+// Les insectes du stade en cours, du plus petit au plus gros (pour l'aperçu de l'atelier)
+function stageTypes() {
+  const l = infestLevel(), st = STAGES[stageIndex(l)];
+  const types = BUG_TYPES.slice(st.from, l + 1);
+  return st.from === 0 ? types : [bugType(st.fodder), ...types];
 }
 // Remplit le bureau jusqu'au maximum du Nid (quand la toupie tombe et au début d'une partie)
 function refillBoard() {
@@ -1524,50 +1581,237 @@ function applyPrimeGlow(mat, t) {
   }
 }
 
-function makeBugMesh(t, target = scene) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.35, metalness: t.metal || 0.15 });
-  applyPrimeGlow(mat, t);
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1a0f08, roughness: 0.6 });
-  const body = new THREE.Mesh(unitSphere, mat);
-  body.scale.set(1, 0.32, 0.62);
-  body.position.y = 0.34;
-  const thorax = new THREE.Mesh(unitSphere, mat);
-  thorax.scale.set(0.38, 0.27, 0.56);
-  thorax.position.set(0.72, 0.32, 0);
-  const head = new THREE.Mesh(unitSphere, dark);
-  head.scale.setScalar(0.24);
-  head.position.set(1.05, 0.26, 0);
-  g.add(body, thorax, head);
+// Une patte articulée : la hanche (animée), un écartement vers l'avant ou l'arrière, puis une ou deux sections.
+// Le côté gauche est le reflet du côté droit (échelle négative).
+function addLeg(g, legs, mat, x, z, s, o = {}) {
+  const { y = 0.28, len = 0.75, thick = 1, splay = 0, lift = 0.55, len2 = 0, bend = 1.4 } = o;
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, s * z);
+  const side = new THREE.Group();
+  side.scale.z = s;
+  const spl = new THREE.Group();
+  spl.rotation.y = splay;
+  const tilt = new THREE.Group();
+  tilt.rotation.x = lift;
+  const seg = new THREE.Mesh(legGeo, mat);
+  seg.scale.set(thick, thick, len / 0.75);
+  tilt.add(seg);
+  if (len2) {
+    const knee = new THREE.Group();
+    knee.position.z = len;
+    knee.rotation.x = bend;
+    const seg2 = new THREE.Mesh(legGeo, mat);
+    seg2.scale.set(thick * 0.75, thick * 0.75, len2 / 0.75);
+    knee.add(seg2);
+    tilt.add(knee);
+  }
+  spl.add(tilt);
+  side.add(spl);
+  pivot.add(side);
+  g.add(pivot);
+  legs.push(pivot);
+}
+function blob(g, mat, x, y, z, sx, sy, sz) {
+  const m = new THREE.Mesh(unitSphere, mat);
+  m.position.set(x, y, z);
+  m.scale.set(sx, sy, sz);
+  g.add(m);
+  return m;
+}
+function antennae(g, mat, x, y, len = 1, spread = 0.45, up = 0.25) {
   for (const s of [-1, 1]) {
-    const a = new THREE.Mesh(antGeo, dark);
-    a.position.set(1.15, 0.3, s * 0.08);
-    a.rotation.y = -s * 0.45;
-    a.rotation.z = 0.25;
+    const a = new THREE.Mesh(antGeo, mat);
+    a.position.set(x, y, s * 0.08);
+    a.scale.x = len;
+    a.rotation.y = -s * spread;
+    a.rotation.z = up;
     g.add(a);
   }
-  const legs = [];
-  for (const x of [-0.35, 0.15, 0.6]) {
-    for (const s of [-1, 1]) {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, 0.28, s * 0.35);
-      const leg = new THREE.Mesh(legGeo, dark);
-      leg.rotation.x = s > 0 ? 0.55 : Math.PI - 0.55;
-      pivot.add(leg);
-      g.add(pivot);
-      legs.push(pivot);
-    }
-  }
+}
+const coneGeo = new THREE.ConeGeometry(1, 1, 8);
+coneGeo.rotateZ(-Math.PI / 2); // pointe vers l'avant (+x)
+coneGeo.translate(0.5, 0, 0);
+function spike(g, mat, x, y, z, len, rad, yaw = 0, pitch = 0) {
+  const m = new THREE.Mesh(coneGeo, mat);
+  m.position.set(x, y, z);
+  m.scale.set(len, rad, rad);
+  m.rotation.set(0, yaw, pitch, 'YZX');
+  g.add(m);
+  return m;
+}
+
+function buildRoach(g, legs, t, mat, dark) {
+  blob(g, mat, 0, 0.34, 0, 1, 0.32, 0.62);
+  blob(g, mat, 0.72, 0.32, 0, 0.38, 0.27, 0.56);
+  blob(g, dark, 1.05, 0.26, 0, 0.24, 0.24, 0.24);
+  antennae(g, dark, 1.15, 0.3);
+  for (const x of [-0.35, 0.15, 0.6]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.35, s);
   if (t.horn) {
     const h = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.7, 8), mat);
     h.rotation.z = -1.1;
     h.position.set(1.3, 0.45, 0);
     g.add(h);
   }
+}
+// Fourmi : trois parties bien séparées, taille de guêpe, antennes coudées
+function buildAnt(g, legs, t, mat, dark) {
+  const q = t.queen ? 1.35 : 1;
+  blob(g, mat, -0.6, 0.42, 0, 0.55 * q, 0.42 * q, 0.42 * q);
+  blob(g, mat, -0.08, 0.36, 0, 0.12, 0.1, 0.1);
+  blob(g, mat, 0.25, 0.38, 0, 0.36, 0.2, 0.2);
+  blob(g, mat, 0.78, 0.42, 0, 0.27, 0.24, 0.26);
+  spike(g, dark, 0.98, 0.34, 0.08, 0.22, 0.05, 0.5);
+  spike(g, dark, 0.98, 0.34, -0.08, 0.22, 0.05, -0.5);
+  antennae(g, dark, 0.95, 0.5, 0.8, 0.5, 0.7);
+  for (const [x, sp] of [[0.1, -0.7], [0.25, 0], [0.4, 0.7]]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.12, s, { y: 0.34, len: 0.85, thick: 0.6, splay: sp, lift: 0.6 });
+  if (t.queen) {
+    // Ailes translucides de la reine
+    const wing = new THREE.MeshStandardMaterial({ color: 0xd8e4ff, transparent: true, opacity: 0.45, roughness: 0.2, side: THREE.DoubleSide, depthWrite: false });
+    for (const s of [-1, 1]) {
+      const w = blob(g, wing, -0.45, 0.62, s * 0.32, 0.85, 0.02, 0.28);
+      w.rotation.y = s * 0.25;
+    }
+  }
+}
+// Perce-oreille : long et plat, élytres courts, pinces à l'arrière
+function buildEarwig(g, legs, t, mat, dark) {
+  blob(g, mat, -0.25, 0.25, 0, 0.95, 0.2, 0.3);
+  blob(g, dark, 0.45, 0.3, 0, 0.32, 0.18, 0.32);
+  blob(g, mat, 0.8, 0.28, 0, 0.24, 0.18, 0.24);
+  const pin = new THREE.MeshStandardMaterial({ color: 0x2a1206, roughness: 0.3, metalness: 0.3 });
+  for (const s of [-1, 1]) {
+    spike(g, pin, -1.05, 0.25, s * 0.1, 0.45, 0.06, Math.PI - s * 0.35);
+    spike(g, pin, -1.45, 0.25, s * 0.25, 0.3, 0.045, Math.PI + s * 0.6);
+  }
+  antennae(g, dark, 0.95, 0.3, 1.2, 0.4, 0.2);
+  for (const x of [-0.2, 0.25, 0.55]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.22, s, { y: 0.22, len: 0.6, thick: 0.7 });
+}
+// Mille-pattes : une longue file d'anneaux, une paire de pattes par anneau
+function buildCentipede(g, legs, t, mat, dark) {
+  const n = 10;
+  const alt = new THREE.MeshStandardMaterial({ color: 0x5a2408, roughness: 0.4 });
+  for (let i = 0; i < n; i++) {
+    const x = 1.0 - i * 0.24;
+    blob(g, i % 2 ? alt : mat, x, 0.22, 0, 0.16, 0.13, 0.22);
+    for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.16, s, { y: 0.2, len: 0.45, thick: 0.45, splay: -0.3, lift: 0.5 });
+  }
+  blob(g, dark, 1.22, 0.22, 0, 0.16, 0.12, 0.18);
+  antennae(g, dark, 1.3, 0.24, 1.1, 0.5, 0.1);
+  spike(g, dark, -1.2, 0.22, 0.08, 0.35, 0.03, Math.PI - 0.4);
+  spike(g, dark, -1.2, 0.22, -0.08, 0.35, 0.03, Math.PI + 0.4);
+}
+// Lucane : gros scarabée brillant avec d'énormes mandibules
+function buildStag(g, legs, t, mat, dark) {
+  const shell = blob(g, mat, -0.15, 0.38, 0, 0.85, 0.36, 0.6);
+  blob(g, mat, 0.62, 0.34, 0, 0.3, 0.26, 0.48);
+  blob(g, dark, 0.92, 0.3, 0, 0.24, 0.18, 0.4);
+  const line = blob(g, dark, -0.15, 0.39, 0, 0.84, 0.355, 0.02); // séparation des élytres
+  line.scale.y = 0.37;
+  shell.material = mat;
+  const mand = new THREE.MeshStandardMaterial({ color: 0x5a2a12, roughness: 0.25, metalness: 0.5 });
+  for (const s of [-1, 1]) {
+    spike(g, mand, 1.05, 0.34, s * 0.2, 0.55, 0.08, -s * 0.55, 0.15);
+    spike(g, mand, 1.48, 0.42, s * 0.47, 0.45, 0.06, s * 0.6, 0.1);
+    spike(g, mand, 1.3, 0.38, s * 0.37, 0.2, 0.04, s * 1.4); // petite dent
+  }
+  antennae(g, dark, 0.95, 0.32, 0.6, 0.9, 0.2);
+  for (const [x, sp] of [[-0.3, -0.5], [0.2, 0], [0.6, 0.6]]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.4, s, { len: 0.8, thick: 1.1, splay: sp });
+}
+// Criquet : corps allongé, grosse tête, ailes repliées et grandes pattes arrière pour sauter
+function buildCricket(g, legs, t, mat, dark) {
+  blob(g, mat, -0.2, 0.36, 0, 0.95, 0.3, 0.3);
+  blob(g, mat, 0.55, 0.42, 0, 0.32, 0.3, 0.3);
+  blob(g, mat, 0.95, 0.42, 0, 0.26, 0.32, 0.26);
+  const eye = new THREE.MeshStandardMaterial({ color: 0x1a1408, roughness: 0.2 });
+  for (const s of [-1, 1]) blob(g, eye, 1.05, 0.55, s * 0.17, 0.08, 0.1, 0.06);
+  const wing = new THREE.MeshStandardMaterial({ color: 0x7a9a3a, roughness: 0.6 });
+  for (const s of [-1, 1]) { const w = blob(g, wing, -0.45, 0.6, s * 0.12, 0.95, 0.06, 0.16); w.rotation.x = s * 0.25; }
+  antennae(g, dark, 1.1, 0.6, 1.6, 0.35, 0.35);
+  for (const [x, sp] of [[0.45, 0.5], [0.25, 0.1]]) for (const s of [-1, 1]) addLeg(g, legs, mat, x, 0.2, s, { len: 0.6, thick: 0.6, splay: sp });
+  for (const s of [-1, 1]) addLeg(g, legs, mat, 0.0, 0.25, s, { y: 0.3, len: 0.95, thick: 1.4, splay: -1.25, lift: -0.75, len2: 1.05, bend: 2.3 });
+}
+// Scarabée goliath : énorme, avec le dos rayé noir et blanc
+function buildGoliath(g, legs, t, mat, dark) {
+  blob(g, mat, -0.2, 0.42, 0, 0.85, 0.42, 0.68);
+  const white = new THREE.MeshStandardMaterial({ color: 0xece4d0, roughness: 0.4 });
+  blob(g, white, 0.6, 0.4, 0, 0.32, 0.3, 0.52);
+  for (const z of [-0.26, 0, 0.26]) blob(g, dark, 0.62, 0.45, z, 0.3, 0.27, 0.05);
+  blob(g, dark, 0.92, 0.34, 0, 0.2, 0.16, 0.24);
+  spike(g, dark, 1.05, 0.38, 0.06, 0.3, 0.04, -0.3, 0.3);
+  spike(g, dark, 1.05, 0.38, -0.06, 0.3, 0.04, 0.3, 0.3);
+  for (const [x, sp] of [[-0.35, -0.5], [0.15, 0], [0.55, 0.6]]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.45, s, { len: 0.75, thick: 1.4, splay: sp });
+}
+// Araignées : céphalothorax, gros abdomen, huit pattes articulées (longues pour le faucheux)
+function buildSpider(g, legs, t, mat, dark) {
+  const k = t.bodyScale || 1, L = t.legScale || 1, th = t.legThick || 0.8;
+  const legMat = t.hairy ? new THREE.MeshStandardMaterial({ color: 0x24170f, roughness: 1 }) : dark;
+  blob(g, mat, 0.35 * k, 0.4, 0, 0.42 * k, 0.28 * k, 0.38 * k);
+  const abd = blob(g, mat, -0.5 * k, 0.5, 0, 0.62 * k, 0.5 * k, 0.55 * k);
+  const eye = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.05, metalness: 0.3 });
+  for (const [z, y] of [[0.08, 0.55], [-0.08, 0.55], [0.17, 0.5], [-0.17, 0.5]]) blob(g, eye, 0.72 * k, y, z * k, 0.06, 0.06, 0.06);
+  for (const s of [-1, 1]) spike(g, dark, 0.75 * k, 0.32, s * 0.07 * k, 0.22, 0.05, 0, -0.9); // crochets
+  if (t.stripes) {
+    const light = new THREE.MeshStandardMaterial({ color: 0xb09a78, roughness: 0.6 });
+    blob(g, light, 0.38 * k, 0.43, 0, 0.36 * k, 0.26 * k, 0.1 * k);
+    blob(g, light, -0.5 * k, 0.55, 0, 0.55 * k, 0.47 * k, 0.12 * k);
+  }
+  if (t.hourglass) {
+    // Le sablier rouge de la veuve noire
+    const red = new THREE.MeshStandardMaterial({ color: 0xd01818, roughness: 0.3, emissive: 0x400000 });
+    spike(g, red, -0.5, 1.0, 0, 0.18, 0.1, 0, -Math.PI / 2).position.set(-0.42, 0.93, 0);
+    spike(g, red, -0.62, 0.9, 0, 0.18, 0.1, 0, Math.PI / 2).position.set(-0.62, 1.12, 0);
+  }
+  if (t.hairy) {
+    // Poils : de petites épines sur l'abdomen
+    for (let i = 0; i < 26; i++) {
+      const u = Math.random() * Math.PI * 2, v = Math.random() * 0.9;
+      const nx = Math.cos(u) * Math.sin(v + 0.3), ny = Math.cos(v + 0.3), nz = Math.sin(u) * Math.sin(v + 0.3);
+      const h = spike(g, legMat, -0.5 + nx * 0.6, 0.5 + ny * 0.5, nz * 0.55, 0.16, 0.025);
+      h.lookAt(h.position.x + nx, h.position.y + ny, h.position.z + nz);
+      h.rotateY(-Math.PI / 2);
+    }
+  }
+  if (t.eggs) {
+    // La mère porte ses œufs sur le dos
+    const egg = new THREE.MeshStandardMaterial({ color: 0xf2ecd8, roughness: 0.8 });
+    for (const [x, z] of [[-0.35, 0.18], [-0.6, -0.15], [-0.75, 0.2], [-0.4, -0.25], [-0.55, 0.02]]) blob(g, egg, x, 0.95, z, 0.13, 0.11, 0.13);
+  }
+  abd.castShadow = true;
+  for (const [x, sp] of [[0.55, 0.95], [0.45, 0.35], [0.32, -0.3], [0.2, -0.95]]) {
+    for (const s of [-1, 1]) addLeg(g, legs, legMat, x * k, 0.2 * k, s, { y: 0.4, len: 0.55 * L, thick: th, splay: sp, lift: -0.65, len2: 0.85 * L, bend: 1.95 + (L - 1) * 0.25 });
+  }
+}
+// Scorpion : corps plat, pinces à l'avant et queue recourbée terminée par un dard
+function buildScorpion(g, legs, t, mat, dark) {
+  blob(g, mat, 0.1, 0.25, 0, 0.75, 0.2, 0.45);
+  blob(g, mat, 0.7, 0.26, 0, 0.3, 0.18, 0.36);
+  // Queue : des anneaux qui montent puis se recourbent au-dessus du dos
+  const seg = [[-0.7, 0.3], [-0.95, 0.45], [-1.08, 0.7], [-1.05, 0.98], [-0.88, 1.18], [-0.65, 1.25]];
+  seg.forEach(([x, y], i) => blob(g, mat, x, y, 0, 0.16 - i * 0.012, 0.15 - i * 0.012, 0.15 - i * 0.012));
+  const sting = new THREE.MeshStandardMaterial({ color: 0x3a2008, roughness: 0.2, metalness: 0.4 });
+  blob(g, sting, -0.48, 1.2, 0, 0.13, 0.1, 0.1);
+  spike(g, sting, -0.38, 1.17, 0, 0.25, 0.05, 0, -0.9);
+  for (const s of [-1, 1]) {
+    spike(g, mat, 0.85, 0.28, s * 0.2, 0.45, 0.07, -s * 0.9);
+    blob(g, mat, 1.25, 0.3, s * 0.48, 0.28, 0.13, 0.16).rotation.y = -s * 0.6;
+    spike(g, dark, 1.4, 0.3, s * 0.42, 0.28, 0.05, s * 0.25);
+    spike(g, dark, 1.4, 0.3, s * 0.56, 0.24, 0.045, -s * 0.15);
+  }
+  for (const [x, sp] of [[0.5, 0.6], [0.25, 0.2], [0.0, -0.3], [-0.25, -0.8]]) for (const s of [-1, 1]) addLeg(g, legs, dark, x, 0.3, s, { y: 0.25, len: 0.4, thick: 0.7, splay: sp, lift: -0.4, len2: 0.5, bend: 1.5 });
+}
+const BUG_BUILDERS = { ant: buildAnt, earwig: buildEarwig, centipede: buildCentipede, stag: buildStag, cricket: buildCricket, goliath: buildGoliath, spider: buildSpider, scorpion: buildScorpion };
+
+function makeBugMesh(t, target = scene) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.35, metalness: t.metal || 0.15 });
+  applyPrimeGlow(mat, t);
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a0f08, roughness: 0.6 });
+  const legs = [];
+  (BUG_BUILDERS[t.shape] || buildRoach)(g, legs, t, mat, dark);
   if (t.crown) {
     const c = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.05, 6, 12), new THREE.MeshStandardMaterial({ color: 0xffcc33, metalness: 0.9, roughness: 0.2 }));
     c.rotation.x = Math.PI / 2;
-    c.position.set(1.0, 0.55, 0);
+    c.position.set(t.shape === 'spider' ? 0.4 : t.shape === 'ant' ? 0.8 : 1.0, t.shape === 'ant' ? 0.68 : 0.62, 0);
     g.add(c);
   }
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -1597,7 +1841,7 @@ let spawnTimer = 0;
 // Difficulté selon la vague
 // En Histoire, l'arrivée des insectes ne dépend que de l'Appât et du Nid : pour suivre les objectifs, il faut investir
 function waveSpawnMult() { return isStory() ? 1 : 1 + 0.08 * (state.run.wave - 1); }
-function bugCap() { return S.maxBugs + infestLevel() * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
+function bugCap() { return S.maxBugs + Math.min(infestLevel(), 6) * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
 // L'objectif accélère : 3 à la vague 1, 19 à la vague 10, 70 à la vague 20, 194 à la vague 30, 455 à la vague 40.
@@ -1608,21 +1852,25 @@ function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
 function pickBugType() {
   const lvl = infestLevel();
+  const st = STAGES[stageIndex(lvl)];
+  const fodder = bugType(st.fodder);
   // Garde-fou : les insectes résistants ne peuvent pas occuper tout le bureau
   // (de 60 % des places à l'infestation 2 jusqu'à 90 % ensuite)
-  const tough = bugs.filter(b => !b.dying && !b.gone && b.t.hp > 1).length;
-  if (tough >= Math.floor(bugCap() * Math.min(0.9, 0.5 + 0.1 * lvl))) return BUG_TYPES[0];
+  const tough = bugs.filter(b => !b.dying && !b.gone && b.t.hp > 1 && !FODDER_TYPES.includes(b.t)).length;
+  if (tough >= Math.floor(bugCap() * Math.min(0.9, 0.5 + 0.1 * lvl))) return fodder;
   // Plus l'infestation monte, plus les petits deviennent rares et les gros fréquents :
   // le dernier type débloqué est assez courant, le précédent est le plus courant, les plus anciens disparaissent peu à peu
+  // Après une mutation, seuls les insectes du nouveau stade arrivent (avec leurs petits, qui jouent le rôle des petits cafards)
   const pool = [];
-  for (let t = 0; t <= lvl; t++) {
+  if (st.from > 0) pool.push([fodder, Math.pow(0.5, lvl - st.from)]);
+  for (let t = st.from; t <= lvl; t++) {
     let w = t === lvl ? 0.7 : Math.pow(0.5, lvl - 1 - t);
     if (BUG_TYPES[t].rare) w *= 0.25;
-    pool.push([t, w]);
+    pool.push([BUG_TYPES[t], w]);
   }
   let r = Math.random() * pool.reduce((a, [, w]) => a + w, 0);
-  for (const [t, w] of pool) { if ((r -= w) <= 0) return BUG_TYPES[t]; }
-  return BUG_TYPES[0];
+  for (const [t, w] of pool) { if ((r -= w) <= 0) return t; }
+  return fodder;
 }
 
 // Un endroit libre au hasard sur le bureau : pas sur un objet, pas sur le lanceur, pas sous une toupie qui tourne.
@@ -1639,11 +1887,13 @@ function randomLandingSpot(r, hungry) {
   return [(Math.random() - 0.5) * DESK_X, -DESK_Z * 0.5];
 }
 
-function spawnBug(hungry = false, dropFrom = null) {
-  const t = pickBugType();
+function spawnBug(hungry = false, dropFrom = null, at = null) {
+  const t = at?.type || pickBugType();
   // Les insectes tombent du ciel à un endroit au hasard du bureau ; les hauteurs varient
   // pour qu'un remplissage du bureau ressemble à une petite pluie de cafards
-  const [x, z] = randomLandingSpot(t.r, hungry);
+  const [x, z] = at?.x !== undefined
+    ? [Math.max(-DESK_X + t.r, Math.min(DESK_X - t.r, at.x)), Math.max(-DESK_Z + t.r, Math.min(DESK_Z - t.r, at.z))]
+    : randomLandingSpot(t.r, hungry);
   const mesh = makeBugMesh(t);
   const hp = makeHpBar();
   const bug = {
@@ -1673,6 +1923,7 @@ function clearBoard() {
   for (let i = bugs.length - 1; i >= 0; i--) removeBug(i);
   for (const t of tops) disposeTop(t);
   tops.length = 0;
+  clearWebs();
   spawnTimer = 0;
   cooldown = 0;
 }
@@ -1693,11 +1944,55 @@ function addSplat(x, z, r) {
   if (splats.length > 60) { const s = splats.shift(); scene.remove(s.m); s.m.material.dispose(); }
 }
 const shocks = [];
-function addShock(x, z, r) {
-  const m = new THREE.Mesh(smellGeo, new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.9, depthWrite: false }));
+function addShock(x, z, r, color = 0xffb347) {
+  const m = new THREE.Mesh(smellGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false }));
   m.position.set(x, 0.004, z);
   scene.add(m);
   shocks.push({ m, t: 0, r });
+}
+
+// Toiles d'araignée (veuve noire, mère araignée) : la toupie qui passe dessus est freinée, puis les déchire
+const webs = [];
+const webTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = 'rgba(255,255,255,0.85)';
+  g.lineWidth = 1.4;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * 62, 64 + Math.sin(a) * 62); g.stroke();
+  }
+  for (let r = 8; r < 62; r += 8) {
+    g.beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const a = (i / 12) * Math.PI * 2, rr = r * (0.92 + 0.08 * Math.cos(i * 2.1));
+      if (i) g.lineTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr); else g.moveTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr);
+    }
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const webGeo = new THREE.PlaneGeometry(2, 2);
+webGeo.rotateX(-Math.PI / 2);
+const WEB_MAX = 4;
+function addWeb(x, z) {
+  if (webs.length >= WEB_MAX) return;
+  const r = 0.07;
+  x = Math.max(-DESK_X + r, Math.min(DESK_X - r, x));
+  z = Math.max(-DESK_Z + r, Math.min(DESK_Z - r, z));
+  const m = new THREE.Mesh(webGeo, new THREE.MeshBasicMaterial({ map: webTex, transparent: true, opacity: 0, depthWrite: false }));
+  m.position.set(x, 0.003, z);
+  m.scale.setScalar(r);
+  m.rotation.y = Math.random() * Math.PI;
+  scene.add(m);
+  webs.push({ x, z, r, m, life: 18, hold: 0 });
+}
+function clearWebs() {
+  for (const w of webs) { scene.remove(w.m); w.m.material.dispose(); }
+  webs.length = 0;
 }
 
 // =====================================================================
@@ -1734,6 +2029,31 @@ function banner(title, sub) {
 //  COMBAT
 // =====================================================================
 let combo = 0, lastKillTime = -99, gameTime = 0;
+let pendingMutation = false; // la barre du dernier insecte d'un stade vient d'être remplie
+
+// Mutation : les insectes du bureau se transforment en ceux du nouveau stade, et on le raconte
+function mutate() {
+  pendingMutation = false;
+  const run = state.run, k = stageIndex();
+  if (k <= (run.stageSeen || 0)) return;
+  run.stageSeen = k;
+  for (let i = bugs.length - 1; i >= 0; i--) {
+    const b = bugs[i];
+    if (b.dying || b.gone || b.t.stage >= k || b.mode === 'hungry') continue;
+    const { x, z } = b;
+    removeBug(i);
+    spawnBug(false, 0.12, { type: pickBugType(), x, z });
+    addShock(x, z, 0.08, 0x7dff5a);
+  }
+  const st = STAGES[k];
+  paused = true;
+  charging = false;
+  playDialog(st.lines, () => {
+    paused = false;
+    banner(`🧬 Stade ${k + 1} : ${st.name}`, `Nouvel insecte : ${BUG_TYPES[st.from].name} — ${BUG_TYPES[st.from].tip}`);
+  });
+  save();
+}
 
 function killBug(b) {
   const run = state.run;
@@ -1764,7 +2084,9 @@ function killBug(b) {
   b.hpBar.g.visible = false;
   const newLevel = infestLevel();
   if (newLevel > prevLevel) {
-    banner(`Infestation niveau ${newLevel + 1} !`, `Nouveaux insectes : ${BUG_TYPES[newLevel].name}`);
+    const t = BUG_TYPES[newLevel], st = STAGES[t.stage];
+    if (t.stage > (run.stageSeen || 0)) pendingMutation = true;
+    else banner(`Infestation niveau ${newLevel - st.from + 1} !`, `Nouvel insecte : ${t.name}${t.tip ? ' — ' + t.tip : ''}`);
     shopDirty = true;
     previewDirty = true;
   }
@@ -1788,7 +2110,8 @@ function hitBug(top, b, now) {
   popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
-  top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia;
+  top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia * (b.t.sting ? 2.2 : 1);
+  if (b.t.sting && now - (b.stingT ?? -9) > 1) { b.stingT = now; popup('🦂 Piqûre !', b.x, b.z + 0.03, 'bite'); }
   if (b.hp <= 0) killBug(b);
 }
 
@@ -1863,6 +2186,16 @@ function stepTop(top, dt, now) {
   if (top.x > DESK_X - r) { top.x = DESK_X - r; top.vx = -Math.abs(top.vx) * S.restitution; top.spin *= 0.98; }
   if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
   if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
+
+  // Toiles d'araignée : la toupie s'y englue un instant, puis la toile se déchire
+  for (const w of webs) {
+    if (w.life <= 0 || Math.hypot(top.x - w.x, top.z - w.z) > w.r + r * 0.5) continue;
+    const k = Math.exp(-6 * dt);
+    top.vx *= k; top.vz *= k;
+    top.spin -= top.spin * 0.35 * dt;
+    w.hold += dt;
+    if (w.hold > 0.7) { w.life = Math.min(w.life, 0.4); w.hold = -99; popup('🕸️ Déchirée !', w.x, w.z, 'dmg'); }
+  }
 
   // Rebonds sur le mug, le pot à crayons (et l'assiette en mode Carnage)
   for (const o of obstacles()) {
@@ -1942,8 +2275,49 @@ function stepBug(b, dt) {
   if (b.drop > 0) {
     b.dropV -= 3.5 * dt;
     b.drop += b.dropV * dt;
-    if (b.drop <= 0) { b.drop = 0; b.landT = 0.25; }
+    // Un criquet en plein saut avance aussi
+    if (b.jvx || b.jvz) {
+      b.x = Math.max(-DESK_X + b.t.r, Math.min(DESK_X - b.t.r, b.x + b.jvx * dt));
+      b.z = Math.max(-DESK_Z + b.t.r, Math.min(DESK_Z - b.t.r, b.z + b.jvz * dt));
+    }
+    if (b.drop <= 0) { b.drop = 0; b.landT = 0.25; b.jvx = b.jvz = 0; }
     return;
+  }
+  // Pouvoirs des insectes des stades suivants
+  if (b.t.jump) {
+    b.jumpCd = (b.jumpCd ?? 1) - dt;
+    if (b.jumpCd <= 0) {
+      const top = aliveTops().find(tp => !tp.display && Math.hypot(b.x - tp.x, b.z - tp.z) < 0.14 + S.radius);
+      if (top) {
+        // Il saute pour esquiver : en l'air, la toupie ne peut pas le toucher
+        const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz) || 1, side = Math.random() < 0.5 ? -1 : 1;
+        const ax = dx / d - side * dz / d * 0.6, az = dz / d + side * dx / d * 0.6, n = Math.hypot(ax, az);
+        b.jvx = (ax / n) * 0.45;
+        b.jvz = (az / n) * 0.45;
+        b.heading = Math.atan2(b.jvz, b.jvx);
+        b.drop = 0.002;
+        b.dropV = 1.05;
+        b.tumble = 0;
+        b.jumpCd = 2.2 + Math.random();
+        return;
+      }
+    }
+  }
+  if (b.t.brood) {
+    // Les reines pondent leurs petits sur le bureau (tant que le nid n'est pas plein)
+    b.broodT = (b.broodT ?? 2 + Math.random() * 2) - dt;
+    if (b.broodT <= 0) {
+      b.broodT = 3.5 + Math.random() * 1.5;
+      if (bugs.filter(o => !o.dying && !o.gone).length < bugCap() + 3) {
+        const back = b.t.r * 1.1;
+        const kid = spawnBug(false, 0.02, { type: bugType(b.t.brood), x: b.x - Math.cos(b.heading) * back, z: b.z - Math.sin(b.heading) * back });
+        kid.heading = b.heading + Math.PI + (Math.random() - 0.5);
+      }
+    }
+  }
+  if (b.t.web) {
+    b.webT = (b.webT ?? 2 + Math.random() * 3) - dt;
+    if (b.webT <= 0) { b.webT = 6 + Math.random() * 3; addWeb(b.x, b.z); }
   }
   if (b.landT > 0) b.landT -= dt;
   const slow = (onTrap(b.x, b.z) ? 0.25 : 1) * S.bugSpeed;
@@ -1991,6 +2365,8 @@ function stepBug(b, dt) {
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     b.heading += Math.max(-6 * dt, Math.min(6 * dt, diff));
     speed = b.t.speed * (fleeing ? 1.6 * S.bugSpeed : b.mode === 'hungry' ? 1.2 : 1) * slow;
+    // Mille-pattes et araignée-loup : des sprints soudains
+    if (b.t.dash) speed *= ((gameTime + b.sniff * 7) % 2.2) < 0.55 ? 3 : 0.75;
   }
   b.x += (Math.cos(b.heading) * speed + b.kx) * dt;
   b.z += (Math.sin(b.heading) * speed + b.kz) * dt;
@@ -2308,13 +2684,26 @@ function resumeRun() {
   if (run.choice) { showPerkChoice(); return; }
   paused = false;
   if (!aliveTops().length) refillBoard();
+  if (stageIndex() > (run.stageSeen || 0)) { pendingMutation = true; return; }
   if (isStory()) banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`);
   else banner(`🍪 Mode Carnage — vague ${run.wave}`, 'Protège ton goûter des cafards affamés (en rouge) !');
 }
 
+// Les répliques en cours (l'intro, ou le récit d'une mutation) et ce qu'on fait à la fin
+let dialogLines = INTRO, dialogDone = null;
+function playDialog(lines, done) {
+  dialogLines = lines;
+  dialogDone = done;
+  introStep = 0;
+  showIntroLine();
+  dialogEl.classList.add('open');
+  skipBtn.classList.add('open');
+}
 function startIntro() {
   // L'intro ne touche jamais à la partie en cours (argent, améliorations…)
   paused = false;  // les cafards bougent pendant l'intro, mais on ne peut pas encore lancer
+  dialogLines = INTRO;
+  dialogDone = null;
   introStep = 0;
   refillBoard();
   showIntroLine();
@@ -2322,7 +2711,7 @@ function startIntro() {
   skipBtn.classList.add('open');
 }
 function showIntroLine() {
-  const l = INTRO[introStep];
+  const l = dialogLines[introStep];
   dialogFace.textContent = l.face;
   dialogLine.textContent = l.text;
   if (l.showTop && !introTop) {
@@ -2333,13 +2722,14 @@ function showIntroLine() {
 function nextIntroLine() {
   if (introStep < 0) return;
   introStep++;
-  if (introStep >= INTRO.length) endIntro();
+  if (introStep >= dialogLines.length) endIntro();
   else showIntroLine();
 }
 function endIntro() {
   introStep = -1;
   dialogEl.classList.remove('open');
   skipBtn.classList.remove('open');
+  if (dialogDone) { const done = dialogDone; dialogDone = null; done(); return; }
   if (introTop) { disposeTop(introTop); introTop = null; }
   state.introSeen = true;
   save();
@@ -2458,7 +2848,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.17';
+const VERSION = '2026-10-03.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2653,7 +3043,7 @@ function buildPreview() {
     framePreview(0.26, 0.12, new THREE.Vector3(0, 0.04, 0));
   } else if (currentTab === 'bureau') {
     // Les insectes déjà rencontrés, à leur taille réelle, avec la lueur de la Prime
-    const types = BUG_TYPES.slice(0, infestLevel() + 1);
+    const types = stageTypes();
     const widths = types.map(t => t.r * BUG_VISUAL * 2.6);
     const total = widths.reduce((a, b) => a + b, 0);
     let x = -total / 2;
@@ -2826,7 +3216,7 @@ function renderStats() {
     ['Lancers', fmtInt(state.launches)],
     ['Insectes écrasés', fmtInt(state.kills)],
     ['Meilleur combo', `×${state.bestCombo}`],
-    ...BUG_TYPES.filter(t => state.killsByType[t.id]).map(t => [`  ${t.name}`, fmtInt(state.killsByType[t.id])]),
+    ...ALL_BUG_TYPES.filter(t => state.killsByType[t.id]).map(t => [`  ${t.name}`, fmtInt(state.killsByType[t.id])]),
   ]);
   const reset = document.createElement('button');
   reset.id = 'resetBtn';
@@ -2860,9 +3250,10 @@ function updateHud() {
     $('snackBar').style.width = `${(Math.max(0, run.snack) / run.maxSnack) * 100}%`;
   }
   const l = infestLevel();
-  $('infestName').textContent = `Infestation ${l + 1} — ${BUG_TYPES[l].name}`;
-  const next = INFEST_THRESHOLDS[l + 1];
-  $('infestBar').style.width = next ? `${((state.run.infest - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100}%` : '100%';
+  const st = STAGES[stageIndex(l)];
+  $('infestName').textContent = (st.from ? `Stade ${stageIndex(l) + 1} · ` : '') + `Infestation ${l - st.from + 1} — ${BUG_TYPES[l].name}`;
+  const next = INFEST_THRESHOLDS[l + 1] ?? INFEST_MAX;
+  $('infestBar').style.width = `${Math.min(100, ((state.run.infest - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100)}%`;
   $('perksLine').textContent = Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? n : '')).join(' ');
 
   // Boutons d'achat : activés/désactivés selon l'argent, sans tout reconstruire
@@ -3110,6 +3501,12 @@ function update(dt) {
     s.m.material.opacity = Math.min(0.55, s.life / 2);
     if (s.life <= 0) { scene.remove(s.m); s.m.material.dispose(); splats.splice(i, 1); }
   }
+  for (let i = webs.length - 1; i >= 0; i--) {
+    const w = webs[i];
+    w.life -= dt;
+    w.m.material.opacity = Math.min(0.75, w.life / 0.4, (18 - w.life) * 2);
+    if (w.life <= 0) { scene.remove(w.m); w.m.material.dispose(); webs.splice(i, 1); }
+  }
   for (let i = shocks.length - 1; i >= 0; i--) {
     const s = shocks[i];
     s.t += dt;
@@ -3117,6 +3514,8 @@ function update(dt) {
     s.m.material.opacity = Math.max(0, 0.9 - s.t * 2);
     if (s.t > 0.5) { scene.remove(s.m); s.m.material.dispose(); shocks.splice(i, 1); }
   }
+
+  if (pendingMutation && !paused) mutate();
 
   // Interface (pas à chaque image, pour économiser la batterie)
   hudTimer -= dt;
@@ -3141,7 +3540,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildTacks, waveQuota, TOYBOX, previewRoot, previewCam,
