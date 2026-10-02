@@ -1211,23 +1211,35 @@ function pickBugType() {
   return BUG_TYPES[0];
 }
 
+// Un endroit libre au hasard sur le bureau : pas sur un objet, pas sur le lanceur, pas sous une toupie qui tourne.
+// Les affamés (Carnage) tombent dans la moitié du fond, pour laisser le temps de les intercepter.
+function randomLandingSpot(r, hungry) {
+  for (let tries = 0; tries < 40; tries++) {
+    const x = (Math.random() * 2 - 1) * (DESK_X - r - 0.02);
+    const z = hungry ? -DESK_Z + r + 0.02 + Math.random() * (DESK_Z - r) : (Math.random() * 2 - 1) * (DESK_Z - r - 0.02);
+    if (obstacles().some(o => Math.hypot(x - o.x, z - o.z) < o.r + r + 0.03)) continue;
+    if (Math.abs(x - LAUNCH.x) < 0.1 && z > LAUNCH.y - 0.1) continue;
+    if (tops.some(tp => !tp.falling && Math.hypot(x - tp.x, z - tp.z) < S.radius + r + 0.05)) continue;
+    return [x, z];
+  }
+  return [(Math.random() - 0.5) * DESK_X, -DESK_Z * 0.5];
+}
+
 function spawnBug(hungry = false) {
   const t = pickBugType();
-  // Les insectes arrivent par un bord du bureau (sauf le bord côté joueur).
-  // Les affamés partent du fond, pour laisser le temps de les intercepter.
-  const side = hungry ? 0 : Math.floor(Math.random() * 3);
-  let x, z;
-  if (side === 0) { x = (Math.random() * 2 - 1) * DESK_X; z = -DESK_Z + 0.01; }
-  else if (side === 1) { x = -DESK_X + 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
-  else { x = DESK_X - 0.01; z = (Math.random() * 1.6 - 1) * DESK_Z; }
+  // Les insectes tombent du ciel à un endroit au hasard du bureau ; les hauteurs varient
+  // pour qu'un remplissage du bureau ressemble à une petite pluie de cafards
+  const [x, z] = randomLandingSpot(t.r, hungry);
   const mesh = makeBugMesh(t);
   const hp = makeHpBar();
   const bug = {
-    t, x, z, heading: Math.atan2(-z, -x) + (Math.random() - 0.5), hp: t.hp, maxHp: t.hp,
+    t, x, z, heading: Math.random() * Math.PI * 2, hp: t.hp, maxHp: t.hp,
     tx: 0, tz: 0, pause: 0, kx: 0, kz: 0, lastHit: -1, walk: Math.random() * 10, dying: 0, ...mesh, hpBar: hp,
     hunger: hungry ? 3 * S.hungerMult : Infinity, // les affamés hésitent un peu, puis filent vers le goûter
     mode: 'wander', gone: false, sniff: Math.random(),
+    drop: 0.35 + Math.random() * 0.6, dropV: 0, tumble: (Math.random() - 0.5) * 12, landT: 0,
   };
+  mesh.group.position.set(x, bug.drop, z);
   newTarget(bug);
   bugs.push(bug);
   return bug;
@@ -1371,7 +1383,7 @@ function shockwave(top) {
   addShock(top.x, top.z, r);
   const dmg = 3 * baseDamage(0.5, 0);
   for (const b of bugs) {
-    if (b.dying || b.gone) continue;
+    if (b.dying || b.gone || b.drop > 0) continue;
     if (Math.hypot(b.x - top.x, b.z - top.z) < r + b.t.r) {
       b.hp -= dmg;
       if (b.hp <= 0) killBug(b);
@@ -1415,7 +1427,7 @@ function stepTop(top, dt, now) {
   if (S.chase > 0) {
     let best = null, bd = 0.5;
     for (const b of bugs) {
-      if (b.dying || b.gone) continue;
+      if (b.dying || b.gone || b.drop > 0) continue;
       const d = Math.hypot(b.x - top.x, b.z - top.z);
       if (d < bd) { bd = d; best = b; }
     }
@@ -1451,7 +1463,7 @@ function stepTop(top, dt, now) {
 
   // Chocs avec les insectes
   for (const b of bugs) {
-    if (b.dying || b.gone) continue;
+    if (b.dying || b.gone || b.drop > 0) continue;
     const br = b.t.r * 0.8;
     const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz), min = r + br;
     // Contact : la toupie « râpe » l'insecte tant qu'elle le touche (un coup toutes les 0,12 s)
@@ -1512,6 +1524,14 @@ function stepTopsTogether() {
 
 function stepBug(b, dt) {
   if (b.dying || b.gone) return;
+  // En train de tomber sur le bureau : il ne bouge pas encore et ne peut pas être touché
+  if (b.drop > 0) {
+    b.dropV -= 3.5 * dt;
+    b.drop += b.dropV * dt;
+    if (b.drop <= 0) { b.drop = 0; b.landT = 0.25; }
+    return;
+  }
+  if (b.landT > 0) b.landT -= dt;
   const slow = (onTrap(b.x, b.z) ? 0.25 : 1) * S.bugSpeed;
 
   // Les affamés (Carnage) partent manger le goûter. Les insectes ne quittent jamais le bureau :
@@ -2024,7 +2044,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.11';
+const VERSION = '2026-10-02.12';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2620,7 +2640,7 @@ function update(dt) {
   // Punaises au sol : dégâts continus aux insectes qui marchent dessus
   if (tackDps() > 0 && playing) {
     for (const b of bugs) {
-      if (b.dying || b.gone || !onTacks(b.x, b.z)) continue;
+      if (b.dying || b.gone || b.drop > 0 || !onTacks(b.x, b.z)) continue;
       const dmg = Math.min(b.hp, tackDps() * dt);
       b.hp -= dmg;
       b.tackDmg = (b.tackDmg || 0) + dmg;
@@ -2635,8 +2655,19 @@ function update(dt) {
   for (let i = bugs.length - 1; i >= 0; i--) {
     const b = bugs[i];
     if (b.gone) { removeBug(i); continue; }
-    b.group.position.set(b.x, 0, b.z);
+    b.group.position.set(b.x, b.drop || 0, b.z);
     b.group.rotation.y = -b.heading;
+    if (b.drop > 0) {
+      // En l'air : il tournoie et agite les pattes
+      b.heading += b.tumble * dt;
+      b.group.rotation.z = Math.sin(gameTime * 9 + b.walk) * 0.35;
+      b.walk += dt * 25;
+    } else if (!b.dying) {
+      b.group.rotation.z = 0;
+      // Petit écrasement à l'atterrissage
+      const s = b.t.r * BUG_VISUAL, squash = b.landT > 0 ? Math.sin((b.landT / 0.25) * Math.PI) * 0.3 : 0;
+      b.group.scale.set(s * (1 + squash * 0.5), s * (1 - squash), s * (1 + squash * 0.5));
+    }
     b.legs.forEach((leg, k) => { leg.rotation.y = Math.sin(b.walk + k * Math.PI * 0.5 + (k % 2) * Math.PI) * 0.45; });
     if (b.maxHp > 1 && b.hp < b.maxHp && !b.dying) {
       const w = Math.max(0.05, b.t.r * 2.2);
