@@ -62,17 +62,33 @@
   #shopBtn .dot { display: none; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-left: 6px; vertical-align: middle; }
   #shopBtn.can .dot { display: inline-block; }
 
-  #shop { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 100vw); background: var(--panel); backdrop-filter: blur(6px);
-    display: flex; flex-direction: column; transform: translateX(105%); transition: transform .2s ease; z-index: 5; }
-  #shop.open { transform: none; }
+  /* L'atelier : écran plein, vue 3D à gauche (ou en haut sur téléphone en portrait), améliorations à droite */
+  #shop { position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: row; background: #1b130d;
+    opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s; }
+  #shop.open { opacity: 1; visibility: visible; }
+  .workshopView { position: relative; flex: 1; min-width: 0; min-height: 0; }
+  #preview { display: block; width: 100%; height: 100%; background: radial-gradient(ellipse at 50% 60%, #6b5038, #1b130d 75%); }
+  .workshopTitle { position: absolute; top: 12px; left: 14px; padding: 8px 14px; border-radius: 12px; background: var(--panel);
+    font-weight: 800; font-size: 17px; pointer-events: none; }
+  .workshopMoney { position: absolute; top: 56px; left: 14px; padding: 6px 14px; border-radius: 12px; background: var(--panel);
+    color: var(--gold); font-weight: 800; font-size: 20px; pointer-events: none; font-variant-numeric: tabular-nums; }
+  #closeShop { position: absolute; left: 14px; bottom: 14px; border: 0; border-radius: 12px; padding: 12px 18px; cursor: pointer;
+    background: var(--accent); color: #1a1410; font-weight: 800; font-size: 15px; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  .shopSide { width: min(400px, 46vw); display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid rgba(255,255,255,.1); min-height: 0; }
   .shopHead { display: flex; align-items: center; gap: 6px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,.1); }
   .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1; }
-  .tabs button, #closeShop { border: 0; border-radius: 8px; padding: 8px 4px; background: var(--panel-2); color: var(--text);
+  .tabs button { border: 0; border-radius: 8px; padding: 8px 4px; background: var(--panel-2); color: var(--text);
     font-weight: 700; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .tabs button.active { background: var(--accent); color: #1a1410; }
   #shopList { overflow-y: auto; padding: 10px; flex: 1; }
-  #preview { display: block; width: 100%; height: 140px; flex: none; border-bottom: 1px solid rgba(255,255,255,.1);
-    background: radial-gradient(ellipse at center 70%, #5a4330, #20170f); }
+  @media (max-aspect-ratio: 1/1) {
+    #shop { flex-direction: column; }
+    .workshopView { flex: none; height: 38vh; }
+    .shopSide { width: 100%; flex: 1; border-left: 0; border-top: 1px solid rgba(255,255,255,.1); }
+    .workshopTitle { font-size: 14px; }
+    .workshopMoney { top: 46px; font-size: 16px; }
+    #closeShop { padding: 9px 14px; font-size: 14px; }
+  }
   .card { background: var(--panel-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: grid;
     grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
   .card .name { font-weight: 800; }
@@ -102,7 +118,7 @@
 
   #banner { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.9); padding: 14px 22px; background: var(--panel);
     border: 2px solid var(--accent); border-radius: 14px; font-weight: 800; font-size: 18px; text-align: center; opacity: 0;
-    transition: opacity .3s, transform .3s; pointer-events: none; max-width: calc(100vw - 32px); z-index: 4; }
+    transition: opacity .3s, transform .3s; pointer-events: none; max-width: calc(100vw - 32px); z-index: 12; }
   #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   #banner small { display: block; color: var(--muted); font-weight: 600; font-size: 13px; margin-top: 4px; }
 
@@ -172,15 +188,6 @@
     background: var(--panel); color: var(--text); text-decoration: none; font-weight: 700; }
   #skipIntro.open { display: block; }
 
-  @media (min-width: 1000px) {
-    #shop { transform: none; }
-    #shopBtn, #closeShop { display: none; }
-    #game { right: 380px; }
-    .topBtns { right: 390px; }
-    #status { left: calc(50% - 190px); }
-    #modal { right: 380px; }
-    #dialog { left: calc(50% - 190px); }
-  }
 </style>
 </head>
 <body>
@@ -212,13 +219,20 @@
   <button id="shopBtn">🛠 Atelier<span class="dot"></span></button>
 </div>
 
+<!-- L'atelier de la maison : un écran à part, avec la toupie sur l'établi à gauche et les améliorations à droite -->
 <aside id="shop">
-  <div class="shopHead">
-    <div class="tabs" id="tabs"></div>
-    <button id="closeShop" aria-label="Fermer">✕</button>
+  <div class="workshopView">
+    <canvas id="preview"></canvas>
+    <div class="workshopTitle">🏠 L’atelier de la maison</div>
+    <div class="workshopMoney" id="workshopMoney"></div>
+    <button id="closeShop">↩ Retour au bureau</button>
   </div>
-  <canvas id="preview"></canvas>
-  <div id="shopList"></div>
+  <div class="shopSide">
+    <div class="shopHead">
+      <div class="tabs" id="tabs"></div>
+    </div>
+    <div id="shopList"></div>
+  </div>
 </aside>
 
 <div id="popups"></div>
@@ -2010,7 +2024,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.9';
+const VERSION = '2026-10-02.10';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2095,46 +2109,120 @@ for (const t of TABS) {
   b.onclick = () => { currentTab = t.id; shopDirty = true; };
   tabsEl.appendChild(b);
 }
-$('shopBtn').onclick = () => shopEl.classList.add('open');
-$('closeShop').onclick = () => shopEl.classList.remove('open');
+// Entrer dans l'atelier de la maison : on quitte le bureau, le jeu se met en pause
+function openWorkshop() {
+  if (introStep >= 0) return;
+  charging = false;
+  paused = true;
+  previewDirty = true;
+  shopDirty = true;
+  shopEl.classList.add('open');
+  updateHud();
+}
+function closeWorkshop() {
+  shopEl.classList.remove('open');
+  // Si une fenêtre (choix de bonus, défaite) était ouverte, le jeu reste en pause derrière elle
+  paused = modal.classList.contains('open') || menuEl.classList.contains('open') || pauseEl.classList.contains('open');
+}
+$('shopBtn').onclick = openWorkshop;
+$('closeShop').onclick = closeWorkshop;
 
-// Aperçu 3D en haut de l'atelier : la toupie, le lanceur ou les cafards selon l'onglet
+// La vue 3D de l'atelier : un établi en bois devant un mur à outils, avec dessus la toupie,
+// le lanceur ou les cafards selon l'onglet
 const previewCanvas = $('preview');
 const previewRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true, alpha: true });
 previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+previewRenderer.shadowMap.enabled = true;
 const previewScene = new THREE.Scene();
-previewScene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 1.1));
-const previewLight = new THREE.DirectionalLight(0xffffff, 1.6);
-previewLight.position.set(1, 2, 1.5);
+previewScene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 0.9));
+const previewLight = new THREE.SpotLight(0xffe2b8, 3, 3, 0.7, 0.5);
+previewLight.position.set(0.15, 0.6, 0.35);
+previewLight.castShadow = true;
+previewLight.shadow.mapSize.set(1024, 1024);
 previewScene.add(previewLight);
 const previewCam = new THREE.PerspectiveCamera(32, 2, 0.01, 10);
 const previewRoot = new THREE.Group();
 previewScene.add(previewRoot);
+
+// Décor : établi, mur perforé avec quelques outils accrochés
+(function buildWorkshopDecor() {
+  const benchTex = new THREE.CanvasTexture(woodCanvas('#8a5a32', r => `rgba(${50 + r * 30}, ${28 + r * 15}, 10, ${0.1 + r * 0.2})`));
+  benchTex.colorSpace = THREE.SRGBColorSpace;
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(3, 0.04, 1.4), new THREE.MeshStandardMaterial({ map: benchTex, roughness: 0.8 }));
+  bench.position.set(0, -0.02, 0.42);
+  bench.receiveShadow = true;
+  previewScene.add(bench);
+  const pegCanvas = document.createElement('canvas');
+  pegCanvas.width = pegCanvas.height = 256;
+  const g = pegCanvas.getContext('2d');
+  g.fillStyle = '#7a6248';
+  g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(30, 20, 12, .55)';
+  for (let x = 8; x < 256; x += 16) for (let y = 8; y < 256; y += 16) { g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill(); }
+  const pegTex = new THREE.CanvasTexture(pegCanvas);
+  pegTex.wrapS = pegTex.wrapT = THREE.RepeatWrapping;
+  pegTex.repeat.set(9, 5);
+  pegTex.colorSpace = THREE.SRGBColorSpace;
+  const wallMesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.6), new THREE.MeshStandardMaterial({ map: pegTex, roughness: 0.95 }));
+  wallMesh.position.set(0, 0.78, -0.28);
+  wallMesh.receiveShadow = true;
+  previewScene.add(wallMesh);
+  const metal = new THREE.MeshStandardMaterial({ color: 0x9aa4ad, metalness: 0.9, roughness: 0.3 });
+  const handleRed = new THREE.MeshStandardMaterial({ color: 0xb03a2e, roughness: 0.5 });
+  const handleWood = new THREE.MeshStandardMaterial({ color: 0x9b6a3e, roughness: 0.7 });
+  // Marteau
+  const hammer = new THREE.Group();
+  const hHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.007, 0.14, 8), handleWood);
+  const hHead = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.018, 0.018), metal);
+  hHead.position.y = 0.07;
+  hammer.add(hHandle, hHead);
+  hammer.position.set(-0.22, 0.2, -0.26);
+  hammer.rotation.z = 0.15;
+  // Tournevis
+  const screw = new THREE.Group();
+  const sHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.05, 10), handleRed);
+  const sShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.08, 6), metal);
+  sShaft.position.y = -0.065;
+  screw.add(sHandle, sShaft);
+  screw.position.set(0.2, 0.22, -0.26);
+  // Clé plate
+  const wrench = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.13, 0.004), metal);
+  wrench.position.set(0.27, 0.2, -0.27);
+  wrench.rotation.z = -0.2;
+  for (const o of [hammer, screw, wrench]) { o.traverse(m => { if (m.isMesh) m.castShadow = true; }); previewScene.add(o); }
+})();
+
 let previewDirty = true, previewTab = null, previewSpinners = [];
+// Place la caméra pour que l'objet (largeur × hauteur, centré sur `center`) remplisse bien la vue
+function framePreview(width, height, center) {
+  const aspect = previewCanvas.clientWidth / Math.max(1, previewCanvas.clientHeight);
+  previewCam.aspect = aspect;
+  previewCam.updateProjectionMatrix();
+  const t = Math.tan(THREE.MathUtils.degToRad(previewCam.fov / 2));
+  const dist = Math.max((height / 2) / t, (width / 2) / (t * aspect)) * 1.5;
+  previewCam.position.set(center.x, center.y + dist * 0.35, center.z + dist);
+  previewCam.lookAt(center);
+}
 function buildPreview() {
   previewDirty = false;
   previewTab = currentTab;
   previewRoot.clear();
   previewSpinners = [];
-  previewCanvas.style.display = currentTab === 'stats' ? 'none' : 'block';
-  if (currentTab === 'toupie') {
-    const m = makeTopMesh(previewRoot);
-    m.tilt.scale.setScalar(0.05);
-    m.tilt.rotation.x = 0.3;
-    previewSpinners.push([m.spinner, 5]);
-    previewCam.position.set(0, 0.075, 0.2);
-    previewCam.lookAt(0, 0.025, 0);
-  } else if (currentTab === 'lanceur') {
+  if (currentTab === 'lanceur') {
+    // Le lanceur, avec la toupie posée à côté pour se rendre compte de sa taille
     const l = launcher.clone();
-    l.position.set(0, 0, 0);
+    l.position.set(-0.05, 0, 0);
+    l.rotation.y = 0.5;
+    l.traverse(m => { if (m.isMesh) m.castShadow = true; });
     previewRoot.add(l);
-    previewSpinners.push([l, 0.8]);
-    previewCam.position.set(0, 0.11, 0.24);
-    previewCam.lookAt(0, 0.045, 0);
+    const m = makeTopMesh(previewRoot);
+    m.tilt.scale.setScalar(S.radius);
+    m.tilt.position.set(0.07, 0, 0.02);
+    previewSpinners.push([m.spinner, 6]);
+    framePreview(0.26, 0.12, new THREE.Vector3(0, 0.04, 0));
   } else if (currentTab === 'bureau') {
-    // Les insectes déjà rencontrés, avec la lueur de la Prime
+    // Les insectes déjà rencontrés, à leur taille réelle, avec la lueur de la Prime
     const types = BUG_TYPES.slice(0, infestLevel() + 1);
-    // Taille réelle de chaque insecte, alignés côte à côte, puis caméra reculée pour tout voir
     const widths = types.map(t => t.r * BUG_VISUAL * 2.6);
     const total = widths.reduce((a, b) => a + b, 0);
     let x = -total / 2;
@@ -2144,24 +2232,30 @@ function buildPreview() {
       x += widths[i];
       previewSpinners.push([group, 0.9]);
     });
-    const aspect = previewCanvas.clientWidth / Math.max(1, previewCanvas.clientHeight);
-    const dist = Math.max(0.12, (total * 0.8) / (Math.tan(THREE.MathUtils.degToRad(16)) * aspect));
-    previewCam.position.set(0, dist * 0.55, dist * 0.85);
-    previewCam.lookAt(0, 0.005, 0);
+    framePreview(total, 0.06, new THREE.Vector3(0, 0.01, 0));
+  } else {
+    // Toupie (et onglet Stats) : elle tourne sur l'établi
+    const m = makeTopMesh(previewRoot);
+    m.tilt.scale.setScalar(0.05);
+    previewSpinners.push([m.spinner, 6], [m.gyro, -0.6]);
+    previewRoot.userData.wobble = m.tilt;
+    framePreview(0.14, 0.1, new THREE.Vector3(0, 0.04, 0));
   }
 }
+let previewTime = 0;
 function renderPreview(dt) {
-  const visible = shopEl.classList.contains('open') || window.innerWidth >= 1000;
-  if (!visible) return;
+  if (!shopEl.classList.contains('open')) return;
   if (previewDirty || previewTab !== currentTab) buildPreview();
-  if (currentTab === 'stats') return;
   const w = previewCanvas.clientWidth, h = previewCanvas.clientHeight;
-  if (previewCanvas.width !== Math.round(w * previewRenderer.getPixelRatio())) {
+  if (previewCanvas.width !== Math.round(w * previewRenderer.getPixelRatio()) || previewCanvas.height !== Math.round(h * previewRenderer.getPixelRatio())) {
     previewRenderer.setSize(w, h, false);
-    previewCam.aspect = w / h;
-    previewCam.updateProjectionMatrix();
+    previewDirty = true; // recadrer avec les nouvelles proportions
   }
+  previewTime += dt;
   for (const [o, speed] of previewSpinners) o.rotation.y += speed * dt;
+  // Léger vacillement de la toupie, comme si elle tournait vraiment sur l'établi
+  const wob = previewRoot.userData.wobble;
+  if (wob && wob.parent) wob.rotation.set(Math.cos(previewTime * 7) * 0.04, 0, Math.sin(previewTime * 7) * 0.04);
   previewRenderer.render(previewScene, previewCam);
 }
 
@@ -2319,6 +2413,7 @@ function renderStats() {
 function updateHud() {
   const run = state.run;
   $('money').textContent = fmtMoney(state.run.cash);
+  $('workshopMoney').textContent = fmtMoney(state.run.cash);
   $('killsLine').textContent = `${fmtInt(run.kills)} insecte${run.kills > 1 ? 's' : ''} écrasé${run.kills > 1 ? 's' : ''} · ${fmtInt(run.launches)} lancer${run.launches > 1 ? 's' : ''}`;
   $('waveText').textContent = `${isStory() ? '📖' : '🍪'} Vague ${run.wave}`;
   if (isStory()) {
