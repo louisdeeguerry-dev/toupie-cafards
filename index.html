@@ -39,9 +39,31 @@
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
   #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; }
 
-  #status { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
-    border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px);
+  /* Message d'état en haut au centre (le bas de l'écran est occupé par le plateau et le lanceur) */
+  #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
+    border-radius: 999px; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 480px);
     overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 700px) { #status { top: auto; bottom: 8px; max-width: calc(100vw - 32px); } }
+  /* Téléphone à l'horizontale (écran bas) : panneaux plus compacts, pour cacher le moins possible le plateau */
+  @media (max-height: 500px) {
+    #hud { width: 160px; padding: 6px 10px; top: 6px; left: 6px; }
+    #money { font-size: 19px; }
+    #hud .sub { font-size: 10px; }
+    .hudRow { margin-top: 3px; font-size: 11px; }
+    .bar { height: 4px; margin-top: 2px; }
+    #perksLine { font-size: 12px; margin-top: 3px; }
+    #status { top: 6px; padding: 5px 12px; font-size: 12px; max-width: calc(100vw - 400px); }
+    .topBtns { top: 6px; right: 6px; gap: 6px; }
+    .topBtns button { padding: 7px 11px; font-size: 13px; }
+  }
+  /* Conseil en portrait : tourner le téléphone pour mieux voir le plateau */
+  #rotateHint { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; z-index: 3; pointer-events: none;
+    padding: 12px 16px; border-radius: 14px; background: var(--panel); text-align: center; font-weight: 700; font-size: 15px; max-width: 80vw;
+    animation: hintFade 4s ease forwards 1s; opacity: 1; }
+  #rotateHint.show { display: block; }
+  #rotateHint .ico { font-size: 34px; display: block; animation: rotatePhone 1.6s ease-in-out infinite; }
+  @keyframes rotatePhone { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+  @keyframes hintFade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Jauge de lancement, placée juste à droite du lanceur (position calculée à chaque image) */
   #gauge { position: fixed; left: 0; top: 0; transform: translate(26px, -100%); width: 22px; height: min(150px, 28vh);
@@ -212,6 +234,7 @@
 </div>
 
 <div id="status"></div>
+<div id="rotateHint"><span class="ico">📱</span>Tourne ton téléphone pour voir le plateau en grand</div>
 <div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
 <div class="topBtns">
   <button id="speedBtn" aria-label="Vitesse du jeu">⏩ ×1</button>
@@ -643,26 +666,51 @@ function placeCamera() {
   renderer.setSize(w, h);
   const aspect = w / h;
   camera.aspect = aspect;
-  // Sur écran étroit (téléphone en portrait), vue plus plongeante
-  const k = Math.min(1, Math.max(0, (1.5 - aspect) / 1));
-  const target = new THREE.Vector3(0, 0, 0.02);
-  const dir = new THREE.Vector3(0, 0.95 + k * 0.6, 0.84 - k * 0.3).sub(target).normalize();
-  // On recule la caméra jusqu'à ce que les 4 coins du bureau et le lanceur tiennent dans l'écran
-  const corners = [[-DESK_X, -DESK_Z], [DESK_X, -DESK_Z], [-DESK_X, DESK_Z], [DESK_X, DESK_Z], [0, LAUNCH.y + 0.08]]
-    .map(([x, z]) => new THREE.Vector3(x, 0, z));
+  // Le jeu se passe sur le plateau : vue plongeante et objectif serré (peu de déformation),
+  // cadrée au plus près pour que le plateau remplisse l'écran
+  camera.fov = 36;
+  const k = Math.min(1, Math.max(0, (1.5 - aspect) / 1)); // téléphone en portrait : encore plus plongeant
+  const dir = new THREE.Vector3(0, 1.45 + k * 0.4, 0.55 - k * 0.25).normalize();
+  const rim = 0.03;
+  const back = [[-DESK_X - rim, -DESK_Z - rim], [DESK_X + rim, -DESK_Z - rim]].map(([x, z]) => new THREE.Vector3(x, 0, z));
+  const front = [[-DESK_X - rim, DESK_Z + rim], [DESK_X + rim, DESK_Z + rim], [0, LAUNCH.y + 0.08]].map(([x, z]) => new THREE.Vector3(x, 0, z));
   const v = new THREE.Vector3();
-  // Écran horizontal : on garde aussi le haut de l'écran d'ordinateur (et son fond d'écran) dans le cadre
-  // (le centre de l'écran suffit : le plateau de jeu reste grand, quitte à couper un peu le haut du cadre)
-  const monitorTop = aspect >= 1.2 ? new THREE.Vector3(0, -0.04 + 0.42, -0.93) : null;
-  for (let dist = 0.9; dist < 6; dist += 0.03) {
-    camera.position.copy(target).addScaledVector(dir, dist);
-    camera.lookAt(target);
+  const fits = () => {
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
-    const deskOk = corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; });
-    const monitorOk = !monitorTop || (v.copy(monitorTop).project(camera), v.y < 0.97);
-    if (deskOk && monitorOk) break;
+    // L'avant (et le lanceur) toujours entièrement visible ; le fond peut être à peine rogné en haut
+    return front.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.99 && v.y > -0.97; })
+      && back.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.99 && v.y < 1.04; });
+  };
+  // On cherche la caméra la plus proche possible, en décalant aussi un peu le point visé vers l'avant ou l'arrière
+  // Pour chaque point visé possible, on rapproche la caméra au maximum, puis on garde la position
+  // où le plateau occupe la plus grande surface de l'écran
+  const quad = [back[0], back[1], front[1], front[0]];
+  const boardArea = () => {
+    const p = quad.map(c => c.clone().project(camera));
+    let a = 0;
+    for (let i = 0; i < 4; i++) { const m = p[i], n = p[(i + 1) % 4]; a += m.x * Math.min(1, n.y) - n.x * Math.min(1, m.y); }
+    return Math.abs(a) / 2;
+  };
+  let best = null;
+  for (let tz = -0.4; tz <= 0.4; tz += 0.01) {
+    const target = new THREE.Vector3(0, 0, tz);
+    for (let dist = 0.6; dist < 8; dist += 0.01) {
+      camera.position.copy(target).addScaledVector(dir, dist);
+      camera.lookAt(target);
+      if (!fits()) continue;
+      const area = boardArea();
+      if (!best || area > best.area) best = { dist, tz, area };
+      break;
+    }
   }
+  const target = new THREE.Vector3(0, 0, best ? best.tz : 0);
+  camera.position.copy(target).addScaledVector(dir, best ? best.dist : 3);
+  camera.lookAt(target);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  // En portrait, le plateau (plus large que profond) ne peut pas remplir l'écran : on conseille de tourner le téléphone
+  document.getElementById('rotateHint')?.classList.toggle('show', aspect < 0.9);
 }
 
 // Lumières
@@ -2439,7 +2487,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.14';
+const VERSION = '2026-10-02.15';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
