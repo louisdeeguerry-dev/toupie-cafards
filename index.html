@@ -122,9 +122,15 @@
   .defeat h2 { color: var(--red); }
 
   /* Menu d'accueil */
-  #menu { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 16px;
+  #menu, #pause { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 16px;
     background: radial-gradient(ellipse at center, rgba(40, 28, 18, .75), rgba(10, 6, 3, .92)); }
-  #menu.open { display: flex; }
+  #menu.open, #pause.open { display: flex; }
+  #restartBtn.armed { border-color: var(--red); }
+  #restartBtn.armed .mt { color: var(--red); }
+  #updateBar { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; display: none; max-width: calc(100vw - 24px);
+    padding: 10px 16px; border: 0; border-radius: 12px; background: var(--green); color: #10251a; font: inherit; font-weight: 800;
+    cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #updateBar.show { display: block; }
   .menuBox { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; text-align: center; }
   .menuBox h1 { margin: 0; font-size: clamp(28px, 7vw, 44px); line-height: 1.1; text-shadow: 0 3px 0 #7a3d00; }
   .menuBox .tag { color: var(--muted); margin: 6px 0 18px; }
@@ -219,8 +225,30 @@
     </button>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
     <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
+    <div class="menuNote" id="versionNote"></div>
   </div>
 </div>
+
+<div id="pause">
+  <div class="menuBox">
+    <h1>⏸ Pause</h1>
+    <p class="tag" id="pauseInfo"></p>
+    <button class="modeBtn story" id="resumeBtn">
+      <div class="mt">▶ Reprendre</div>
+      <div class="md">Retourner sur le bureau, là où tu en étais.</div>
+    </button>
+    <button class="modeBtn" id="restartBtn">
+      <div class="mt">🔁 Recommencer la partie</div>
+      <div class="md" id="restartDesc">Repartir de la vague 1. Tout repart de zéro : argent, améliorations et infestation.</div>
+    </button>
+    <button class="modeBtn" id="quitBtn">
+      <div class="mt">🚪 Quitter la partie</div>
+      <div class="md">Retour au menu principal. Ta partie est sauvegardée : tu pourras la reprendre plus tard.</div>
+    </button>
+  </div>
+</div>
+
+<button id="updateBar">🔄 Nouvelle version disponible — toucher pour mettre à jour</button>
 
 <div id="dialog"><div class="face">😩</div><div><div class="who">Moi</div><div class="line" id="dialogLine"></div><div class="next">▶ Touche pour continuer</div></div></div>
 <button class="linkBtn" id="skipIntro">Passer ⏭</button>
@@ -1663,7 +1691,79 @@ skipBtn.addEventListener('click', endIntro);
 document.getElementById('storyBtn').onclick = () => enterMode('histoire');
 document.getElementById('carnageBtn').onclick = () => enterMode('carnage');
 document.getElementById('replayIntro').onclick = () => enterMode('histoire', { forceIntro: true });
-document.getElementById('menuBtn').onclick = () => { if (introStep >= 0) endIntro(); save(); openMenu(); };
+
+// Menu Pause (bouton ☰ pendant une partie) : reprendre, recommencer ou quitter
+const pauseEl = document.getElementById('pause'), restartBtn = document.getElementById('restartBtn');
+let restartArmed = false, restartTimer = 0;
+function openPause() {
+  if (introStep >= 0) endIntro();
+  save();
+  paused = true;
+  charging = false;
+  const run = state.run;
+  document.getElementById('pauseInfo').textContent =
+    `${isStory() ? '📖 Mode Histoire' : '🍪 Mode Carnage'} · vague ${run.wave} · ${fmtMoney(run.cash)} · record : vague ${state.best[run.mode]}`;
+  disarmRestart();
+  pauseEl.classList.add('open');
+}
+function disarmRestart() {
+  restartArmed = false;
+  clearTimeout(restartTimer);
+  restartBtn.classList.remove('armed');
+  restartBtn.querySelector('.mt').textContent = '🔁 Recommencer la partie';
+}
+document.getElementById('menuBtn').onclick = openPause;
+document.getElementById('resumeBtn').onclick = () => {
+  pauseEl.classList.remove('open');
+  // Si une fenêtre (choix de bonus, défaite) était ouverte, le jeu reste en pause derrière elle
+  paused = modal.classList.contains('open');
+};
+restartBtn.onclick = () => {
+  if (!restartArmed) {
+    // Deuxième appui nécessaire : on perd toute la partie
+    restartArmed = true;
+    restartBtn.classList.add('armed');
+    restartBtn.querySelector('.mt').textContent = '⚠️ Sûr ? Touche encore pour tout recommencer';
+    restartTimer = setTimeout(disarmRestart, 3000);
+    return;
+  }
+  disarmRestart();
+  pauseEl.classList.remove('open');
+  restartRun();
+};
+document.getElementById('quitBtn').onclick = () => {
+  pauseEl.classList.remove('open');
+  save();
+  openMenu();
+};
+
+// =====================================================================
+//  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
+//  On compare avec version.json (jamais mis en cache) et on propose de recharger.
+// =====================================================================
+const VERSION = '2026-10-02.7';
+const updateBar = document.getElementById('updateBar');
+let newVersion = null;
+async function checkForUpdate() {
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (version && version !== VERSION) {
+      newVersion = version;
+      updateBar.classList.add('show');
+    }
+  } catch { /* hors ligne : on réessaiera plus tard */ }
+}
+updateBar.onclick = () => {
+  save();
+  // Une adresse différente oblige le téléphone à recharger le jeu au lieu de reprendre sa vieille copie
+  location.replace(`${location.pathname}?v=${encodeURIComponent(newVersion || Date.now())}`);
+};
+document.getElementById('versionNote').textContent = `Version ${VERSION}`;
+checkForUpdate();
+setInterval(checkForUpdate, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 
 // =====================================================================
 //  CONTRÔLES : viser, charger, lancer
@@ -2136,7 +2236,7 @@ requestAnimationFrame(frame);
 window.__dbg = {
   state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
-  enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine,
+  enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
 };
 </script>
 </body>
