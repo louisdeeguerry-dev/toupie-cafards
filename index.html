@@ -125,7 +125,16 @@
   #menu, #pause { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 16px;
     background: radial-gradient(ellipse at center, rgba(40, 28, 18, .75), rgba(10, 6, 3, .92)); }
   #menu.open, #pause.open { display: flex; }
-  #restartBtn.armed { border-color: var(--red); }
+  #toybox { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at center, #34241a, #0e0905); }
+  #toybox.open { display: flex; }
+  #toybox h1 { font-size: clamp(24px, 6vw, 36px); }
+  #toybox .balance { font-size: 22px; font-weight: 800; color: #7fd1ff; margin: 0 0 12px; }
+  #toyList { text-align: left; margin-bottom: 14px; }
+  #toyList .card { background: #2c2118; border: 1px solid rgba(255,255,255,.08); }
+  #toyList .card .ico { font-size: 26px; margin-right: 6px; vertical-align: middle; }
+  #toyList .card button { background: #7fd1ff; }
+  .toyBtn { border-color: rgba(127, 209, 255, .45); }
   #restartBtn.armed .mt { color: var(--red); }
   #updateBar { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 30; display: none; max-width: calc(100vw - 24px);
     padding: 10px 16px; border: 0; border-radius: 12px; background: var(--green); color: #10251a; font: inherit; font-weight: 800;
@@ -223,6 +232,11 @@
       <div class="md">Protège ton goûter ! Des cafards affamés (en rouge) foncent dessus pendant des vagues chronométrées de 40 secondes.</div>
       <div class="mr" id="carnageRecord"></div>
     </button>
+    <button class="modeBtn toyBtn" id="toyboxBtn">
+      <div class="mt">📦 Le Carton à Jouets</div>
+      <div class="md">Dépense les vagues que tu as repoussées pour être plus fort à chaque nouvelle partie.</div>
+      <div class="mr" id="toyboxBalance"></div>
+    </button>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
     <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
     <div class="menuNote" id="versionNote"></div>
@@ -245,6 +259,16 @@
       <div class="mt">🚪 Quitter la partie</div>
       <div class="md">Retour au menu principal. Ta partie est sauvegardée : tu pourras la reprendre plus tard.</div>
     </button>
+  </div>
+</div>
+
+<div id="toybox">
+  <div class="menuBox">
+    <h1>📦 Le Carton à Jouets</h1>
+    <p class="tag">Au fond de mon vieux carton, il reste des trésors. Chaque vague repoussée me rapporte 1 🌊, même si je perds la partie.</p>
+    <div class="balance" id="toyBalance"></div>
+    <div id="toyList"></div>
+    <button class="bigBtn" id="toyClose">Fermer</button>
   </div>
 </div>
 
@@ -318,65 +342,65 @@ const TABS = [
 
 const UPGRADES = [
   // --- Toupie ---
-  { id: 'endurance', tab: 'toupie', name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 32, growth: 1.5, max: 40,
+  { id: 'endurance', tab: 'toupie', wave: 1, name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 32, growth: 1.5, max: 40,
     skins: [[0, 'Poignée bâton'], [5, 'Poignée boule'], [12, 'Gemme violette'], [22, 'Flamme éternelle']],
     fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
-  { id: 'diametre', tab: 'toupie', name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 34, growth: 1.55, max: 30,
+  { id: 'diametre', tab: 'toupie', wave: 1, name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 34, growth: 1.55, max: 30,
     skins: [[0, 'Bord lisse'], [5, 'Anneau chromé'], [12, 'Double anneau'], [20, 'Couronne crénelée']],
     fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
-  { id: 'poids', tab: 'toupie', name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 36, growth: 1.55, max: 35,
+  { id: 'poids', tab: 'toupie', wave: 2, name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 36, growth: 1.55, max: 35,
     skins: [[0, 'Plastique'], [3, 'Bois'], [8, 'Acier'], [15, 'Or massif'], [25, 'Obsidienne']],
     fmt: s => `${Math.round(s.mass)} g` },
-  { id: 'pointe', tab: 'toupie', name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 30, growth: 1.55, max: 25,
+  { id: 'pointe', tab: 'toupie', wave: 3, name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 30, growth: 1.55, max: 25,
     skins: [[0, 'Pointe plastique'], [4, 'Pointe acier'], [10, 'Pointe rubis'], [18, 'Pointe diamant']],
     fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
-  { id: 'lames', tab: 'toupie', name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 30, growth: 1.55, max: 40,
+  { id: 'lames', tab: 'toupie', wave: 3, name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 30, growth: 1.55, max: 40,
     skins: [[0, 'Aucune lame'], [1, '2 lames'], [4, '4 lames'], [10, '6 faux'], [20, '8 dents de scie'], [30, 'Lames de lave']],
     fmt: s => `×${s.blades.toFixed(2)} dégâts` },
-  { id: 'inertie', tab: 'toupie', name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.6, max: 30,
+  { id: 'inertie', tab: 'toupie', wave: 5, name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.6, max: 30,
     skins: [[0, 'Sans volant'], [4, 'Volant d’inertie'], [10, 'Disque lourd'], [20, 'Double volant']],
     fmt: s => `−${Math.round((1 - s.inertia) * 100)} % de perte au choc` },
-  { id: 'equilibre', tab: 'toupie', name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.6, max: 25,
+  { id: 'equilibre', tab: 'toupie', wave: 8, name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.6, max: 25,
     skins: [[0, 'Sans gyroscope'], [5, 'Gyroscope'], [12, 'Double gyroscope']],
     fmt: s => `tombe sous ${Math.round(s.fallRatio * 100)} %` },
-  { id: 'rebond', tab: 'toupie', name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 38, growth: 1.6, max: 12,
+  { id: 'rebond', tab: 'toupie', wave: 6, name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 38, growth: 1.6, max: 12,
     skins: [[0, 'Sans pare-chocs'], [3, 'Pare-chocs caoutchouc'], [8, 'Pare-chocs fluo']],
     fmt: s => `${Math.round(s.restitution * 100)} % conservé` },
-  { id: 'agressivite', tab: 'toupie', name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.65, max: 15,
+  { id: 'agressivite', tab: 'toupie', wave: 10, name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.65, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Gentille'], [1, 'Petites dents'], [5, 'Épines'], [10, 'Épines + yeux rouges']],
     fmt: s => `attraction ${s.chase.toFixed(2)}` },
-  { id: 'critique', tab: 'toupie', name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.6, max: 15,
+  { id: 'critique', tab: 'toupie', wave: 10, name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.6, max: 15,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Sans aura'], [3, 'Étincelles'], [8, 'Aura rouge'], [13, 'Aura de foudre']],
     fmt: s => `${Math.round(s.crit * 100)} % de chance` },
 
   // --- Lanceur ---
-  { id: 'puissance', tab: 'lanceur', name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 40,
+  { id: 'puissance', tab: 'lanceur', wave: 1, name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 40,
     skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
     fmt: s => `${fmtInt(s.rpm)} tr/min` },
-  { id: 'elan', tab: 'lanceur', name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 32, growth: 1.5, max: 30,
+  { id: 'elan', tab: 'lanceur', wave: 2, name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 32, growth: 1.5, max: 30,
     skins: [[0, 'Sans traînée'], [5, 'Traînée blanche'], [12, 'Traînée bleue'], [20, 'Traînée de feu']],
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
-  { id: 'precision', tab: 'lanceur', name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 34, growth: 1.65, max: 12,
+  { id: 'precision', tab: 'lanceur', wave: 4, name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 34, growth: 1.65, max: 12,
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
+  { id: 'recharge', tab: 'lanceur', wave: 2, modes: ['carnage'], name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
-  { id: 'multi', tab: 'lanceur', name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
+  { id: 'multi', tab: 'lanceur', wave: 14, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
     fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
-  { id: 'auto', tab: 'lanceur', name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est tombée.', base: 3000, growth: 1, max: 1,
+  { id: 'auto', tab: 'lanceur', wave: 16, name: 'Lanceur automatique', desc: 'Relance tout seul dès que la toupie est tombée.', base: 3000, growth: 1, max: 1,
     unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
     fmt: s => s.auto ? 'activé' : 'désactivé' },
 
   // --- Bureau / économie ---
-  { id: 'appat', tab: 'bureau', name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 34, growth: 1.5, max: 30,
+  { id: 'appat', tab: 'bureau', wave: 4, name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 34, growth: 1.5, max: 30,
     fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
-  { id: 'nid', tab: 'bureau', name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 33, growth: 1.55, max: 25,
+  { id: 'nid', tab: 'bureau', wave: 5, name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 33, growth: 1.55, max: 25,
     fmt: s => `${s.maxBugs} insectes max` },
-  { id: 'prime', tab: 'bureau', name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 40,
+  { id: 'prime', tab: 'bureau', wave: 6, name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 40,
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
-  { id: 'combo', tab: 'bureau', name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
+  { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
 ];
 
@@ -386,7 +410,7 @@ const UPGRADES = [
 const PERKS = [
   { id: 'odeur', icon: '🍬', name: 'Odeur sucrée', max: 3,
     desc: n => `La toupie sent bon : certains insectes proches (${Math.round(smellChance(n) * 100)} %) s’approchent d’elle, dans un rayon de ${Math.round(smellRadius(n) * 100)} cm.` },
-  { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+30 % de dégâts.' },
+  { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+20 % de dégâts.' },
   { id: 'roulement', icon: '⚙️', name: 'Roulement à billes', max: 4, desc: () => 'La toupie tourne 25 % plus longtemps.' },
   { id: 'lancer', icon: '🎯', name: 'Lancer en plus', max: 3, modes: ['histoire'], desc: () => '+1 lancer à chaque vague pour atteindre l’objectif.' },
   { id: 'cookies', icon: '🍪', name: 'Boîte de cookies', max: 5, modes: ['carnage'], desc: () => '+6 bouchées de goûter tout de suite, et +4 au maximum.' },
@@ -401,6 +425,28 @@ const PERKS = [
   { id: 'epines', icon: '🦔', name: 'Épines empoisonnées', max: 3, desc: () => '+10 % de chance de coup critique.' },
   { id: 'plomb', icon: '🪨', name: 'Lest en plomb', max: 4, desc: () => '+25 % de poids.' },
 ];
+// =====================================================================
+//  LE CARTON À JOUETS : boutique permanente, payée en 🌊 (1 par vague repoussée, gardées même après une défaite)
+// =====================================================================
+const TOYBOX = [
+  { id: 'tirelire', icon: '🐷', name: 'Tirelire', max: 5, cost: n => 8 + 8 * n,
+    desc: n => `Chaque partie commence avec ${25 * n} $.` },
+  { id: 'depart', icon: '🚀', name: 'Départ lancé', max: 3, cost: n => 15 + 15 * n,
+    desc: n => `Chaque partie commence avec ${n} niveau${n > 1 ? 'x' : ''} en Endurance, Puissance et Diamètre.` },
+  { id: 'catalogue', icon: '📒', name: 'Vieux catalogue', max: 1, cost: () => 25,
+    desc: () => 'Les améliorations de l’atelier se débloquent 2 vagues plus tôt.' },
+  { id: 'doudou', icon: '🧸', name: 'Doudou porte-bonheur', max: 2, cost: n => 30 + 20 * n,
+    desc: n => `Chaque partie commence avec ${n} bonus au hasard.` },
+  { id: 'carte', icon: '🃏', name: 'Quatrième carte', max: 1, cost: () => 35,
+    desc: () => 'Entre deux vagues, tu choisis parmi 4 bonus au lieu de 3.' },
+  { id: 'secours', icon: '🩹', name: 'Toupie de secours', max: 1, cost: () => 40,
+    desc: () => 'Une fois par partie, au moment de perdre : +3 lancers (Histoire) ou +6 bouchées de goûter (Carnage).' },
+  { id: 'punaises', icon: '📌', name: 'Punaises au sol', max: 3, cost: n => 50 + 40 * n,
+    desc: n => `Une zone de punaises au milieu du bureau (${[0, 12, 16, 20][n]} cm) : ${[0, 2, 4, 8][n]} dégâts par seconde aux insectes qui marchent dessus.` },
+];
+function metaLevel(id) { return state.meta?.items?.[id] || 0; }
+function metaBalance() { return state.meta.earned - state.meta.spent; }
+
 function smellRadius(n) { return 0.06 + 0.035 * n; }
 function smellChance(n) { return Math.min(0.6, 0.2 + 0.13 * n); }
 
@@ -448,6 +494,7 @@ function newRun(mode) {
   return {
     mode, wave: 1, cash: 0, levels: {}, launches: 0,
     perks: {}, kills: 0, money: 0, traps: [], choice: null, over: false, lastReward: 0, lastSpare: 0,
+    rescueUsed: false, wavesCleared: 0,
     // Histoire
     launchesLeft: WAVE_LAUNCHES, waveKills: 0, cleared: false,
     // Carnage
@@ -461,9 +508,10 @@ const state = {
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
+  meta: { earned: 0, spent: 0, items: {} }, // le Carton à Jouets (jamais remis à zéro par une défaite)
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns', 'meta'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -484,8 +532,13 @@ function load() {
         run.levels = data.levels || {};
         run.kills = Math.max(run.kills || 0, data.kills || 0);
       }
+      // Arrivée du Carton à Jouets : les vagues de tes records comptent déjà
+      if (!data.meta && data.best) {
+        state.meta = { earned: Math.max(0, (data.best.histoire || 1) - 1) + Math.max(0, (data.best.carnage || 1) - 1), spent: 0, items: {} };
+      }
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
+  state.meta = Object.assign({ earned: 0, spent: 0, items: {} }, state.meta);
   for (const m of ['histoire', 'carnage']) {
     state.savedRuns[m] = Object.assign(newRun(m), state.savedRuns[m] || {}, { mode: m });
     // On ignore les bonus qui n'existent plus (ou pas dans ce mode)
@@ -750,6 +803,39 @@ function addTrap() {
   }
   rebuildTraps();
 }
+// Punaises au sol (Carton à Jouets) : une zone carrée au milieu du bureau qui blesse les insectes
+const TACKS = { x: 0, z: -0.08 };
+const tackGroup = new THREE.Group();
+scene.add(tackGroup);
+function tackSize() { return [0, 0.12, 0.16, 0.2][metaLevel('punaises')] || 0; }
+function tackDps() { return [0, 2, 4, 8][metaLevel('punaises')] || 0; }
+function rebuildTacks() {
+  tackGroup.clear();
+  const size = tackSize();
+  if (!size) return;
+  const board = new THREE.Mesh(new THREE.BoxGeometry(size, 0.004, size), new THREE.MeshStandardMaterial({ color: 0xb98a5a, roughness: 0.95 }));
+  board.position.y = 0.002;
+  board.receiveShadow = true;
+  tackGroup.add(board);
+  const n = Math.round(size / 0.025);
+  const headGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.002, 10);
+  const pinGeo = new THREE.ConeGeometry(0.0015, 0.012, 6);
+  const colors = [0xe74c3c, 0x3498db, 0xf1c40f, 0x2ecc71];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const x = (i + 0.5) / n * size - size / 2, z = (j + 0.5) / n * size - size / 2;
+    const pin = new THREE.Mesh(pinGeo, new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.9, roughness: 0.2 }));
+    pin.position.set(x, 0.01, z);
+    const head = new THREE.Mesh(headGeo, new THREE.MeshStandardMaterial({ color: colors[(i + j) % 4], roughness: 0.4 }));
+    head.position.set(x, 0.004, z);
+    tackGroup.add(pin, head);
+  }
+  tackGroup.position.set(TACKS.x, 0, TACKS.z);
+}
+function onTacks(x, z) {
+  const h = tackSize() / 2;
+  return h > 0 && Math.abs(x - TACKS.x) < h && Math.abs(z - TACKS.z) < h;
+}
+
 function onTrap(x, z) {
   return state.run.traps.some(t => Math.abs(x - t.x) < t.w / 2 && Math.abs(z - t.z) < t.d / 2);
 }
@@ -1044,11 +1130,13 @@ const bugs = [];
 let spawnTimer = 0;
 
 // Difficulté selon la vague
-function waveSpawnMult() { return 1 + 0.08 * (state.run.wave - 1); }
-function bugCap() { return S.maxBugs + infestLevel() * 2 + Math.floor((state.run.wave - 1) / 2); }
+// En Histoire, l'arrivée des insectes ne dépend que de l'Appât et du Nid : pour suivre les objectifs, il faut investir
+function waveSpawnMult() { return isStory() ? 1 : 1 + 0.08 * (state.run.wave - 1); }
+function bugCap() { return S.maxBugs + infestLevel() * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer'); }
-function waveQuota() { return Math.ceil(3 + 0.6 * Math.pow(state.run.wave - 1, 1.15)); }
+// L'objectif accélère : 3 à la vague 1, 18 à la vague 10, 56 à la vague 20, 119 à la vague 30
+function waveQuota() { const w = state.run.wave - 1; return Math.ceil(3 + 0.5 * w + 0.12 * w * w); }
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
@@ -1247,7 +1335,7 @@ function biteSnack(b) {
   b.pause = 0.5;
   b.tx = (Math.random() - 0.5) * DESK_X;
   b.tz = -Math.random() * DESK_Z * 0.8;
-  if (state.run.snack <= 0) defeat();
+  if (state.run.snack <= 0 && !tryRescue()) defeat();
 }
 
 // =====================================================================
@@ -1452,7 +1540,8 @@ function availablePerks() {
 function pickChoices() {
   const pool = availablePerks().slice();
   const out = [];
-  while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+  const count = 3 + metaLevel('carte');
+  while (out.length < count && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
   return out;
 }
 
@@ -1472,10 +1561,16 @@ function endWave() {
   state.totalMoney += reward;
   run.money += reward;
   run.lastReward = reward;
+  // Chaque vague repoussée rapporte 1 🌊 pour le Carton à Jouets (gardée même en cas de défaite)
+  state.meta.earned++;
+  run.wavesCleared++;
+  const lockedBefore = UPGRADES.filter(u => upgradeLock(u));
   run.wave++;
   startWave();
   if (run.wave > state.best[run.mode]) { state.best[run.mode] = run.wave; refreshStats(); }
+  run.newUnlocks = lockedBefore.filter(u => !upgradeLock(u)).map(u => u.name);
   run.choice = pickChoices();
+  shopDirty = true;
   save();
   showPerkChoice();
 }
@@ -1503,6 +1598,14 @@ function showPerkChoice() {
     ? `+${fmtMoney(run.lastReward)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
       + ` · Choisis un bonus. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`
     : `+${fmtMoney(run.lastReward)} · +2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
+  lead.textContent += ' · +1 🌊';
+  let unlock = null;
+  if (run.newUnlocks?.length) {
+    unlock = document.createElement('p');
+    unlock.className = 'lead';
+    unlock.style.color = 'var(--green)';
+    unlock.textContent = `🔓 Nouveau dans l’atelier : ${run.newUnlocks.join(', ')}`;
+  }
   const grid = document.createElement('div');
   grid.className = 'perkChoices';
   for (const id of run.choice) {
@@ -1518,7 +1621,9 @@ function showPerkChoice() {
     btn.onclick = () => takePerk(id);
     grid.appendChild(btn);
   }
-  modalBox.append(h, lead, grid);
+  modalBox.append(h, lead);
+  if (unlock) modalBox.append(unlock);
+  modalBox.append(grid);
   modal.classList.add('open');
 }
 
@@ -1575,19 +1680,53 @@ function defeat() {
   }
   const note = document.createElement('p');
   note.className = 'lead';
-  note.textContent = 'Tout repart de zéro : argent, améliorations de l’atelier et infestation. Seul ton record reste.';
+  note.textContent = `Tout repart de zéro : argent, améliorations de l’atelier et infestation. Mais tes ${run.wavesCleared} vague${run.wavesCleared > 1 ? 's' : ''} repoussée${run.wavesCleared > 1 ? 's' : ''} t’ont rapporté ${run.wavesCleared} 🌊 pour le Carton à Jouets (tu en as ${metaBalance()}).`;
+  const btns = document.createElement('div');
+  btns.style.cssText = 'display:flex; gap:10px; justify-content:center; flex-wrap:wrap;';
+  const box = document.createElement('button');
+  box.className = 'bigBtn';
+  box.style.background = 'var(--panel-2)';
+  box.style.color = 'var(--text)';
+  box.textContent = `📦 Carton à Jouets (${metaBalance()} 🌊)`;
+  box.onclick = openToybox;
   const btn = document.createElement('button');
   btn.className = 'bigBtn';
   btn.textContent = 'Nouvelle partie';
   btn.onclick = restartRun;
-  modalBox.append(h, lead, sum, note, btn);
+  btns.append(box, btn);
+  modalBox.append(h, lead, sum, note, btns);
   modal.classList.add('open');
+}
+
+// Une seule fois par partie, au moment de perdre (bonus du Carton à Jouets)
+function tryRescue() {
+  const run = state.run;
+  if (!metaLevel('secours') || run.rescueUsed) return false;
+  run.rescueUsed = true;
+  if (isStory()) { run.launchesLeft += 3; banner('🩹 Toupie de secours !', '+3 lancers pour finir la vague'); }
+  else { run.snack += 6; updateCookies(); banner('🩹 Toupie de secours !', '+6 bouchées de goûter'); }
+  return true;
+}
+
+// Avantages du Carton à Jouets appliqués au début de chaque partie
+function applyToybox(run) {
+  run.toyboxApplied = true;
+  run.cash += 25 * metaLevel('tirelire');
+  const d = metaLevel('depart');
+  if (d) for (const id of ['endurance', 'puissance', 'diametre']) run.levels[id] = d;
+  for (let i = 0; i < metaLevel('doudou'); i++) {
+    const pool = PERKS.filter(p => (!p.modes || p.modes.includes(run.mode)) && !run.perks[p.id] && p.id !== 'glu');
+    const p = pool[Math.floor(Math.random() * pool.length)];
+    if (p) run.perks[p.id] = 1;
+  }
 }
 
 function restartRun() {
   const mode = state.run.mode;
   state.games[mode]++;
   state.run = state.savedRuns[mode] = newRun(mode);
+  applyToybox(state.run);
+  if (state.run.perks.cookies) { state.run.maxSnack += 4; state.run.snack += 6; }
   clearBoard();
   rebuildTraps();
   updateCookies();
@@ -1596,6 +1735,7 @@ function restartRun() {
   startWave();
   save();
   modal.classList.remove('open');
+  document.getElementById('toybox').classList.remove('open');
   paused = false;
   banner('Nouvelle partie', mode === 'histoire' ? `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !` : 'Protège ton goûter !');
   shopDirty = true;
@@ -1624,6 +1764,7 @@ function openMenu() {
   document.getElementById('storyRecord').textContent = runLabel('histoire');
   document.getElementById('carnageRecord').textContent = runLabel('carnage');
   document.getElementById('replayIntro').style.display = state.introSeen ? '' : 'none';
+  document.getElementById('toyboxBalance').textContent = `🌊 ${metaBalance()} à dépenser`;
   menuEl.classList.add('open');
 }
 function enterMode(mode, { forceIntro = false } = {}) {
@@ -1632,6 +1773,13 @@ function enterMode(mode, { forceIntro = false } = {}) {
     clearBoard();
     state.mode = mode;
     state.run = state.savedRuns[mode];
+    refreshStats();
+  }
+  // Une partie pas encore commencée reçoit les avantages du Carton à Jouets
+  const run = state.run;
+  if (!run.toyboxApplied && run.wave === 1 && run.launches === 0) {
+    applyToybox(run);
+    if (run.perks.cookies) { run.maxSnack += 4; run.snack += 6; }
     refreshStats();
   }
   document.getElementById('hud').dataset.mode = mode;
@@ -1692,6 +1840,53 @@ document.getElementById('storyBtn').onclick = () => enterMode('histoire');
 document.getElementById('carnageBtn').onclick = () => enterMode('carnage');
 document.getElementById('replayIntro').onclick = () => enterMode('histoire', { forceIntro: true });
 
+// Le Carton à Jouets : boutique permanente entre les parties
+const toyboxEl = document.getElementById('toybox');
+function openToybox() { renderToybox(); toyboxEl.classList.add('open'); }
+function renderToybox() {
+  document.getElementById('toyBalance').textContent = `🌊 ${metaBalance()} vague${metaBalance() > 1 ? 's' : ''} à dépenser · ${state.meta.earned} repoussée${state.meta.earned > 1 ? 's' : ''} au total`;
+  const list = document.getElementById('toyList');
+  list.replaceChildren();
+  for (const t of TOYBOX) {
+    const n = metaLevel(t.id), maxed = n >= t.max, cost = t.cost(n);
+    const card = document.createElement('div');
+    card.className = 'card';
+    const name = document.createElement('div');
+    name.innerHTML = '<span class="ico"></span><span class="name"></span><span class="lvl"></span>';
+    name.querySelector('.ico').textContent = t.icon;
+    name.querySelector('.name').textContent = t.name;
+    name.querySelector('.lvl').textContent = t.max > 1 ? `${n} / ${t.max}` : (n ? 'possédé' : '');
+    const desc = document.createElement('div');
+    desc.className = 'desc';
+    desc.textContent = t.desc(Math.max(1, maxed ? n : n + 1));
+    const btn = document.createElement('button');
+    btn.textContent = maxed ? (t.max > 1 ? 'MAX' : '✔') : `${cost} 🌊`;
+    btn.disabled = maxed || metaBalance() < cost;
+    btn.onclick = () => {
+      if (maxed || metaBalance() < cost) return;
+      state.meta.spent += cost;
+      state.meta.items[t.id] = n + 1;
+      if (t.id === 'punaises') rebuildTacks();
+      save();
+      banner(`${t.icon} ${t.name}`, 'Effet dès la prochaine partie' + (t.id === 'punaises' || t.id === 'catalogue' || t.id === 'carte' || t.id === 'secours' ? ' (et déjà maintenant)' : ''));
+      renderToybox();
+      openMenuRefresh();
+    };
+    card.append(name, btn, desc);
+    list.appendChild(card);
+  }
+}
+function openMenuRefresh() {
+  document.getElementById('toyboxBalance').textContent = `🌊 ${metaBalance()} à dépenser`;
+  shopDirty = true;
+}
+document.getElementById('toyboxBtn').onclick = openToybox;
+document.getElementById('toyClose').onclick = () => {
+  toyboxEl.classList.remove('open');
+  // Depuis l'écran de défaite, on y revient en le reconstruisant (le solde a pu changer)
+  if (state.run.over && modal.classList.contains('open')) { state.run.over = false; defeat(); }
+};
+
 // Menu Pause (bouton ☰ pendant une partie) : reprendre, recommencer ou quitter
 const pauseEl = document.getElementById('pause'), restartBtn = document.getElementById('restartBtn');
 let restartArmed = false, restartTimer = 0;
@@ -1741,7 +1936,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.7';
+const VERSION = '2026-10-02.8';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -1829,9 +2024,18 @@ for (const t of TABS) {
 $('shopBtn').onclick = () => shopEl.classList.add('open');
 $('closeShop').onclick = () => shopEl.classList.remove('open');
 
+// Une amélioration se débloque à une certaine vague de la partie (et parfois un niveau d'infestation)
+function upgradeLock(u) {
+  if (u.modes && !u.modes.includes(state.run.mode)) return 'Mode Carnage uniquement';
+  const need = Math.max(1, (u.wave || 1) - (metaLevel('catalogue') ? 2 : 0));
+  if (state.run.wave < need) return `Débloqué à la vague ${need}`;
+  if (u.unlock && !u.unlock()) return `Débloqué au ${u.lockText}`;
+  return null;
+}
+
 function buy(u) {
   const c = costOf(u);
-  if (state.run.cash < c || lv(u.id) >= u.max) return;
+  if (state.run.cash < c || lv(u.id) >= u.max || upgradeLock(u)) return;
   const before = u.skins ? skinTier(u.id) : 0;
   state.run.cash -= c;
   state.run.levels[u.id] = lv(u.id) + 1;
@@ -1847,10 +2051,11 @@ function renderShop() {
   for (const b of tabsEl.children) b.classList.toggle('active', b.dataset.tab === currentTab);
   shopList.replaceChildren();
   if (currentTab === 'stats') return renderStats();
-  for (const u of UPGRADES.filter(u => u.tab === currentTab)) {
+  for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)))) {
     const card = document.createElement('div');
     card.className = 'card';
-    const locked = u.unlock && !u.unlock();
+    const lockReason = upgradeLock(u);
+    const locked = !!lockReason;
     const level = lv(u.id), maxed = level >= u.max;
     const name = document.createElement('div');
     name.innerHTML = `<span class="name"></span><span class="lvl"></span>`;
@@ -1858,7 +2063,7 @@ function renderShop() {
     name.querySelector('.lvl').textContent = maxed ? 'MAX' : `niv. ${level}`;
     const desc = document.createElement('div');
     desc.className = 'desc';
-    desc.textContent = locked ? `🔒 Débloqué au ${u.lockText}` : u.desc;
+    desc.textContent = locked ? `🔒 ${lockReason}` : u.desc;
     const val = document.createElement('div');
     val.className = 'val';
     const skin = document.createElement('div');
@@ -1998,7 +2203,7 @@ function updateHud() {
     btn.disabled = state.run.cash < Number(btn.dataset.cost);
   }
   for (const u of UPGRADES) {
-    if ((!u.unlock || u.unlock()) && lv(u.id) < u.max && state.run.cash >= costOf(u)) { canBuy = true; break; }
+    if (!upgradeLock(u) && lv(u.id) < u.max && state.run.cash >= costOf(u)) { canBuy = true; break; }
   }
   $('shopBtn').classList.toggle('can', canBuy);
 
@@ -2144,7 +2349,7 @@ function update(dt) {
   // (objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi)
   if (isStory() && playing && tops.length === 0) {
     if (run.cleared) { endWave(); return; }
-    if (run.launchesLeft <= 0) { defeat(); return; }
+    if (run.launchesLeft <= 0 && !tryRescue()) { defeat(); return; }
   }
 
   // Lanceur automatique (en Carnage, vise d'abord les affamés)
@@ -2169,6 +2374,19 @@ function update(dt) {
     p.setXYZ(0, LAUNCH.x, 0.003, LAUNCH.y);
     p.setXYZ(1, aimPoint.x, 0.003, aimPoint.y);
     p.needsUpdate = true;
+  }
+
+  // Punaises au sol : dégâts continus aux insectes qui marchent dessus
+  if (tackDps() > 0 && playing) {
+    for (const b of bugs) {
+      if (b.dying || b.gone || !onTacks(b.x, b.z)) continue;
+      const dmg = Math.min(b.hp, tackDps() * dt);
+      b.hp -= dmg;
+      b.tackDmg = (b.tackDmg || 0) + dmg;
+      b.tackTimer = (b.tackTimer || 0) + dt;
+      if (b.tackTimer >= 0.5 || b.hp <= 0) { popup('📌 −' + fmtDmg(b.tackDmg), b.x, b.z - 0.02, 'dmg'); b.tackDmg = 0; b.tackTimer = 0; }
+      if (b.hp <= 0) killBug(b);
+    }
   }
 
   // Animation des insectes
@@ -2227,6 +2445,7 @@ placeCamera();
 updateLauncherSkin();
 $('hud').dataset.mode = state.run.mode;
 rebuildTraps();
+rebuildTacks();
 updateCookies();
 updateHud();
 openMenu();
@@ -2237,6 +2456,7 @@ window.__dbg = {
   state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
+  upgradeLock, applyToybox, metaBalance, openToybox, rebuildTacks, waveQuota, TOYBOX,
 };
 </script>
 </body>
