@@ -651,12 +651,17 @@ function placeCamera() {
   const corners = [[-DESK_X, -DESK_Z], [DESK_X, -DESK_Z], [-DESK_X, DESK_Z], [DESK_X, DESK_Z], [0, LAUNCH.y + 0.08]]
     .map(([x, z]) => new THREE.Vector3(x, 0, z));
   const v = new THREE.Vector3();
+  // Écran horizontal : on garde aussi le haut de l'écran d'ordinateur (et son fond d'écran) dans le cadre
+  // (le centre de l'écran suffit : le plateau de jeu reste grand, quitte à couper un peu le haut du cadre)
+  const monitorTop = aspect >= 1.2 ? new THREE.Vector3(0, -0.04 + 0.42, -0.93) : null;
   for (let dist = 0.9; dist < 6; dist += 0.03) {
     camera.position.copy(target).addScaledVector(dir, dist);
     camera.lookAt(target);
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
-    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; })) break;
+    const deskOk = corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; });
+    const monitorOk = !monitorTop || (v.copy(monitorTop).project(camera), v.y < 0.97);
+    if (deskOk && monitorOk) break;
   }
 }
 
@@ -712,20 +717,246 @@ for (const [w, d, x, z] of [
   scene.add(rim);
 }
 
-// Mur, écran d'ordinateur, mug, pot à crayons (décor)
-const wall = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshStandardMaterial({ color: 0x4a5a52, roughness: 0.95 }));
-wall.position.set(0, 0.8, -0.85);
+// =====================================================================
+//  LA PIÈCE : table, sol, mur, écran, clavier, lampe, plante, livres, affiche
+//  (le plateau de jeu est posé sur une grande table de bureau)
+// =====================================================================
+const TABLE_Y = -0.04;   // dessus de la table, juste sous le plateau de jeu
+const FLOOR_Y = -0.78;
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
+  return t;
+}
+function addMesh(geo, mat, x, y, z, parent = scene) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+// --- La table : grand plateau, ceinture, tiroir et quatre pieds fuselés ---
+const tableTex = new THREE.CanvasTexture(woodCanvas('#6e4526', r => `rgba(${40 + r * 30}, ${22 + r * 15}, 8, ${0.1 + r * 0.2})`));
+tableTex.wrapS = tableTex.wrapT = THREE.RepeatWrapping;
+tableTex.repeat.set(3, 1.5);
+tableTex.colorSpace = THREE.SRGBColorSpace;
+const tableMat = new THREE.MeshStandardMaterial({ map: tableTex, roughness: 0.6 });
+const TABLE = { w: 2.3, d: 1.75, z: -0.3 };
+addMesh(new THREE.BoxGeometry(TABLE.w, 0.05, TABLE.d), tableMat, 0, TABLE_Y - 0.025, TABLE.z);
+// Ceinture sous le plateau
+addMesh(new THREE.BoxGeometry(TABLE.w - 0.1, 0.1, TABLE.d - 0.1), tableMat, 0, TABLE_Y - 0.1, TABLE.z);
+// Tiroir côté joueur, avec sa poignée en laiton
+const drawer = addMesh(new THREE.BoxGeometry(0.6, 0.075, 0.02), new THREE.MeshStandardMaterial({ color: 0x7a4e2c, roughness: 0.55 }), 0, TABLE_Y - 0.1, TABLE.z + TABLE.d / 2 - 0.04);
+addMesh(new THREE.CylinderGeometry(0.008, 0.008, 0.09, 12), new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 1, roughness: 0.25 }), 0, TABLE_Y - 0.1, TABLE.z + TABLE.d / 2 - 0.02).rotation.z = Math.PI / 2;
+// Pieds fuselés
+const legGeoT = new THREE.CylinderGeometry(0.04, 0.026, -FLOOR_Y + TABLE_Y - 0.05, 16);
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+  addMesh(legGeoT, tableMat, sx * (TABLE.w / 2 - 0.09), (FLOOR_Y + TABLE_Y - 0.05) / 2, TABLE.z + sz * (TABLE.d / 2 - 0.09));
+}
+
+// --- Le sol : parquet en chevrons simplifiés ---
+const parquet = canvasTex(512, 512, (g, w, h) => {
+  for (let row = 0; row < 8; row++) for (let col = 0; col < 4; col++) {
+    const shade = 120 + Math.random() * 40;
+    g.fillStyle = `rgb(${shade}, ${shade * 0.68}, ${shade * 0.42})`;
+    g.fillRect(col * 128 + (row % 2) * 64, row * 64, 128, 64);
+    g.strokeStyle = 'rgba(40, 24, 10, .5)';
+    g.strokeRect(col * 128 + (row % 2) * 64, row * 64, 128, 64);
+  }
+}, [6, 6]);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshStandardMaterial({ map: parquet, roughness: 0.7 }));
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = FLOOR_Y;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// --- Le mur : papier peint à motifs, plinthe ---
+const WALL_Z = TABLE.z - TABLE.d / 2 - 0.12;
+const wallpaper = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#3f5a4f';
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.05)'; g.fillRect(i * 32, 0, 32, h); }
+  g.fillStyle = 'rgba(230, 210, 160, .16)';
+  for (const [x, y] of [[64, 64], [192, 192], [192, 64], [64, 192]]) {
+    g.beginPath(); g.moveTo(x, y - 14); g.lineTo(x + 10, y); g.lineTo(x, y + 14); g.lineTo(x - 10, y); g.closePath(); g.fill();
+  }
+}, [10, 6]);
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), new THREE.MeshStandardMaterial({ map: wallpaper, roughness: 0.95 }));
+wall.position.set(0, FLOOR_Y + 2, WALL_Z);
+wall.receiveShadow = true;
 scene.add(wall);
+addMesh(new THREE.BoxGeometry(8, 0.1, 0.02), new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.6 }), 0, FLOOR_Y + 0.05, WALL_Z + 0.01);
+
+// --- Fond d'écran : « S.O.S. CAFARDS », un logo d'intervention anti-cafards dans un style rétro ---
+function drawCockroachCartoon(g, cx, cy, s) {
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(-0.5);
+  g.strokeStyle = '#1b0e05';
+  g.lineWidth = s * 0.05;
+  g.lineCap = 'round';
+  // Pattes
+  for (const side of [-1, 1]) for (const k of [-0.35, 0, 0.35]) {
+    g.beginPath(); g.moveTo(k * s, side * s * 0.2); g.quadraticCurveTo((k + 0.15) * s, side * s * 0.55, (k + 0.05) * s, side * s * 0.75); g.stroke();
+  }
+  // Antennes
+  for (const side of [-1, 1]) { g.beginPath(); g.moveTo(s * 0.55, side * s * 0.08); g.quadraticCurveTo(s * 0.95, side * s * 0.3, s * 1.05, side * s * 0.65); g.stroke(); }
+  // Corps et tête
+  g.fillStyle = '#7a3f17';
+  g.beginPath(); g.ellipse(-s * 0.05, 0, s * 0.62, s * 0.36, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+  g.fillStyle = '#a0592a';
+  g.beginPath(); g.ellipse(-s * 0.15, 0, s * 0.35, s * 0.22, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#5a2c0e';
+  g.beginPath(); g.ellipse(s * 0.5, 0, s * 0.2, s * 0.22, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+  // Gros yeux apeurés
+  for (const side of [-1, 1]) {
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(s * 0.58, side * s * 0.1, s * 0.09, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#111'; g.beginPath(); g.arc(s * 0.6, side * s * 0.1, s * 0.04, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+}
+const wallpaperScreen = canvasTex(1024, 576, (g, w, h) => {
+  // Fond vert « gluant », avec des taches
+  const bg = g.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, w * 0.7);
+  bg.addColorStop(0, '#5edc4e'); bg.addColorStop(1, '#0f3b16');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(180, 255, 120, .18)';
+  for (let i = 0; i < 26; i++) { g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 8 + Math.random() * 30, 0, Math.PI * 2); g.fill(); }
+  // Panneau d'interdiction avec le cafard dessous
+  const cx = w / 2, cy = h * 0.47, R = 165;
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  drawCockroachCartoon(g, cx, cy, 130);
+  g.strokeStyle = '#d31f1f';
+  g.lineWidth = 30;
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(cx - R * 0.7, cy - R * 0.7); g.lineTo(cx + R * 0.7, cy + R * 0.7); g.stroke();
+  // Titre rétro
+  g.textAlign = 'center';
+  g.font = '900 70px Impact, "Arial Black", sans-serif';
+  g.lineWidth = 10;
+  g.strokeStyle = '#111';
+  g.fillStyle = '#ffd23f';
+  g.strokeText('S.O.S. CAFARDS', cx, 82); g.fillText('S.O.S. CAFARDS', cx, 82);
+  g.font = 'bold 30px system-ui, sans-serif';
+  g.lineWidth = 6;
+  g.strokeText('Brigade anti-cafards · intervention 24 h/24', cx, h - 64);
+  g.fillStyle = '#fff';
+  g.fillText('Brigade anti-cafards · intervention 24 h/24', cx, h - 64);
+  // Barre des tâches, comme un vrai bureau d'ordinateur
+  g.fillStyle = 'rgba(10, 20, 30, .85)';
+  g.fillRect(0, h - 34, w, 34);
+  g.fillStyle = '#7fd1ff';
+  g.fillRect(10, h - 26, 22, 18);
+  g.fillStyle = '#ddd';
+  g.font = '18px system-ui, sans-serif';
+  g.textAlign = 'right';
+  g.fillText('23:47', w - 14, h - 11);
+});
+
+// --- L'écran d'ordinateur, posé au fond de la table ---
 const monitor = new THREE.Group();
-const screenMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.36, 0.025), new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.4 }));
-screenMesh.position.y = 0.3;
-const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.32), new THREE.MeshBasicMaterial({ color: 0x1f3550 }));
-glow.position.set(0, 0.3, 0.013);
-const stand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.04), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-stand.position.y = 0.06;
-monitor.add(screenMesh, glow, stand);
-monitor.position.set(0, 0, -0.62);
+const plastic = new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 0.35, metalness: 0.2 });
+const MON = { w: 0.66, h: 0.39 };
+addMesh(new THREE.BoxGeometry(MON.w + 0.03, MON.h + 0.03, 0.025), plastic, 0, 0.35, 0, monitor);         // cadre
+addMesh(new THREE.BoxGeometry(MON.w * 0.6, MON.h * 0.6, 0.04), plastic, 0, 0.35, -0.025, monitor);       // dos bombé
+const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(MON.w, MON.h), new THREE.MeshBasicMaterial({ map: wallpaperScreen }));
+screenMesh.position.set(0, 0.35, 0.0131);
+monitor.add(screenMesh);
+addMesh(new THREE.BoxGeometry(0.05, 0.2, 0.03), plastic, 0, 0.11, -0.04, monitor);                      // pied
+addMesh(new THREE.CylinderGeometry(0.11, 0.12, 0.012, 32), plastic, 0, 0.006, -0.03, monitor);           // socle
+addMesh(new THREE.SphereGeometry(0.004, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3dff6e }), MON.w / 2 - 0.02, 0.35 - MON.h / 2 - 0.008, 0.014, monitor); // voyant
+monitor.position.set(0, TABLE_Y, -0.93);
 scene.add(monitor);
+// Lueur de l'écran sur la table
+const screenLight = new THREE.PointLight(0x7cf07a, 0.6, 1.2);
+screenLight.position.set(0, TABLE_Y + 0.35, -0.75);
+scene.add(screenLight);
+
+// --- Clavier et souris, devant l'écran ---
+const keysTex = canvasTex(512, 160, (g, w, h) => {
+  g.fillStyle = '#2a2d33';
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = '#e8e8ea';
+  for (let r = 0; r < 5; r++) for (let k = 0; k < 15; k++) {
+    if (r === 4 && k > 3 && k < 11) continue;
+    g.fillRect(6 + k * 33.6, 6 + r * 30.5, 29, 26);
+  }
+  g.fillRect(6 + 4 * 33.6, 6 + 4 * 30.5, 7 * 33.6 - 4, 26); // barre d'espace
+});
+const keyboard = addMesh(new THREE.BoxGeometry(0.42, 0.016, 0.13), new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.5 }), 0, TABLE_Y + 0.008, -0.7);
+const keyTop = new THREE.Mesh(new THREE.PlaneGeometry(0.41, 0.12), new THREE.MeshStandardMaterial({ map: keysTex, roughness: 0.45 }));
+keyTop.rotation.x = -Math.PI / 2;
+keyTop.position.y = 0.0085;
+keyboard.add(keyTop);
+keyboard.rotation.x = 0.04;
+const mouse = addMesh(new THREE.SphereGeometry(0.03, 20, 12), new THREE.MeshPhysicalMaterial({ color: 0xeeeeee, roughness: 0.25, clearcoat: 1 }), 0.32, TABLE_Y + 0.008, -0.69);
+mouse.scale.set(0.7, 0.35, 1);
+
+// --- Lampe de bureau articulée (à gauche) : c'est elle qui éclaire la scène ---
+const lampGroup = new THREE.Group();
+const lampMetal = new THREE.MeshStandardMaterial({ color: 0x2c6e9e, metalness: 0.6, roughness: 0.35 });
+addMesh(new THREE.CylinderGeometry(0.07, 0.08, 0.02, 32), lampMetal, 0, 0.01, 0, lampGroup);
+const arm1 = addMesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 10), lampMetal, 0.05, 0.16, 0, lampGroup);
+arm1.rotation.z = -0.35;
+const arm2 = addMesh(new THREE.CylinderGeometry(0.008, 0.008, 0.28, 10), lampMetal, 0.18, 0.33, 0, lampGroup);
+arm2.rotation.z = 1.1;
+const shade = addMesh(new THREE.ConeGeometry(0.07, 0.11, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0x2c6e9e, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide }), 0.32, 0.36, 0, lampGroup);
+shade.rotation.z = 2.3;
+const bulb = addMesh(new THREE.SphereGeometry(0.025, 12, 8), new THREE.MeshBasicMaterial({ color: 0xfff1c4 }), 0.35, 0.33, 0, lampGroup);
+bulb.castShadow = false;
+lampGroup.position.set(-0.95, TABLE_Y, WALL_Z + 0.25);
+scene.add(lampGroup);
+
+// --- Plante verte (à droite du clavier) ---
+const plant = new THREE.Group();
+addMesh(new THREE.CylinderGeometry(0.06, 0.045, 0.1, 24), new THREE.MeshStandardMaterial({ color: 0xc4673a, roughness: 0.8 }), 0, 0.05, 0, plant);
+addMesh(new THREE.CylinderGeometry(0.055, 0.055, 0.01, 24), new THREE.MeshStandardMaterial({ color: 0x3b2614, roughness: 1 }), 0, 0.098, 0, plant);
+const leafMat = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.6, side: THREE.DoubleSide });
+for (let i = 0; i < 9; i++) {
+  const leaf = addMesh(new THREE.SphereGeometry(1, 10, 6), leafMat, 0, 0.1, 0, plant);
+  const a = (i / 9) * Math.PI * 2, tilt = 0.5 + (i % 3) * 0.25;
+  leaf.scale.set(0.012, 0.11, 0.035);
+  leaf.position.set(Math.cos(a) * 0.03, 0.18 + (i % 3) * 0.02, Math.sin(a) * 0.03);
+  leaf.rotation.set(Math.sin(a) * tilt, 0, -Math.cos(a) * tilt);
+}
+plant.position.set(0.98, TABLE_Y, WALL_Z + 0.3);
+scene.add(plant);
+
+// --- Pile de livres (à droite de l'écran) ---
+const books = new THREE.Group();
+[[0x8e2c2c, 0.2, 0.035], [0x2c4d8e, 0.18, 0.03], [0xd9a441, 0.16, 0.028]].reduce((y, [color, w, h], i) => {
+  const b = addMesh(new THREE.BoxGeometry(w, h, 0.13), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }), (i - 1) * 0.008, y + h / 2, 0, books);
+  b.rotation.y = (i - 1) * 0.12;
+  addMesh(new THREE.BoxGeometry(w - 0.006, h * 0.8, 0.128), new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.9 }), (i - 1) * 0.008 + 0.004, y + h / 2, 0.0, books).rotation.y = (i - 1) * 0.12;
+  return y + h;
+}, 0);
+books.position.set(0.6, TABLE_Y, WALL_Z + 0.22);
+scene.add(books);
+
+// --- Affiche « RECHERCHÉE » au mur ---
+const posterTex = canvasTex(360, 480, (g, w, h) => {
+  g.fillStyle = '#e9d6a8'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#7a5a2a'; g.lineWidth = 10; g.strokeRect(14, 14, w - 28, h - 28);
+  g.fillStyle = '#3a2410'; g.textAlign = 'center';
+  g.font = '900 52px Georgia, serif'; g.fillText('RECHERCHÉE', w / 2, 82);
+  drawCockroachCartoon(g, w / 2, 210, 95);
+  g.fillStyle = '#c9a227'; g.beginPath(); // couronne de la reine
+  g.moveTo(w / 2 - 34, 132); g.lineTo(w / 2 - 22, 108); g.lineTo(w / 2 - 6, 128); g.lineTo(w / 2 + 8, 104); g.lineTo(w / 2 + 22, 128); g.lineTo(w / 2 + 36, 110); g.lineTo(w / 2 + 34, 136); g.closePath(); g.fill();
+  g.fillStyle = '#3a2410';
+  g.font = 'bold 30px Georgia, serif'; g.fillText('La Reine des cafards', w / 2, 340);
+  g.font = 'bold 26px Georgia, serif'; g.fillText('Récompense', w / 2, 392);
+  g.font = '900 44px Georgia, serif'; g.fillText('4 000 $', w / 2, 440);
+});
+const poster = addMesh(new THREE.PlaneGeometry(0.36, 0.48), new THREE.MeshStandardMaterial({ map: posterTex, roughness: 0.9 }), -0.62, TABLE_Y + 0.62, WALL_Z + 0.005);
+poster.castShadow = false;
+poster.rotation.z = 0.03;
 // ---------------------------------------------------------------------
 //  Le mug de café : céramique émaillée avec une inscription, une anse, du café fumant
 // ---------------------------------------------------------------------
@@ -2208,7 +2439,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.13';
+const VERSION = '2026-10-02.14';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
