@@ -311,9 +311,11 @@ const DESK_X = 0.78;          // demi-largeur du bureau (m)
 const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
 const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
 const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter (mode Carnage)
-const OBS_BASE = [             // objets posés sur le bureau (la toupie rebondit dessus)
-  { x: 0.60, z: -0.30, r: 0.045, h: 0.10, color: 0xd9534f, kind: 'mug' },
-  { x: -0.62, z: -0.28, r: 0.04, h: 0.11, color: 0x3b6ea5, kind: 'pot' },
+// Objets posés sur le bureau (la toupie rebondit dessus). Ils sont calés dans les coins du fond :
+// l'espace restant derrière est trop étroit pour qu'un gros insecte puisse s'y retrouver coincé.
+const OBS_BASE = [
+  { x: 0.67, z: -0.37, r: 0.045, h: 0.10, kind: 'mug' },
+  { x: -0.68, z: -0.38, r: 0.04, h: 0.11, kind: 'pot' },
 ];
 const OBS_CARNAGE = [...OBS_BASE, { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, kind: 'plate' }];
 const SAVE_KEY = 'toupie-cafards-save-v1';
@@ -724,20 +726,182 @@ stand.position.y = 0.06;
 monitor.add(screenMesh, glow, stand);
 monitor.position.set(0, 0, -0.62);
 scene.add(monitor);
-for (const o of OBS_BASE) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(o.r, o.r * 0.92, o.h, 24), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.45 }));
-  m.position.set(o.x, o.h / 2, o.z);
-  m.castShadow = m.receiveShadow = true;
-  scene.add(m);
-  if (o.kind === 'pot') {
-    for (let i = 0; i < 4; i++) {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.16, 6), new THREE.MeshStandardMaterial({ color: [0xffcc00, 0xe74c3c, 0x2ecc71, 0x3498db][i] }));
-      p.position.set(o.x + (i - 1.5) * 0.012, o.h + 0.03, o.z + (i % 2 ? 0.01 : -0.01));
-      p.rotation.z = (i - 1.5) * 0.15;
-      scene.add(p);
-    }
+// ---------------------------------------------------------------------
+//  Le mug de café : céramique émaillée avec une inscription, une anse, du café fumant
+// ---------------------------------------------------------------------
+const steamPuffs = [];
+function buildMug(o) {
+  const g = new THREE.Group();
+  // Décor imprimé tout autour du mug
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#f7f3ec';
+  x.fillRect(0, 0, 1024, 256);
+  x.fillStyle = '#c0392b';
+  x.fillRect(0, 26, 1024, 14);
+  x.fillRect(0, 216, 1024, 10);
+  x.font = 'bold 44px system-ui, sans-serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillStyle = '#2b1d14';
+  x.fillText('CHASSEUR', 256, 105);
+  x.fillText('DE CAFARDS', 256, 165);
+  x.font = '120px serif';
+  x.fillText('🪳', 768, 128);
+  x.strokeStyle = '#c0392b';
+  x.lineWidth = 12;
+  x.beginPath(); x.moveTo(690, 60); x.lineTo(846, 196); x.stroke();
+  x.beginPath(); x.arc(768, 128, 86, 0, Math.PI * 2); x.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const ceramic = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const glaze = new THREE.MeshPhysicalMaterial({ color: 0xf7f3ec, roughness: 0.2, clearcoat: 1, side: THREE.DoubleSide });
+  // Corps : profil extérieur légèrement bombé, bord arrondi, puis paroi intérieure
+  const R = o.r, H = o.h;
+  const outer = new THREE.LatheGeometry([
+    [R * 0.82, 0], [R * 0.95, 0.004], [R * 0.99, H * 0.25], [R, H * 0.6], [R * 0.99, H * 0.97], [R * 0.96, H],
+  ].map(([a, b]) => new THREE.Vector2(a, b)), 48);
+  const body = new THREE.Mesh(outer, ceramic);
+  const inner = new THREE.Mesh(new THREE.LatheGeometry([
+    [R * 0.96, H], [R * 0.9, H * 0.995], [R * 0.88, H * 0.6], [R * 0.86, H * 0.12], [0, H * 0.1],
+  ].map(([a, b]) => new THREE.Vector2(a, b)), 48), glaze);
+  // Café, avec un reflet
+  const coffee = new THREE.Mesh(new THREE.CircleGeometry(R * 0.87, 40), new THREE.MeshPhysicalMaterial({ color: 0x3b2112, roughness: 0.05, clearcoat: 1 }));
+  coffee.rotation.x = -Math.PI / 2;
+  coffee.position.y = H * 0.84;
+  // Anse : un demi-anneau épais, tourné vers le coin du bureau
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(H * 0.27, R * 0.16, 14, 28, Math.PI), glaze);
+  handle.rotation.z = -Math.PI / 2;
+  handle.position.set(R * 0.98, H * 0.52, 0);
+  const handleGroup = new THREE.Group();
+  handleGroup.add(handle);
+  handleGroup.rotation.y = o.x > 0 ? 0 : Math.PI; // l'anse dépasse sur le côté, bien visible depuis le joueur
+  // Petit dessous de verre en liège
+  const coaster = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.35, R * 1.35, 0.004, 40), new THREE.MeshStandardMaterial({ color: 0xb5895a, roughness: 0.95 }));
+  coaster.position.y = 0.002;
+  body.position.y = inner.position.y = 0.004;
+  // L'inscription (au quart du tour de la texture) est tournée vers le joueur, assis devant le bureau
+  body.rotation.y = Math.atan2(LAUNCH.x - o.x, LAUNCH.y + 0.5 - o.z) - Math.PI / 2;
+  g.add(coaster, body, inner, coffee, handleGroup);
+  g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  // Vapeur : quelques volutes translucides qui montent doucement
+  const steamTex = (() => {
+    const s = document.createElement('canvas');
+    s.width = s.height = 64;
+    const sg = s.getContext('2d');
+    const grad = sg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    sg.fillStyle = grad;
+    sg.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(s);
+  })();
+  for (let i = 0; i < 5; i++) {
+    const puff = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0 }));
+    puff.userData.t = i / 5;
+    g.add(puff);
+    steamPuffs.push({ puff, base: H * 0.9, r: R });
+  }
+  g.position.set(o.x, 0, o.z);
+  scene.add(g);
+}
+function animateSteam(dt) {
+  for (const s of steamPuffs) {
+    const p = s.puff;
+    p.userData.t = (p.userData.t + dt * 0.25) % 1;
+    const t = p.userData.t;
+    p.position.set(Math.sin(t * 6 + s.base * 40) * s.r * 0.35, s.base + t * 0.09, Math.cos(t * 5) * s.r * 0.2);
+    p.scale.setScalar(0.02 + t * 0.04);
+    p.material.opacity = Math.sin(t * Math.PI) * 0.45;
   }
 }
+
+// ---------------------------------------------------------------------
+//  Le pot à crayons : pot en céramique striée, crayons taillés, stylo, règle
+// ---------------------------------------------------------------------
+function buildPencil(len, color) {
+  const p = new THREE.Group();
+  const bodyLen = len * 0.8;
+  const r = 0.0042;
+  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.45 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, bodyLen, 6), paint);
+  body.position.y = bodyLen / 2;
+  // Mine taillée : bois clair puis graphite
+  const wood = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.25, r, len * 0.12, 6), new THREE.MeshStandardMaterial({ color: 0xe6c38f, roughness: 0.8 }));
+  wood.position.y = bodyLen + len * 0.06;
+  const lead = new THREE.Mesh(new THREE.ConeGeometry(r * 0.25, len * 0.04, 6), new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.4, roughness: 0.4 }));
+  lead.position.y = bodyLen + len * 0.14;
+  // Bague métallique et gomme rose, en bas (la pointe dépasse du pot)
+  const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.05, r * 1.05, len * 0.06, 12), new THREE.MeshStandardMaterial({ color: 0xc9cfd4, metalness: 0.95, roughness: 0.25 }));
+  ferrule.position.y = -len * 0.03;
+  const eraser = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len * 0.05, 12), new THREE.MeshStandardMaterial({ color: 0xf28b9b, roughness: 0.9 }));
+  eraser.position.y = -len * 0.085;
+  p.add(body, wood, lead, ferrule, eraser);
+  return p;
+}
+function buildPencilPot(o) {
+  const g = new THREE.Group();
+  // Céramique bleue à rainures verticales
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 64;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 32; i++) {
+    x.fillStyle = i % 2 ? '#2f5f94' : '#3b72ad';
+    x.fillRect(i * 16, 0, 16, 64);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const R = o.r, H = o.h;
+  const potMat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.3, clearcoat: 0.6 });
+  const pot = new THREE.Mesh(new THREE.LatheGeometry([
+    [R * 0.85, 0], [R * 0.95, 0.003], [R, H * 0.5], [R * 1.04, H * 0.97], [R * 1.02, H],
+    [R * 0.92, H], [R * 0.9, H * 0.15], [0, H * 0.12],
+  ].map(([a, b]) => new THREE.Vector2(a, b)), 40), potMat);
+  g.add(pot);
+  // Crayons de couleur, un stylo et une règle, inclinés dans le pot
+  const pencils = [
+    [0xf5c518, 0.17, 0.006, 0.004, -0.12, 0.05], [0xe74c3c, 0.16, -0.008, 0.006, 0.1, -0.08],
+    [0x27ae60, 0.165, 0.004, -0.009, 0.06, 0.12], [0x2980b9, 0.155, -0.01, -0.004, -0.08, -0.1],
+    [0xf5c518, 0.15, 0.012, -0.002, 0.15, 0.02],
+  ];
+  for (const [col, len, px, pz, rx, rz] of pencils) {
+    const p = buildPencil(len, col);
+    p.position.set(px, H * 0.2, pz);
+    p.rotation.set(rx, Math.random() * 3, rz);
+    g.add(p);
+  }
+  // Stylo à bille : corps noir, capuchon avec agrafe
+  const pen = new THREE.Group();
+  const penBody = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.004, 0.13, 16), new THREE.MeshPhysicalMaterial({ color: 0x15171a, roughness: 0.2, clearcoat: 1 }));
+  penBody.position.y = 0.065;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.0052, 0.0052, 0.04, 16), new THREE.MeshStandardMaterial({ color: 0x2c64c8, roughness: 0.3 }));
+  cap.position.y = 0.14;
+  const clip = new THREE.Mesh(new THREE.BoxGeometry(0.0015, 0.032, 0.004), new THREE.MeshStandardMaterial({ color: 0xd0d6dc, metalness: 1, roughness: 0.2 }));
+  clip.position.set(0.006, 0.138, 0);
+  pen.add(penBody, cap, clip);
+  pen.position.set(-0.004, H * 0.2, 0.012);
+  pen.rotation.set(0.05, 0, 0.16);
+  g.add(pen);
+  // Règle graduée
+  const rc = document.createElement('canvas');
+  rc.width = 64; rc.height = 512;
+  const rx = rc.getContext('2d');
+  rx.fillStyle = '#f2e6b8';
+  rx.fillRect(0, 0, 64, 512);
+  rx.fillStyle = '#3a2f1c';
+  for (let i = 0; i < 50; i++) rx.fillRect(0, i * 10 + 5, i % 5 === 0 ? 30 : 16, 2);
+  const rtex = new THREE.CanvasTexture(rc);
+  rtex.colorSpace = THREE.SRGBColorSpace;
+  const ruler = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.18, 0.0025), new THREE.MeshStandardMaterial({ map: rtex, roughness: 0.6 }));
+  ruler.position.set(0.012, H * 0.2 + 0.09, -0.006);
+  ruler.rotation.set(-0.06, 0.4, -0.12);
+  g.add(ruler);
+  g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  g.position.set(o.x, 0, o.z);
+  scene.add(g);
+}
+for (const o of OBS_BASE) (o.kind === 'mug' ? buildMug : buildPencilPot)(o);
 
 // L'assiette du goûter et ses cookies (mode Carnage)
 const plateGroup = new THREE.Group();
@@ -2044,7 +2208,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.12';
+const VERSION = '2026-10-02.13';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -2503,6 +2667,7 @@ function frame(now) {
   if (!paused) update(dt * gameSpeed());
   else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); }
   if (introTop) animateIntroTop(dt);
+  animateSteam(dt);
   renderer.render(scene, camera);
   renderPreview(dt);
 }
