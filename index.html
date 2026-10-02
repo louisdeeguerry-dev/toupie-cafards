@@ -334,11 +334,11 @@ const DESK_X = 0.78;          // demi-largeur du bureau (m)
 const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
 const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
 const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter (mode Carnage)
-// Objets posés sur le bureau (la toupie rebondit dessus). Ils sont calés dans les coins du fond :
-// l'espace restant derrière est trop étroit pour qu'un gros insecte puisse s'y retrouver coincé.
+// Objets posés sur le bureau (la toupie rebondit dessus). Ils sont collés contre les deux rebords
+// des coins du fond : il ne reste aucun espace derrière eux où un insecte pourrait se glisser.
 const OBS_BASE = [
-  { x: 0.67, z: -0.37, r: 0.045, h: 0.10, kind: 'mug' },
-  { x: -0.68, z: -0.38, r: 0.04, h: 0.11, kind: 'pot' },
+  { x: DESK_X - 0.045, z: -DESK_Z + 0.045, r: 0.045, h: 0.10, kind: 'mug' },
+  { x: -DESK_X + 0.04, z: -DESK_Z + 0.04, r: 0.04, h: 0.11, kind: 'pot' },
 ];
 const OBS_CARNAGE = [...OBS_BASE, { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, kind: 'plate' }];
 const SAVE_KEY = 'toupie-cafards-save-v1';
@@ -1026,7 +1026,7 @@ function buildMug(o) {
   handle.position.set(R * 0.98, H * 0.52, 0);
   const handleGroup = new THREE.Group();
   handleGroup.add(handle);
-  handleGroup.rotation.y = o.x > 0 ? 0 : Math.PI; // l'anse dépasse sur le côté, bien visible depuis le joueur
+  handleGroup.rotation.y = o.x > 0 ? Math.PI : 0; // l'anse dépasse du côté du plateau (l'autre côté touche le rebord)
   // Petit dessous de verre en liège
   const coaster = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.35, R * 1.35, 0.004, 40), new THREE.MeshStandardMaterial({ color: 0xb5895a, roughness: 0.95 }));
   coaster.position.y = 0.002;
@@ -2458,7 +2458,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-02.16';
+const VERSION = '2026-10-02.17';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
