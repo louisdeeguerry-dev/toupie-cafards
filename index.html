@@ -844,8 +844,10 @@ function placeCamera() {
   const aspect = w / h;
   camera.aspect = aspect;
   camera.clearViewOffset(); // le cadrage d'origine se calcule sur l'image entière
-  // Sur écran étroit (téléphone en portrait), vue plus plongeante
-  const k = Math.min(1, Math.max(0, (1.5 - aspect) / 1));
+  // Écran étroit (téléphone en portrait) : objectif plus large pour rester près du plateau, vue un peu plus plongeante
+  const portrait = Math.min(1, Math.max(0, (1.3 - aspect) / 0.6));
+  camera.fov = 52 + portrait * 16;
+  const k = portrait;
   const target = new THREE.Vector3(0, 0, 0.02);
   const dir = new THREE.Vector3(0, 0.95 + k * 0.6, 0.84 - k * 0.3).sub(target).normalize();
   // On recule la caméra jusqu'à ce que les 4 coins du bureau et le lanceur tiennent dans l'écran
@@ -857,8 +859,12 @@ function placeCamera() {
     camera.lookAt(target);
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
-    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; })) break;
+    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < (portrait ? 0.97 : 0.94) && v.y > -0.82 && v.y < 0.8; })) break;
   }
+  // Le brouillard (qui assombrit le fond de la pièce) commence toujours un peu derrière le plateau
+  const camDist = camera.position.distanceTo(target);
+  scene.fog.near = camDist + 1;
+  scene.fog.far = camDist + 3.8;
   // Ce cadrage (tout le bureau visible) est la vue la plus large ; on y applique le zoom du joueur
   applyView();
 }
@@ -3155,7 +3161,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.10';
+const VERSION = '2026-10-03.11';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
