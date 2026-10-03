@@ -471,6 +471,24 @@ const UPGRADES = [
     skins: [[0, 'Sans aura'], [3, 'Étincelles'], [8, 'Aura rouge'], [13, 'Aura de foudre']],
     fmt: s => `${Math.round(s.crit * 100)} % de chance` },
 
+  // --- Débloquées par les mutations ---
+  { id: 'toxique', tab: 'toupie', wave: 1, stage: 1, name: 'Vernis toxique', desc: 'La toupie est enduite d’un vernis toxique : plus de dégâts contre les insectes mutants et les araignées.', base: 2500, growth: 1.38, max: 25,
+    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
+    skins: [[0, 'Sans vernis'], [1, 'Vernis vert'], [8, 'Vapeurs toxiques'], [18, 'Nuage radioactif']],
+    fmt: s => `×${s.mutantDmg.toFixed(2)} dégâts aux mutants` },
+  { id: 'feutre', tab: 'toupie', wave: 1, stage: 1, name: 'Patins feutrés', desc: 'La toupie se fait discrète : les criquets sautent plus tard et les insectes peureux fuient moins.', base: 3000, growth: 1.5, max: 10,
+    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
+    skins: [[0, 'Pointe nue'], [3, 'Patin en feutre'], [7, 'Patin en velours']],
+    fmt: s => `repérée à ${Math.round(14 * s.stealth)} cm` },
+  { id: 'antitoile', tab: 'toupie', wave: 1, stage: 2, name: 'Lames anti-toiles', desc: 'Les toiles d’araignée freinent moins la toupie et se déchirent plus vite.', base: 9000, growth: 1.5, max: 10,
+    unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
+    skins: [[0, 'Sans crochets'], [1, 'Crochets'], [6, 'Crochets dentelés']],
+    fmt: s => `toile déchirée en ${(0.7 * s.webGrip).toFixed(2)} s` },
+  { id: 'antidard', tab: 'toupie', wave: 1, stage: 2, name: 'Blindage anti-dard', desc: 'Le dard du scorpion fait perdre beaucoup moins de vitesse à la toupie.', base: 12000, growth: 1.5, max: 8,
+    unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
+    skins: [[0, 'Sans blindage'], [1, 'Plaques de cuivre'], [5, 'Plaques dorées']],
+    fmt: s => `piqûre ×${s.sting.toFixed(2)}` },
+
   // --- Lanceur ---
   { id: 'puissance', tab: 'lanceur', wave: 1, name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 40,
     skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
@@ -495,6 +513,9 @@ const UPGRADES = [
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
   { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
+  { id: 'bocal', tab: 'bureau', wave: 1, stage: 1, name: 'Bocal de collection', desc: 'Les insectes mutants et les araignées rapportent plus d’argent.', base: 4000, growth: 1.45, max: 20,
+    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
+    fmt: s => `×${s.mutantBounty.toFixed(2)} argent des mutants` },
 ];
 
 // =====================================================================
@@ -575,6 +596,12 @@ function computeStats(L, P = perkLevel) {
     shockRadius: P('onde') ? 0.07 + 0.03 * P('onde') : 0,
     bugSpeed: Math.pow(0.85, P('insecticide')),
     hungerMult: Math.pow(1.3, P('spray')),
+    // Contre les insectes des stades suivants
+    mutantDmg: 1 + 0.15 * L('toxique'),
+    mutantBounty: 1 + 0.12 * L('bocal'),
+    stealth: 1 / (1 + 0.12 * L('feutre')),
+    webGrip: 1 / (1 + 0.25 * L('antitoile')),
+    sting: 1 + 1.2 / (1 + 0.35 * L('antidard')),
   };
 }
 // Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
@@ -669,6 +696,7 @@ function infestLevel() {
   return l;
 }
 function stageIndex(l = infestLevel()) { return BUG_TYPES[l].stage; }
+const stageSeen = () => state.run.stageSeen || 0;
 // Les insectes du stade en cours, du plus petit au plus gros (pour l'aperçu de l'atelier)
 function stageTypes() {
   const l = infestLevel(), st = STAGES[stageIndex(l)];
@@ -1491,6 +1519,56 @@ function makeTopMesh(target = scene) {
     tilt.add(parts.aura);
   }
 
+  // Vernis toxique : une couche verte qui brille de plus en plus
+  const poisonT = skinTier('toxique');
+  if (poisonT >= 1) {
+    const pm = new THREE.MeshStandardMaterial({ color: 0x7dff5a, transparent: true, opacity: 0.28 + 0.1 * poisonT, emissive: 0x2a9a10, emissiveIntensity: 0.4 * poisonT, roughness: 0.2, depthWrite: false });
+    const shell = add(bodyGeo, pm);
+    shell.scale.setScalar(1.04);
+    shell.castShadow = false;
+    if (poisonT >= 2) {
+      const dm = new THREE.MeshStandardMaterial({ color: 0x9dff6a, emissive: 0x3acf20, emissiveIntensity: 0.8, roughness: 0.1 });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        add(new THREE.SphereGeometry(0.06, 8, 6), dm, Math.cos(a) * 0.98, 0.36, Math.sin(a) * 0.98).scale.set(1, 1.6, 1);
+      }
+    }
+    if (poisonT >= 3) {
+      parts.cloud = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.12, 8, 40), new THREE.MeshBasicMaterial({ color: 0x8dff4a, transparent: true, opacity: 0.35, depthWrite: false }));
+      parts.cloud.rotation.x = Math.PI / 2;
+      parts.cloud.position.y = 0.5;
+      tilt.add(parts.cloud);
+    }
+  }
+  // Patins feutrés : la pointe est gainée de tissu
+  const feltT = skinTier('feutre');
+  if (feltT >= 1) {
+    const fm = new THREE.MeshStandardMaterial({ color: feltT >= 2 ? 0x7a1f3d : 0x6b6f5a, roughness: 1 });
+    const pad = add(new THREE.CylinderGeometry(0.2, 0.26, 0.1, 16), fm, 0, 0.13, 0);
+    pad.castShadow = false;
+  }
+  // Lames anti-toiles : des crochets sous le bord
+  const hookT = skinTier('antitoile');
+  if (hookT >= 1) {
+    const hm = new THREE.MeshStandardMaterial({ color: hookT >= 2 ? 0xe8e8f0 : 0x9aa3ab, metalness: 0.9, roughness: 0.2 });
+    const n = hookT >= 2 ? 10 : 6;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + 0.15;
+      const h = add(new THREE.ConeGeometry(0.045, 0.22, 4), hm, Math.cos(a) * 0.62, 0.2, Math.sin(a) * 0.62);
+      h.rotation.set(0, -a, -Math.PI / 2 - 0.6);
+    }
+  }
+  // Blindage anti-dard : des plaques sur le dessus
+  const armorT = skinTier('antidard');
+  if (armorT >= 1) {
+    const am = new THREE.MeshStandardMaterial({ color: armorT >= 2 ? 0xffcf4a : 0xd9844a, metalness: 0.5, roughness: 0.35, emissive: armorT >= 2 ? 0x4a3000 : 0x2a1000 });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const pl = add(new THREE.BoxGeometry(0.32, 0.04, 0.2), am, Math.cos(a) * 0.55, 0.61, Math.sin(a) * 0.55);
+      pl.rotation.set(0, -a, 0.15);
+    }
+  }
+
   target.add(tilt);
 
   // Traînée (selon l'Élan) — pas dans l'aperçu de l'atelier
@@ -2050,7 +2128,9 @@ function mutate() {
   charging = false;
   playDialog(st.lines, () => {
     paused = false;
-    banner(`🧬 Stade ${k + 1} : ${st.name}`, `Nouvel insecte : ${BUG_TYPES[st.from].name} — ${BUG_TYPES[st.from].tip}`);
+    banner(`🧬 Stade ${k + 1} : ${st.name}`, `Nouvel insecte : ${BUG_TYPES[st.from].name} — ${BUG_TYPES[st.from].tip} · 🛠 Nouvelles améliorations à l’atelier !`);
+    shopDirty = true;
+    previewDirty = true;
   });
   save();
 }
@@ -2062,7 +2142,7 @@ function killBug(b) {
   lastKillTime = gameTime;
   state.bestCombo = Math.max(state.bestCombo, combo);
   const comboMult = Math.min(COMBO_CAP, 1 + (combo - 1) * S.comboBonus);
-  const gain = b.t.reward * S.bounty * comboMult;
+  const gain = b.t.reward * S.bounty * comboMult * (b.t.stage ? S.mutantBounty : 1);
   state.run.cash += gain;
   state.totalMoney += gain;
   state.kills++;
@@ -2104,13 +2184,14 @@ function hitBug(top, b, now) {
   b.lastHit = now;
   const ratio = top.spin / top.launchSpin;
   let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
+  if (b.t.stage) dmg *= S.mutantDmg;
   const crit = Math.random() < S.crit;
   if (crit) dmg *= 3;
   dmg = Math.min(dmg, b.hp); // on n'affiche pas plus que la vie restante
   popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
-  top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia * (b.t.sting ? 2.2 : 1);
+  top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia * (b.t.sting ? S.sting : 1);
   if (b.t.sting && now - (b.stingT ?? -9) > 1) { b.stingT = now; popup('🦂 Piqûre !', b.x, b.z + 0.03, 'bite'); }
   if (b.hp <= 0) killBug(b);
 }
@@ -2122,7 +2203,7 @@ function shockwave(top) {
   for (const b of bugs) {
     if (b.dying || b.gone || b.drop > 0) continue;
     if (Math.hypot(b.x - top.x, b.z - top.z) < r + b.t.r) {
-      b.hp -= dmg;
+      b.hp -= dmg * (b.t.stage ? S.mutantDmg : 1);
       if (b.hp <= 0) killBug(b);
     }
   }
@@ -2190,11 +2271,11 @@ function stepTop(top, dt, now) {
   // Toiles d'araignée : la toupie s'y englue un instant, puis la toile se déchire
   for (const w of webs) {
     if (w.life <= 0 || Math.hypot(top.x - w.x, top.z - w.z) > w.r + r * 0.5) continue;
-    const k = Math.exp(-6 * dt);
+    const k = Math.exp(-6 * S.webGrip * dt);
     top.vx *= k; top.vz *= k;
-    top.spin -= top.spin * 0.35 * dt;
+    top.spin -= top.spin * 0.35 * S.webGrip * dt;
     w.hold += dt;
-    if (w.hold > 0.7) { w.life = Math.min(w.life, 0.4); w.hold = -99; popup('🕸️ Déchirée !', w.x, w.z, 'dmg'); }
+    if (w.hold > 0.7 * S.webGrip) { w.life = Math.min(w.life, 0.4); w.hold = -99; popup('🕸️ Déchirée !', w.x, w.z, 'dmg'); }
   }
 
   // Rebonds sur le mug, le pot à crayons (et l'assiette en mode Carnage)
@@ -2287,7 +2368,7 @@ function stepBug(b, dt) {
   if (b.t.jump) {
     b.jumpCd = (b.jumpCd ?? 1) - dt;
     if (b.jumpCd <= 0) {
-      const top = aliveTops().find(tp => !tp.display && Math.hypot(b.x - tp.x, b.z - tp.z) < 0.14 + S.radius);
+      const top = aliveTops().find(tp => !tp.display && Math.hypot(b.x - tp.x, b.z - tp.z) < 0.14 * S.stealth + S.radius);
       if (top) {
         // Il saute pour esquiver : en l'air, la toupie ne peut pas le toucher
         const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz) || 1, side = Math.random() < 0.5 ? -1 : 1;
@@ -2341,7 +2422,7 @@ function stepBug(b, dt) {
     const dx = b.x - top.x, dz = b.z - top.z, d = Math.hypot(dx, dz);
     // Odeur sucrée : certains insectes sont attirés (pas tous, et seulement de près)
     if (S.smellRadius > 0 && b.sniff < S.smellChance && d < S.smellRadius + S.radius) smelling = top;
-    else if (b.t.fear > 0 && d < b.t.fear + S.radius) {
+    else if (b.t.fear > 0 && d < b.t.fear * (b.t.stage ? S.stealth : 1) + S.radius) {
       b.tx = Math.max(-DESK_X, Math.min(DESK_X, b.x + (dx / d) * 0.3));
       b.tz = Math.max(-DESK_Z, Math.min(DESK_Z, b.z + (dz / d) * 0.3));
       fleeing = true;
@@ -2848,7 +2929,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.1';
+const VERSION = '2026-10-03.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3110,7 +3191,7 @@ function renderShop() {
   for (const b of tabsEl.children) b.classList.toggle('active', b.dataset.tab === currentTab);
   shopList.replaceChildren();
   if (currentTab === 'stats') return renderStats();
-  for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)))) {
+  for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)) && (u.stage || 0) <= stageSeen() + 1)) {
     const card = document.createElement('div');
     card.className = 'card';
     const lockReason = upgradeLock(u);
@@ -3384,6 +3465,7 @@ function update(dt) {
     top.gyro.rotation.y = -top.angle * 0.15;
     if (top.flame) top.flame.scale.set(1, 0.8 + Math.random() * 0.5, 1);
     if (top.aura) { top.aura.rotation.z += dt * 3; top.aura.material.opacity = 0.35 + 0.25 * Math.sin(gameTime * 8); }
+    if (top.cloud) { top.cloud.rotation.z -= dt * 1.5; top.cloud.scale.setScalar(1 + 0.08 * Math.sin(gameTime * 5)); }
     if (top.smell) {
       top.smell.visible = !top.falling;
       top.smell.position.set(top.x, 0.003, top.z);
