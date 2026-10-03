@@ -532,6 +532,7 @@ const UPGRADES = [
   { id: 'nid', tab: 'bureau', wave: 5, name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 33, growth: 1.55, max: 25,
     fmt: s => `${s.maxBugs} insectes max` },
   { id: 'prime', tab: 'bureau', wave: 6, name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 40,
+    skins: [[0, 'Insectes normaux'], [10, 'Reflets dorés'], [20, 'Paillettes d’or'], [30, 'Or brillant'], [40, 'Or massif étincelant']],
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
   { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
@@ -1813,23 +1814,80 @@ antGeo.rotateZ(Math.PI / 2);
 antGeo.translate(0.65, 0, 0);
 
 // La Prime fait briller les insectes, jusqu'à les rendre dorés au niveau maximum
-const PRIME_MAX = 40;
-const GOLD = new THREE.Color(0xffcc33);
+const GOLD = new THREE.Color(0xffbb10); // un or bien franc
+// La Prime dore les insectes par paliers de 10 niveaux (et les fait scintiller de petites étincelles)
+function primeTier() { return Math.min(4, Math.floor(lv('prime') / 10)); }
+const PRIME_LOOKS = [
+  null,
+  { mix: 0.3,  metal: 0.25, rough: 0.35, glow: 0.10 },
+  { mix: 0.55, metal: 0.4,  rough: 0.3,  glow: 0.2 },
+  { mix: 0.8,  metal: 0.5,  rough: 0.25, glow: 0.32 },
+  { mix: 1,    metal: 0.55, rough: 0.2,  glow: 0.55 },
+];
 function applyPrimeGlow(mat, t) {
-  const f = Math.min(1, lv('prime') / PRIME_MAX);
-  if (f >= 1) {
-    mat.color.copy(GOLD);
-    mat.metalness = 1;
-    mat.roughness = 0.2;
-    mat.emissive.setHex(0x7a5200);
-    mat.emissiveIntensity = 0.5;
-  } else {
-    // Une lueur discrète qui grandit avec le niveau (f au carré : douce au début, plus forte vers la fin)
-    mat.color.setHex(t.color).lerp(GOLD, f * f * 0.5);
-    mat.metalness = (t.metal || 0.15) + f * 0.4;
+  const look = PRIME_LOOKS[primeTier()];
+  if (!look) {
+    mat.color.setHex(t.color);
+    mat.metalness = t.metal || 0.15;
     mat.roughness = 0.35;
-    mat.emissive.setHex(0xffb000);
-    mat.emissiveIntensity = 0.12 * f + 0.2 * f * f;
+    mat.emissive.setHex(0x000000);
+    mat.emissiveIntensity = 0;
+    return;
+  }
+  mat.color.setHex(t.color).lerp(GOLD, look.mix);
+  mat.metalness = Math.max(t.metal || 0.15, look.metal);
+  mat.roughness = look.rough;
+  mat.emissive.setHex(0xc08000);
+  mat.emissiveIntensity = look.glow;
+}
+
+// Étincelles dorées autour des insectes (plus nombreuses à chaque palier de Prime)
+const sparkTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0, 'rgba(255,255,240,1)');
+  grad.addColorStop(0.25, 'rgba(255,220,90,0.9)');
+  grad.addColorStop(1, 'rgba(255,190,40,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 32, 32);
+  g.fillStyle = 'rgba(255,255,230,0.95)';
+  g.fillRect(15, 2, 2, 28);
+  g.fillRect(2, 15, 28, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const sparks = [];
+const SPARK_RATE = [0, 0.5, 1.1, 1.9, 3];   // étincelles par seconde et par insecte, selon le palier
+function animateSparks(dt) {
+  const rate = SPARK_RATE[primeTier()];
+  if (rate) {
+    for (const b of bugs) {
+      if (b.dying || b.gone || b.drop > 0 || b.mode === 'hungry' || Math.random() > rate * dt) continue;
+      let sp = sparks.find(x => !x.s.visible);
+      if (!sp) {
+        if (sparks.length >= 160) continue;
+        sp = { s: new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })) };
+        scene.add(sp.s);
+        sparks.push(sp);
+      }
+      const a = Math.random() * Math.PI * 2, r = b.t.r * (0.4 + Math.random() * 0.8);
+      sp.s.position.set(b.x + Math.cos(a) * r, b.t.r * (0.5 + Math.random() * 0.6), b.z + Math.sin(a) * r);
+      sp.life = sp.max = 0.35 + Math.random() * 0.35;
+      sp.size = 0.012 + Math.random() * 0.012 + b.t.r * 0.15;
+      sp.s.visible = true;
+    }
+  }
+  for (const sp of sparks) {
+    if (!sp.s.visible) continue;
+    sp.life -= dt;
+    if (sp.life <= 0) { sp.s.visible = false; continue; }
+    const k = sp.life / sp.max;              // scintille : grandit puis s'éteint
+    sp.s.scale.setScalar(sp.size * Math.sin(k * Math.PI));
+    sp.s.material.opacity = Math.min(1, k * 2);
+    sp.s.position.y += dt * 0.03;
   }
 }
 
@@ -3157,7 +3215,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.19';
+const VERSION = '2026-10-03.20';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3477,7 +3535,6 @@ function buy(u) {
   shopDirty = true;
   previewDirty = true;
   if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
-  else if (u.id === 'prime' && lv('prime') >= PRIME_MAX) banner('✨ Cafards dorés !', 'La Prime est au maximum');
 }
 
 function renderShop() {
@@ -3811,6 +3868,7 @@ function update(dt) {
   if (charging) chargeT += dt / gameSpeed();
   $('gaugeFill').style.width = (charging ? gaugeValue() : 0) * 100 + '%';
   animateTrampolines(dt);
+  animateSparks(dt);
   launcherKick = Math.max(0, launcherKick - dt * 4);
   lBody.position.z = -launcherKick * 0.02;
   lRing.rotation.z += (charging ? 25 : 2) * dt;
