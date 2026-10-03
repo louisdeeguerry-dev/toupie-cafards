@@ -349,10 +349,11 @@ import * as THREE from 'three';
 // =====================================================================
 //  RÉGLAGES DU MONDE
 // =====================================================================
-const DESK_X = 0.78;          // demi-largeur du bureau (m)
-const DESK_Z = 0.48;          // demi-profondeur du bureau (m)
-const LAUNCH = new THREE.Vector2(0, 0.40); // point de lancement (côté joueur)
-const PLATE = { x: -0.44, z: 0.31, r: 0.075 }; // l'assiette du goûter (mode Carnage)
+// Plateau un peu plus carré (même surface qu'à l'origine) : il remplit bien l'écran en paysage comme en portrait
+const DESK_X = 0.68;          // demi-largeur du bureau (m)
+const DESK_Z = 0.55;          // demi-profondeur du bureau (m)
+const LAUNCH = new THREE.Vector2(0, DESK_Z - 0.08); // point de lancement (côté joueur)
+const PLATE = { x: -0.38, z: 0.36, r: 0.075 }; // l'assiette du goûter (mode Carnage)
 // Objets posés sur le bureau (la toupie rebondit dessus). Ils sont collés contre les deux rebords
 // des coins du fond : il ne reste aucun espace derrière eux où un insecte pourrait se glisser.
 const OBS_BASE = [
@@ -859,7 +860,7 @@ function placeCamera() {
     camera.lookAt(target);
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
-    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 + portrait * 0.03 && v.y > -0.82 && v.y < 0.8; })) break;
+    if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.95 + portrait * 0.03 && v.y > -0.88 && v.y < 0.86; })) break;
   }
   // Le brouillard (qui assombrit le fond de la pièce) commence toujours un peu derrière le plateau :
   // en portrait la caméra est plus loin, sans ça l'image devenait sombre
@@ -953,7 +954,7 @@ tableTex.wrapS = tableTex.wrapT = THREE.RepeatWrapping;
 tableTex.repeat.set(3, 1.5);
 tableTex.colorSpace = THREE.SRGBColorSpace;
 const tableMat = new THREE.MeshStandardMaterial({ map: tableTex, roughness: 0.6 });
-const TABLE = { w: 2.3, d: 1.75, z: -0.3 };
+const TABLE = { w: 2.3, d: 1.85, z: -0.27 };
 addMesh(new THREE.BoxGeometry(TABLE.w, 0.05, TABLE.d), tableMat, 0, TABLE_Y - 0.025, TABLE.z);
 // Ceinture sous le plateau
 addMesh(new THREE.BoxGeometry(TABLE.w - 0.1, 0.1, TABLE.d - 0.1), tableMat, 0, TABLE_Y - 0.1, TABLE.z);
@@ -3162,7 +3163,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.16';
+const VERSION = '2026-10-03.17';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
