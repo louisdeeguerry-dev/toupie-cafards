@@ -193,6 +193,8 @@
   #toybox h1 { font-size: clamp(24px, 6vw, 36px); }
   #toybox .balance { font-size: 22px; font-weight: 800; color: #7fd1ff; margin: 0 0 12px; }
   #toyList { text-align: left; margin-bottom: 14px; }
+  .evoCard { background: linear-gradient(135deg, #3a2a52, #24334a) !important; border: 1px solid rgba(255,255,255,.12); }
+  .evoCard .desc { grid-column: 1 / -1; }
   #toyList .card { background: #2c2118; border: 1px solid rgba(255,255,255,.08); }
   #toyList .card .ico { font-size: 26px; margin-right: 6px; vertical-align: middle; }
   #toyList .card button { background: #7fd1ff; }
@@ -1580,6 +1582,150 @@ function bodyMaterial() {
   }
 }
 
+// =====================================================================
+//  ÉVOLUTION DE LA TOUPIE : chaque niveau acheté pour la toupie la transforme un peu,
+//  et à certains paliers elle change d'allure, jusqu'à ressembler à une toupie de combat
+// =====================================================================
+function topPower() { return UPGRADES.filter(u => u.tab === 'toupie').reduce((a, u) => a + lv(u.id), 0); }
+const EVOLUTIONS = [
+  [0, 'Toupie du grenier'], [6, 'Toupie cloutée'], [12, 'Toupie à rivets'], [20, 'Toupie de course'],
+  [28, 'Toupie argentée'], [35, 'Toupie à emblème'], [42, 'Toupie à gemmes'], [50, 'Anneau d’attaque'],
+  [60, 'Lames tournoyantes'], [70, 'Disque de poids'], [80, 'Pointes d’or'], [90, 'Couche d’énergie'],
+  [100, 'Tempête quadruple'], [115, 'Cristaux de foudre'], [130, 'Dragon d’acier'], [150, 'Double anneau'],
+  [175, 'Aura légendaire'], [200, 'Toupie légendaire'], [240, 'Toupie mythique'],
+];
+function evolutionIndex(P = topPower()) { let i = 0; EVOLUTIONS.forEach(([lvl], k) => { if (P >= lvl) i = k; }); return i; }
+const EMBLEMS = ['⭐', '🔥', '⚡', '🐉', '🦅', '👑', '💀', '🌪️', '☄️'];
+const emblemTex = new Map();
+function emblemTexture(icon, hue) {
+  const key = icon + hue;
+  if (emblemTex.has(key)) return emblemTex.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 10, 64, 64, 64);
+  grad.addColorStop(0, `hsl(${hue},90%,62%)`);
+  grad.addColorStop(1, `hsl(${(hue + 40) % 360},80%,28%)`);
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(64, 64, 62, 0, Math.PI * 2); g.fill();
+  g.lineWidth = 7; g.strokeStyle = '#f4e3a1'; g.stroke();
+  g.font = '72px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(icon, 64, 70);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  emblemTex.set(key, t);
+  return t;
+}
+// Lame courbe d'anneau d'attaque (dans le plan horizontal)
+const wingGeoCache = new Map();
+function wingGeometry(sharp) {
+  const key = sharp ? 's' : 'n';
+  if (wingGeoCache.has(key)) return wingGeoCache.get(key);
+  const sh = new THREE.Shape();
+  const pt = (r, a) => [Math.cos(a) * r, Math.sin(a) * r];
+  const steps = 10, a0 = 0, a1 = sharp ? 0.95 : 0.8, rIn = 0.78, rOut = sharp ? 1.38 : 1.22;
+  sh.moveTo(...pt(rIn, a0));
+  for (let i = 1; i <= steps; i++) { const f = i / steps; sh.lineTo(...pt(rIn + (rOut - rIn) * Math.pow(f, sharp ? 2.2 : 1.4) , a0 + f * a1)); }
+  for (let i = steps; i >= 0; i--) { const f = i / steps; sh.lineTo(...pt(rIn + 0.04 + (rOut - rIn) * 0.35 * f * f, a0 + f * a1 * 0.92)); }
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 1 });
+  geo.rotateX(-Math.PI / 2);
+  wingGeoCache.set(key, geo);
+  return geo;
+}
+function holedDiskGeometry(holes) {
+  const sh = new THREE.Shape();
+  sh.absarc(0, 0, 1.1, 0, Math.PI * 2, false);
+  for (let i = 0; i < holes; i++) {
+    const a = (i / holes) * Math.PI * 2, hp = new THREE.Path();
+    hp.absarc(Math.cos(a) * 0.86, Math.sin(a) * 0.86, 0.08, 0, Math.PI * 2, true);
+    sh.holes.push(hp);
+  }
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.05, bevelEnabled: false, curveSegments: 24 });
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+// Ajoute à la toupie les pièces de son évolution
+function addEvolution(spinner, tilt, parts, P) {
+  const add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; spinner.add(m); return m; };
+  const hue = (P * 11) % 360;
+  const accent = new THREE.Color().setHSL(hue / 360, 0.85, 0.55);
+  // 1) Ornements du bord : à chaque niveau, un des 24 emplacements apparaît ou monte d'un cran
+  //    (clou de cuivre → clou d'argent → gemme → pointe d'or → cristal lumineux)
+  const kinds = [
+    null,
+    { geo: new THREE.SphereGeometry(0.045, 8, 6), mat: new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8, roughness: 0.35 }) },
+    { geo: new THREE.SphereGeometry(0.05, 8, 6), mat: new THREE.MeshStandardMaterial({ color: 0xdfe6ec, metalness: 0.9, roughness: 0.2 }) },
+    { geo: new THREE.OctahedronGeometry(0.065), mat: new THREE.MeshStandardMaterial({ color: accent, metalness: 0.3, roughness: 0.1, emissive: accent, emissiveIntensity: 0.25 }) },
+    { geo: new THREE.ConeGeometry(0.045, 0.16, 6), mat: new THREE.MeshStandardMaterial({ color: 0xffc72c, metalness: 0.6, roughness: 0.25, emissive: 0x6a4800, emissiveIntensity: 0.4 }) },
+    { geo: new THREE.OctahedronGeometry(0.06), mat: new THREE.MeshStandardMaterial({ color: 0xbff4ff, emissive: 0x3fd8ff, emissiveIntensity: 0.9, transparent: true, opacity: 0.9, roughness: 0.05 }) },
+  ];
+  for (let i = 0; i < 24; i++) {
+    const n = P > i ? Math.min(5, Math.floor((P - i - 1) / 24) + 1) : 0;
+    if (!n) continue;
+    const a = (i / 24) * Math.PI * 2;
+    const m = add(kinds[n].geo, kinds[n].mat, Math.cos(a) * 0.72, 0.6, Math.sin(a) * 0.72);
+    if (n === 5) m.scale.set(1, 1.8, 1);
+  }
+  // 2) Bande de course peinte sur le dessus (sa couleur change à chaque niveau)
+  if (P >= 20) {
+    const band = add(new THREE.TorusGeometry(0.5, 0.035, 8, 40), new THREE.MeshStandardMaterial({ color: accent, roughness: 0.35, emissive: accent, emissiveIntensity: 0.15 }), 0, 0.615, 0);
+    band.rotation.x = Math.PI / 2;
+  }
+  // 3) Argenture du flanc
+  if (P >= 28) {
+    const r = add(new THREE.TorusGeometry(0.93, 0.03, 8, 48), new THREE.MeshStandardMaterial({ color: P >= 80 ? 0xffc72c : 0xdfe6ec, metalness: 0.9, roughness: 0.2 }), 0, 0.53, 0);
+    r.rotation.x = Math.PI / 2;
+  }
+  // 4) Emblèmes (le symbole change tous les 25 niveaux)
+  if (P >= 35) {
+    const icon = EMBLEMS[Math.min(EMBLEMS.length - 1, Math.floor((P - 35) / 25))];
+    const em = new THREE.MeshStandardMaterial({ map: emblemTexture(icon, hue), roughness: 0.4, transparent: true });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.5;
+      const d = add(new THREE.CircleGeometry(0.15, 24), em, Math.cos(a) * 0.4, 0.645, Math.sin(a) * 0.4);
+      d.rotation.set(-Math.PI / 2, 0, -a);
+    }
+  }
+  // 5) Anneau d'attaque : lames courbes (3, puis 4, puis 6 plus tranchantes)
+  if (P >= 50) {
+    const nW = P >= 130 ? 6 : P >= 100 ? 4 : 3;
+    const wm = new THREE.MeshStandardMaterial({ color: P >= 130 ? 0xcfd6dd : accent, metalness: P >= 130 ? 0.85 : 0.3, roughness: 0.25,
+      emissive: P >= 115 ? accent : 0x000000, emissiveIntensity: P >= 115 ? 0.35 : 0 });
+    for (let i = 0; i < nW; i++) {
+      const w = add(wingGeometry(P >= 60), wm, 0, 0.5, 0);
+      w.rotation.y = (i / nW) * Math.PI * 2;
+    }
+    if (P >= 150) {
+      // Double anneau : une seconde couronne de lames, plus haute et décalée
+      const wm2 = new THREE.MeshStandardMaterial({ color: 0xffc72c, metalness: 0.7, roughness: 0.2, emissive: 0x5a3a00, emissiveIntensity: 0.4 });
+      for (let i = 0; i < nW; i++) {
+        const w = add(wingGeometry(true), wm2, 0, 0.6, 0);
+        w.scale.setScalar(0.82);
+        w.rotation.y = ((i + 0.5) / nW) * Math.PI * 2;
+      }
+    }
+  }
+  // 6) Disque de poids en métal, percé de trous
+  if (P >= 70) {
+    const holes = Math.min(12, 4 + Math.floor((P - 70) / 15));
+    add(holedDiskGeometry(holes), new THREE.MeshStandardMaterial({ color: P >= 200 ? 0x3a3f47 : 0x9aa3ab, metalness: 0.9, roughness: 0.3 }), 0, 0.3, 0);
+  }
+  // 7) Couche d'énergie : un dôme translucide coloré
+  if (P >= 90) {
+    const dome = add(new THREE.SphereGeometry(0.6, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: accent, transparent: true, opacity: 0.35, roughness: 0.05, emissive: accent, emissiveIntensity: 0.35, depthWrite: false }), 0, 0.6, 0);
+    dome.scale.y = 0.45;
+    dome.castShadow = false;
+  }
+  // 8) Aura légendaire, puis flammes mythiques
+  if (P >= 175) {
+    parts.legend = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.05, 6, 48), new THREE.MeshBasicMaterial({ color: P >= 240 ? 0xff4a1a : 0xffd45a, transparent: true, opacity: 0.6 }));
+    parts.legend.rotation.x = Math.PI / 2;
+    parts.legend.position.y = 0.55;
+    tilt.add(parts.legend);
+  }
+}
+
 function makeTopMesh(target = scene) {
   const tilt = new THREE.Group();   // inclinaison (vacillement)
   const spinner = new THREE.Group(); // tout ce qui tourne
@@ -1745,6 +1891,7 @@ function makeTopMesh(target = scene) {
     }
   }
 
+  addEvolution(spinner, tilt, parts, topPower());
   target.add(tilt);
 
   // Traînée (selon l'Élan) — pas dans l'aperçu de l'atelier
@@ -3216,7 +3363,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.21';
+const VERSION = '2026-10-03.22';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3527,6 +3674,7 @@ function buy(u) {
   const c = costOf(u);
   if (state.run.cash < c || lv(u.id) >= u.max || upgradeLock(u)) return;
   const before = u.skins ? skinTier(u.id) : 0;
+  const evoBefore = evolutionIndex();
   state.run.cash -= c;
   state.run.levels[u.id] = lv(u.id) + 1;
   refreshStats();
@@ -3535,7 +3683,8 @@ function buy(u) {
   save();
   shopDirty = true;
   previewDirty = true;
-  if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
+  if (evolutionIndex() > evoBefore) banner('🌀 Ta toupie évolue !', EVOLUTIONS[evolutionIndex()][1]);
+  else if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
 }
 
 function renderShop() {
@@ -3543,6 +3692,18 @@ function renderShop() {
   for (const b of tabsEl.children) b.classList.toggle('active', b.dataset.tab === currentTab);
   shopList.replaceChildren();
   if (currentTab === 'stats') return renderStats();
+  if (currentTab === 'toupie') {
+    const P = topPower(), i = evolutionIndex(P), next = EVOLUTIONS[i + 1];
+    const card = document.createElement('div');
+    card.className = 'card evoCard';
+    card.innerHTML = '<div><span class="name"></span><span class="lvl"></span></div><div class="desc"></div>';
+    card.querySelector('.name').textContent = '🌀 ' + EVOLUTIONS[i][1];
+    card.querySelector('.lvl').textContent = `évolution ${P}`;
+    card.querySelector('.desc').textContent = (next
+      ? `Chaque niveau acheté pour la toupie la fait évoluer. Prochaine transformation : « ${next[1]} » dans ${next[0] - P} niveau${next[0] - P > 1 ? 'x' : ''}.`
+      : 'Ta toupie a atteint sa forme ultime !');
+    shopList.appendChild(card);
+  }
   for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)) && (u.stage || 0) <= stageSeen() + 1)) {
     const card = document.createElement('div');
     card.className = 'card';
@@ -3827,6 +3988,7 @@ function update(dt) {
     top.gyro.rotation.y = -top.angle * 0.15;
     if (top.flame) top.flame.scale.set(1, 0.8 + Math.random() * 0.5, 1);
     if (top.aura) { top.aura.rotation.z += dt * 3; top.aura.material.opacity = 0.35 + 0.25 * Math.sin(gameTime * 8); }
+    if (top.legend) { top.legend.rotation.z += dt * 2; top.legend.scale.setScalar(1 + 0.05 * Math.sin(gameTime * 6)); }
     if (top.cloud) { top.cloud.rotation.z -= dt * 1.5; top.cloud.scale.setScalar(1 + 0.08 * Math.sin(gameTime * 5)); }
     if (top.smell) {
       top.smell.visible = !top.falling;
