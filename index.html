@@ -450,7 +450,7 @@ BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.fro
 FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
 // Calés pour qu'une nouvelle espèce arrive à intervalles réguliers (toutes les 3-4 vagues, puis 2 après la mutation)
-const INFEST_THRESHOLDS = [0, 25, 250, 650, 1500, 3600, 6400, 9500, 14000, 20000, 28000, 38000, 52000, 70000, 95000, 125000, 165000, 215000];
+const INFEST_THRESHOLDS = [0, 45, 380, 750, 1500, 3600, 6400, 9500, 14000, 20000, 28000, 38000, 52000, 70000, 95000, 125000, 165000, 215000];
 const INFEST_MAX = 280000; // la barre du tout dernier insecte
 
 // =====================================================================
@@ -2293,7 +2293,12 @@ function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer') + (stageSee
 // L'objectif accélère : 3 à la vague 1, 15 à la vague 10, 39 à la vague 15, 91 à la vague 20, 182 à la vague 25, 347 à la vague 30
 // (+20 % au plus à partir de la vague 12, quand le multi-lancer devient abordable)
 // La part exponentielle finit par dépasser ce qu'un bureau plein peut fournir : la défaite arrive toujours.
-function waveQuota() { const w = state.run.wave - 1; return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * Math.pow(1.07, w) * (1 + Math.min(0.2, 0.025 * Math.max(0, w - 10)))); }
+// Vagues 8 à 18 un peu adoucies (jusqu'à −15 %) : c'est là que les débutants perdaient le plus souvent
+function waveQuota() {
+  const w = state.run.wave - 1;
+  const soft = 1 - 0.15 * Math.min(1, Math.max(0, (w - 6) / 5)) * Math.min(1, Math.max(0, (20 - w) / 6));
+  return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * Math.pow(1.07, w) * (1 + Math.min(0.2, 0.025 * Math.max(0, w - 10))) * soft);
+}
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
@@ -3477,7 +3482,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.1';
+const VERSION = '2026-10-04.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
