@@ -36,14 +36,23 @@
   #timeBar { background: #7fb2ff; transition: none; }
   #hud[data-mode="histoire"] .carnageOnly, #hud[data-mode="carnage"] .histoireOnly { display: none; }
   #hud.hurt { animation: hurt .45s; }
+  /* Tuto : la barre d'infestation clignote pendant l'explication */
+  #hud.tuto-infest #infestName, #hud.tuto-infest #infestBar { animation: tutoGlow 0.9s ease-in-out infinite; }
+  #hud.tuto-infest #infestBar { min-width: 6%; }
+  @keyframes tutoGlow { 0%, 100% { filter: none; } 50% { filter: drop-shadow(0 0 6px #ffe08a) brightness(1.6); } }
+  #hud.tuto-infest { z-index: 9; }
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
   #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; }
-  /* Bouton « Ramasser » : juste sous le panneau, seulement pendant qu'une toupie tourne */
-  #pickBtn { position: absolute; top: calc(100% + 8px); left: 0; display: none; pointer-events: auto; padding: 8px 14px; border: 0;
-    border-radius: 12px; background: var(--panel); color: var(--text); font-weight: 800; font-size: 14px; cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,.4); }
-  #pickBtn.show { display: block; animation: pickIn .2s ease-out; }
-  @keyframes pickIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  /* Bouton « Ramasser » : gros, en bas à droite (sous le pouce), seulement pendant qu'une toupie tourne */
+  #pickBtn { position: fixed; right: 16px; bottom: 16px; z-index: 3; display: none; align-items: center; gap: 8px;
+    padding: 14px 24px; border: 3px solid #fff7e0; border-radius: 18px; background: linear-gradient(#ffd96a, #ff9f43);
+    color: #2a1608; font-weight: 900; font-size: 20px; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.55); }
+  #pickBtn .hand { font-size: 26px; }
+  #pickBtn:active { transform: scale(.94); }
+  #pickBtn.show { display: flex; animation: pickIn .2s ease-out, pickPulse 1.6s ease-in-out .2s infinite; }
+  @keyframes pickIn { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
+  @keyframes pickPulse { 0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,.55); } 50% { box-shadow: 0 6px 18px rgba(0,0,0,.55), 0 0 0 6px rgba(255,217,106,.35); } }
+  @media (max-width: 700px) { #pickBtn { bottom: 58px; } }
 
   /* Message d'état en haut au centre (le bas de l'écran est occupé par le plateau et le lanceur) */
   #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
@@ -58,7 +67,8 @@
     .hudRow { margin-top: 3px; font-size: 11px; }
     .bar { height: 4px; margin-top: 2px; }
     #perksLine { font-size: 12px; margin-top: 3px; }
-    #pickBtn { top: calc(100% + 6px); padding: 6px 11px; font-size: 12px; }
+    #pickBtn { right: 10px; bottom: 10px; padding: 10px 18px; font-size: 17px; }
+    #pickBtn .hand { font-size: 22px; }
     #status { top: 6px; padding: 5px 12px; font-size: 12px; max-width: calc(100vw - 400px); }
     .topBtns { top: 6px; right: 6px; gap: 6px; }
     .topBtns button { padding: 7px 11px; font-size: 13px; }
@@ -239,8 +249,8 @@
   <div class="hudRow"><span id="infestName"></span></div>
   <div class="bar"><div id="infestBar"></div></div>
   <div id="perksLine"></div>
-  <button id="pickBtn" aria-label="Ramasser la toupie">✋ Ramasser</button>
 </div>
+<button id="pickBtn" aria-label="Ramasser la toupie"><span class="hand">✋</span>Ramasser</button>
 
 <div id="status"></div>
 <div id="rotateHint"><span class="ico">📱</span>Tourne ton téléphone pour voir le plateau en grand</div>
@@ -477,10 +487,10 @@ const UPGRADES = [
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Gentille'], [1, 'Petites dents'], [5, 'Épines'], [10, 'Épines + yeux rouges']],
     fmt: s => `attraction ${s.chase.toFixed(2)}` },
-  { id: 'critique', tab: 'toupie', wave: 10, name: 'Coup critique', desc: 'Chance d’infliger un coup ×3.', base: 90, growth: 1.6, max: 15,
+  { id: 'critique', tab: 'toupie', wave: 10, name: 'Coup critique', desc: 'Chance d’infliger un coup ×3. Au-delà de 100 % de chance, le surplus rend les coups critiques encore plus forts.', base: 90, growth: 1.6, max: 30,
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     skins: [[0, 'Sans aura'], [3, 'Étincelles'], [8, 'Aura rouge'], [13, 'Aura de foudre']],
-    fmt: s => `${Math.round(s.crit * 100)} % de chance` },
+    fmt: s => `${Math.round(s.crit * 100)} % de chance` + (s.critMult > 3 ? `, coups ×${s.critMult.toFixed(2)}` : '') },
 
   // --- Débloquées par les mutations ---
   { id: 'toxique', tab: 'toupie', wave: 1, stage: 1, name: 'Vernis toxique', desc: 'La toupie est enduite d’un vernis toxique : plus de dégâts contre les insectes mutants et les araignées.', base: 2500, growth: 1.38, max: 25,
@@ -601,7 +611,9 @@ function computeStats(L, P = perkLevel) {
     fallRatio: 0.25 / (1 + 0.1 * L('equilibre')),
     restitution: Math.min(0.95, 0.35 + 0.05 * L('rebond')),
     chase: 0.12 * L('agressivite'),
-    crit: Math.min(0.6, 0.03 * L('critique') + 0.1 * P('epines')),
+    // Chance de critique plafonnée à 100 % : chaque point au-dessus augmente les dégâts critiques (×3 → ×3,6 pour 120 %)
+    crit: Math.min(1, 0.03 * L('critique') + 0.1 * P('epines')),
+    critMult: 3 * Math.max(1, 0.03 * L('critique') + 0.1 * P('epines')),
     rpm: 600 * (1 + 0.18 * L('puissance')) * Math.pow(1.15, P('ressort')),
     speed: 0.35 * (1 + 0.12 * L('elan')) * Math.pow(1.2, P('ressort')),
     perfect: 0.06 + 0.02 * L('precision'),
@@ -651,6 +663,7 @@ function newRun(mode) {
 const state = {
   totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, killsByType: {},
   mode: 'histoire', introSeen: false,
+  tutos: {}, // les petites explications déjà montrées
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
@@ -658,7 +671,7 @@ const state = {
   speedX2: false,
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'best', 'games', 'savedRuns', 'meta', 'speedX2'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -2208,6 +2221,29 @@ function banner(title, sub) {
 // =====================================================================
 let combo = 0, lastKillTime = -99, gameTime = 0;
 let pendingMutation = false; // la barre du dernier insecte d'un stade vient d'être remplie
+let pendingTuto = null;       // une explication à montrer dès que possible
+const TUTOS = {
+  infest: [
+    { face: '🤔', text: 'Tiens, une nouvelle bestiole ! Plus j’écrase d’insectes, plus il en arrive des gros et des coriaces.' },
+    { face: '📊', text: 'Regarde la barre d’infestation, en haut à gauche : elle se remplit à chaque insecte écrasé (les gros comptent plus que les petits).' },
+    { face: '🪳', text: 'Quand elle est pleine, une nouvelle espèce débarque : plus grosse, plus résistante… et qui rapporte plus.' },
+    { face: '🛠', text: 'Pour suivre, il faudra améliorer ma toupie à l’atelier !' },
+  ],
+};
+function showTuto(id) {
+  pendingTuto = null;
+  state.tutos = state.tutos || {};
+  if (state.tutos[id]) return;
+  state.tutos[id] = true;
+  save();
+  paused = true;
+  charging = false;
+  document.getElementById('hud').classList.add('tuto-' + id);
+  playDialog(TUTOS[id], () => {
+    paused = false;
+    document.getElementById('hud').classList.remove('tuto-' + id);
+  });
+}
 
 // Mutation : les insectes du bureau se transforment en ceux du nouveau stade, et on le raconte
 function mutate() {
@@ -2267,6 +2303,7 @@ function killBug(b) {
     const t = BUG_TYPES[newLevel], st = STAGES[t.stage];
     if (t.stage > (run.stageSeen || 0)) pendingMutation = true;
     else banner(`Infestation niveau ${newLevel - st.from + 1} !`, `Nouvel insecte : ${t.name}${t.tip ? ' — ' + t.tip : ''}`);
+    if (!state.tutos?.infest) pendingTuto = 'infest';
     shopDirty = true;
     previewDirty = true;
   }
@@ -2286,7 +2323,7 @@ function hitBug(top, b, now) {
   let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
   if (b.t.stage) dmg *= S.mutantDmg;
   const crit = Math.random() < S.crit;
-  if (crit) dmg *= 3;
+  if (crit) dmg *= S.critMult;
   dmg = Math.min(dmg, b.hp); // on n'affiche pas plus que la vie restante
   popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
@@ -3062,7 +3099,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.6';
+const VERSION = '2026-10-03.7';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3425,7 +3462,7 @@ function renderStats() {
     ['Seuil de chute', `${Math.round(S.fallRatio * 100)} %`],
     ['Rebond', `${Math.round(S.restitution * 100)} %`],
     ['Agressivité', S.chase.toFixed(2)],
-    ['Coup critique', `${Math.round(S.crit * 100)} %`],
+    ['Coup critique', `${Math.round(S.crit * 100)} % (×${S.critMult.toFixed(2)})`],
   ]);
   rows('Apparence', UPGRADES.filter(u => u.skins).map(u => [u.name, u.skins[skinTier(u.id)][1]]));
   rows('Lanceur', [
@@ -3753,6 +3790,7 @@ function update(dt) {
   }
 
   if (pendingMutation && !paused) mutate();
+  else if (pendingTuto && !paused && introStep < 0) showTuto(pendingTuto);
 
   // Interface (pas à chaque image, pour économiser la batterie)
   hudTimer -= dt;
