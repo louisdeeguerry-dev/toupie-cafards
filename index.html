@@ -38,6 +38,12 @@
   #hud.hurt { animation: hurt .45s; }
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
   #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; }
+  /* Bouton « Ramasser » : juste sous le panneau, seulement pendant qu'une toupie tourne */
+  #pickBtn { position: absolute; top: calc(100% + 8px); left: 0; display: none; pointer-events: auto; padding: 8px 14px; border: 0;
+    border-radius: 12px; background: var(--panel); color: var(--text); font-weight: 800; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  #pickBtn.show { display: block; animation: pickIn .2s ease-out; }
+  @keyframes pickIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
   /* Message d'état en haut au centre (le bas de l'écran est occupé par le plateau et le lanceur) */
   #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
@@ -52,6 +58,7 @@
     .hudRow { margin-top: 3px; font-size: 11px; }
     .bar { height: 4px; margin-top: 2px; }
     #perksLine { font-size: 12px; margin-top: 3px; }
+    #pickBtn { top: calc(100% + 6px); padding: 6px 11px; font-size: 12px; }
     #status { top: 6px; padding: 5px 12px; font-size: 12px; max-width: calc(100vw - 400px); }
     .topBtns { top: 6px; right: 6px; gap: 6px; }
     .topBtns button { padding: 7px 11px; font-size: 13px; }
@@ -231,6 +238,7 @@
   <div class="hudRow"><span id="infestName"></span></div>
   <div class="bar"><div id="infestBar"></div></div>
   <div id="perksLine"></div>
+  <button id="pickBtn" aria-label="Ramasser la toupie">✋ Ramasser</button>
 </div>
 
 <div id="status"></div>
@@ -2343,6 +2351,17 @@ function stepTop(top, dt, now) {
   }
 }
 
+function pickUpTops() {
+  const alive = aliveTops();
+  if (!alive.length) return;
+  for (const top of alive) {
+    top.falling = 0.001;
+    top.picked = true;
+  }
+  popup('✋ Ramassée', alive[0].x, alive[0].z - 0.05, 'big');
+}
+document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropagation(); pickUpTops(); });
+
 function stepTopsTogether() {
   // Chocs entre toupies (multi-lancer)
   for (let i = 0; i < tops.length; i++) {
@@ -2948,7 +2967,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.3';
+const VERSION = '2026-10-03.4';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3331,6 +3350,7 @@ function renderStats() {
   shopList.appendChild(reset);
 }
 
+const pickBtn = document.getElementById('pickBtn');
 function updateHud() {
   const run = state.run;
   $('money').textContent = fmtMoney(state.run.cash);
@@ -3471,6 +3491,15 @@ function update(dt) {
       top.prec += (5 + 8 * ratio) * dt;
       const wob = Math.max(0, (0.65 - ratio) / 0.65) * 0.32 + 0.02;
       top.tilt.rotation.set(Math.cos(top.prec) * wob, 0, Math.sin(top.prec) * wob);
+    } else if (top.picked) {
+      // Ramassée : elle s'élève en ralentissant puis disparaît
+      top.falling += dt;
+      const f = Math.min(1, top.falling / 0.35);
+      top.tilt.position.y = f * f * 0.25;
+      top.tilt.scale.set(r * (1 - 0.6 * f), r * 0.95 * (1 - 0.6 * f), r * (1 - 0.6 * f));
+      top.tilt.rotation.set(0, 0, 0);
+      top.angle += (1 - f) * 20 * dt;
+      if (top.falling > 0.35) top.dead = true;
     } else {
       top.falling += dt;
       const f = Math.min(1, top.falling / 0.3);
@@ -3513,6 +3542,7 @@ function update(dt) {
     if (aliveNow === 0 && cooldown > 0) cooldown -= dt;
   }
   aliveBefore = aliveNow;
+  pickBtn.classList.toggle('show', aliveNow > 0 && playing);
 
   // Histoire : fin de vague une fois les toupies tombées
   // (objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi)
