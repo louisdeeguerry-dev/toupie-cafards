@@ -53,6 +53,10 @@
   @keyframes pickIn { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
   @keyframes pickPulse { 0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,.55); } 50% { box-shadow: 0 6px 18px rgba(0,0,0,.55), 0 0 0 6px rgba(255,217,106,.35); } }
   @media (max-width: 700px) { #pickBtn { bottom: 58px; } }
+  /* Portrait : le plateau touche le bas de l'écran, ces éléments passent dans le décor au-dessus du plateau */
+  body.portraitView #status { top: calc(var(--boardTop) - 70px); bottom: auto; }
+  body.portraitView #gauge { top: calc(var(--boardTop) - 30px); bottom: auto; }
+  body.portraitView #pickBtn { top: calc(var(--boardTop) - 140px); bottom: auto; right: 12px; }
 
   /* Message d'état en haut au centre (le bas de l'écran est occupé par le plateau et le lanceur) */
   #status { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: var(--panel);
@@ -804,21 +808,22 @@ scene.fog = new THREE.Fog(0x2a221c, 2.2, 5);
 const camera = new THREE.PerspectiveCamera(52, 1, 0.01, 10);
 // Zoom du joueur (pincer à deux doigts ou molette) : on agrandit une partie de l'image d'origine (le cadrage de départ est la vue la plus large).
 // cx, cy : centre de la partie agrandie, en fraction de l'image d'origine. On ne sort jamais du cadre d'origine.
-const view = { zoom: 1, cx: 0.5, cy: 0.5 };
+const view = { zoom: 1, cx: 0.5, cy: 0.5, baseHf: 0 };
 const ZOOM_MAX = 3.5;
 function applyView() {
   const W = container.clientWidth, H = container.clientHeight;
   view.zoom = Math.max(1, Math.min(ZOOM_MAX, view.zoom));
+  const Hf = Math.max(H, view.baseHf || H); // image complète (plus haute que l'écran en portrait : décalage vers le bas)
   if (view.zoom < 1.001 || !W || !H) {
     view.zoom = 1; view.cx = 0.5; view.cy = 0.5;
-    camera.clearViewOffset();
+    if (Hf > H + 0.5) camera.setViewOffset(W, Hf, 0, 0, W, H); else camera.clearViewOffset();
   } else {
     const w = W / view.zoom, h = H / view.zoom;
     const x = Math.max(0, Math.min(W - w, view.cx * W - w / 2));
     const y = Math.max(0, Math.min(H - h, view.cy * H - h / 2));
     view.cx = (x + w / 2) / W;
     view.cy = (y + h / 2) / H;
-    camera.setViewOffset(W, H, x, y, w, h);
+    camera.setViewOffset(W, Hf, x, y, w, h);
   }
   camera.updateProjectionMatrix();
 }
@@ -845,12 +850,12 @@ function placeCamera() {
   const aspect = w / h;
   camera.aspect = aspect;
   camera.clearViewOffset(); // le cadrage d'origine se calcule sur l'image entière
-  // Écran étroit (téléphone en portrait) : caméra plus basse et plus proche du plateau (comme assis au bureau),
-  // objectif plus large ; tout le plateau reste visible
+  // Écran étroit (téléphone en portrait) : vue de dessus, le plateau prend toute la largeur
+  // et son bord avant touche le bas de l'écran (un peu de décor au-dessus)
   const portrait = Math.min(1, Math.max(0, (1.3 - aspect) / 0.6));
-  camera.fov = 52 + portrait * 24;
-  const k = -0.45 * portrait;
-  const target = new THREE.Vector3(0, 0, 0.02 + 0.03 * portrait);
+  camera.fov = 52 + portrait * 8;
+  const k = portrait * 0.8;
+  const target = new THREE.Vector3(0, 0, 0.02);
   const dir = new THREE.Vector3(0, 0.95 + k * 0.6, 0.84 - k * 0.3).sub(target).normalize();
   // On recule la caméra jusqu'à ce que les 4 coins du bureau et le lanceur tiennent dans l'écran
   const corners = [[-DESK_X, -DESK_Z], [DESK_X, -DESK_Z], [-DESK_X, DESK_Z], [DESK_X, DESK_Z], [0, LAUNCH.y + 0.08]]
@@ -863,10 +868,29 @@ function placeCamera() {
     camera.updateProjectionMatrix();
     if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 + 0.03 * portrait && v.y > -0.82 && v.y < 0.8; })) break;
   }
+  // Portrait : on décale l'image vers le bas (sans changer la perspective) pour que le bord avant
+  // du plateau touche le bas de l'écran ; on voit plus de décor au-dessus et plus de sol en dessous
+  view.baseHf = h;
+  if (portrait > 0.5) {
+    v.set(0, 0, DESK_Z + 0.03).project(camera);
+    const d = Math.max(0, (v.y + 0.985) / 2 * h);
+    if (d > 0) {
+      view.baseHf = h + 2 * d;
+      camera.fov = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * view.baseHf / h) * 180 / Math.PI;
+    }
+  }
   // Le brouillard (qui assombrit le fond de la pièce) commence toujours un peu derrière le plateau
   const camDist = camera.position.distanceTo(target);
   scene.fog.near = camDist + 1;
   scene.fog.far = camDist + 3.8;
+  // Portrait : le message d'état, la jauge et « Ramasser » se placent dans le décor, juste au-dessus du plateau
+  document.body.classList.toggle('portraitView', portrait > 0.5);
+  if (portrait > 0.5) {
+    if (view.baseHf > h + 0.5) camera.setViewOffset(w, view.baseHf, 0, 0, w, h);
+    camera.updateMatrixWorld();
+    v.set(0, 0, -DESK_Z - 0.03).project(camera);
+    document.body.style.setProperty('--boardTop', Math.round((1 - v.y) / 2 * h) + 'px');
+  }
   // Ce cadrage (tout le bureau visible) est la vue la plus large ; on y applique le zoom du joueur
   applyView();
 }
@@ -3163,7 +3187,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.13';
+const VERSION = '2026-10-03.14';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
