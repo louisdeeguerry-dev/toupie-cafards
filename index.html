@@ -388,41 +388,41 @@ const BUG_TYPES = [
   // Les petits cafards meurent toujours en un coup ; la résistance arrive à l'infestation 2
   { id: 'petit',    pts: 1,   name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
   { id: 'cafard',   pts: 2,   name: 'Cafard',              r: 0.024, hp: 6,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     pts: 5,   name: 'Gros cafard',         r: 0.034, hp: 24,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   pts: 15,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 90,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', pts: 40,  name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 300,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    pts: 150, name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 1800, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'gros',     pts: 3,   name: 'Gros cafard',         r: 0.034, hp: 24,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   pts: 4,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 90,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', pts: 6,  name: 'Scarabée rhinocéros', r: 0.055, hp: 520,  speed: 0.07, reward: 300,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    pts: 10, name: 'Reine des cafards',   r: 0.085, hp: 2600, speed: 0.05, reward: 1800, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
   // --- Stade 2 : les insectes mutants (une fois la barre des reines remplie) ---
-  { id: 'perce',    pts: 20,  name: 'Perce-oreille',       r: 0.030, hp: 300,  speed: 0.12, reward: 260,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
+  { id: 'perce',    pts: 6,  name: 'Perce-oreille',       r: 0.030, hp: 300,  speed: 0.12, reward: 260,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
     tip: 'Rapide, avec des pinces à l’arrière.' },
-  { id: 'millepattes', pts: 35, name: 'Mille-pattes',      r: 0.036, hp: 650,  speed: 0.10, reward: 560,  mass: 25,  bite: 2, color: 0x9a4a12, fear: 0.0,  shape: 'centipede', dash: true,
+  { id: 'millepattes', pts: 7, name: 'Mille-pattes',      r: 0.036, hp: 650,  speed: 0.10, reward: 560,  mass: 25,  bite: 2, color: 0x9a4a12, fear: 0.0,  shape: 'centipede', dash: true,
     tip: 'Il fonce par à-coups !' },
-  { id: 'lucane',   pts: 60,  name: 'Lucane cerf-volant',  r: 0.050, hp: 1200, speed: 0.07, reward: 1050, mass: 70,  bite: 3, color: 0x4a2412, fear: 0.0,  metal: 0.5, shape: 'stag',
+  { id: 'lucane',   pts: 8,  name: 'Lucane cerf-volant',  r: 0.050, hp: 1200, speed: 0.07, reward: 1050, mass: 70,  bite: 3, color: 0x4a2412, fear: 0.0,  metal: 0.5, shape: 'stag',
     tip: 'Lourd : il freine la toupie.' },
-  { id: 'criquet',  pts: 100, name: 'Criquet géant',       r: 0.040, hp: 1900, speed: 0.09, reward: 1700, mass: 30,  bite: 2, color: 0x5c8a2a, fear: 0.0,  shape: 'cricket', jump: true,
+  { id: 'criquet',  pts: 9, name: 'Criquet géant',       r: 0.040, hp: 1900, speed: 0.09, reward: 1700, mass: 30,  bite: 2, color: 0x5c8a2a, fear: 0.0,  shape: 'cricket', jump: true,
     tip: 'Il saute pour esquiver la toupie !' },
-  { id: 'goliath',  pts: 160, name: 'Scarabée goliath',    r: 0.065, hp: 3500, speed: 0.05, reward: 3100, mass: 140, bite: 3, color: 0x7a4a20, fear: 0.0,  metal: 0.3, shape: 'goliath',
+  { id: 'goliath',  pts: 10, name: 'Scarabée goliath',    r: 0.065, hp: 3500, speed: 0.05, reward: 3100, mass: 140, bite: 3, color: 0x7a4a20, fear: 0.0,  metal: 0.3, shape: 'goliath',
     tip: 'Énorme et très résistant.' },
-  { id: 'reinefourmi', pts: 500, name: 'Reine des fourmis', r: 0.080, hp: 6000, speed: 0.04, reward: 6000, mass: 150, bite: 4, color: 0x5a1010, fear: 0.0,  metal: 0.2, shape: 'ant', queen: true, crown: true, rare: true, brood: 'fourmi',
+  { id: 'reinefourmi', pts: 16, name: 'Reine des fourmis', r: 0.080, hp: 6000, speed: 0.04, reward: 6000, mass: 150, bite: 4, color: 0x5a1010, fear: 0.0,  metal: 0.2, shape: 'ant', queen: true, crown: true, rare: true, brood: 'fourmi',
     tip: 'Elle pond des fourmis sans arrêt !' },
   // --- Stade 3 : les araignées ---
-  { id: 'faucheux', pts: 30,  name: 'Faucheux',            r: 0.030, hp: 500,  speed: 0.17, reward: 450,  mass: 8,   bite: 2, color: 0x8a6a4a, fear: 0.20, shape: 'spider', legScale: 2.0, legThick: 0.45, bodyScale: 0.55,
+  { id: 'faucheux', pts: 8,  name: 'Faucheux',            r: 0.030, hp: 500,  speed: 0.17, reward: 450,  mass: 8,   bite: 2, color: 0x8a6a4a, fear: 0.20, shape: 'spider', legScale: 2.0, legThick: 0.45, bodyScale: 0.55,
     tip: 'Ses longues pattes le rendent insaisissable.' },
-  { id: 'loup',     pts: 50,  name: 'Araignée-loup',       r: 0.040, hp: 900,  speed: 0.11, reward: 820,  mass: 30,  bite: 2, color: 0x5a4632, fear: 0.0,  shape: 'spider', stripes: true, dash: true,
+  { id: 'loup',     pts: 9,  name: 'Araignée-loup',       r: 0.040, hp: 900,  speed: 0.11, reward: 820,  mass: 30,  bite: 2, color: 0x5a4632, fear: 0.0,  shape: 'spider', stripes: true, dash: true,
     tip: 'Elle chasse en sprintant !' },
-  { id: 'scorpion', pts: 80,  name: 'Scorpion',            r: 0.050, hp: 1600, speed: 0.08, reward: 1450, mass: 60,  bite: 3, color: 0xc0953e, fear: 0.0,  metal: 0.2, shape: 'scorpion', sting: true,
+  { id: 'scorpion', pts: 10,  name: 'Scorpion',            r: 0.050, hp: 1600, speed: 0.08, reward: 1450, mass: 60,  bite: 3, color: 0xc0953e, fear: 0.0,  metal: 0.2, shape: 'scorpion', sting: true,
     tip: 'Son dard fait perdre de la vitesse à la toupie.' },
-  { id: 'veuve',    pts: 130, name: 'Veuve noire',         r: 0.045, hp: 2800, speed: 0.07, reward: 2600, mass: 50,  bite: 3, color: 0x141418, fear: 0.0,  metal: 0.3, shape: 'spider', hourglass: true, web: true,
+  { id: 'veuve',    pts: 11, name: 'Veuve noire',         r: 0.045, hp: 2800, speed: 0.07, reward: 2600, mass: 50,  bite: 3, color: 0x141418, fear: 0.0,  metal: 0.3, shape: 'spider', hourglass: true, web: true,
     tip: 'Ses toiles ralentissent la toupie.' },
-  { id: 'mygale',   pts: 200, name: 'Mygale',              r: 0.070, hp: 4500, speed: 0.06, reward: 4200, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
+  { id: 'mygale',   pts: 12, name: 'Mygale',              r: 0.070, hp: 4500, speed: 0.06, reward: 4200, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
     tip: 'Une montagne de poils… et de points de vie.' },
-  { id: 'mere',     pts: 700, name: 'Mère araignée',       r: 0.090, hp: 9000, speed: 0.04, reward: 9000, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
+  { id: 'mere',     pts: 20, name: 'Mère araignée',       r: 0.090, hp: 9000, speed: 0.04, reward: 9000, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
     tip: 'Elle tisse des toiles et lâche ses bébés !' },
 ];
 // Les « petits » de chaque stade : ils meurent toujours en un coup et évitent que le bureau se bouche
 const FODDER_TYPES = [
-  { id: 'fourmi', pts: 2, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
-  { id: 'bebe',   pts: 3, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
+  { id: 'fourmi', pts: 1, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
+  { id: 'bebe',   pts: 1, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
 ];
 const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES];
 const bugType = id => ALL_BUG_TYPES.find(t => t.id === id);
@@ -445,8 +445,9 @@ const STAGES = [
 BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.from ? k : a), 0); });
 FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
-const INFEST_THRESHOLDS = [0, 25, 250, 900, 3000, 9000, 16000, 22000, 30000, 40000, 55000, 75000, 100000, 130000, 170000, 220000, 290000, 380000];
-const INFEST_MAX = 500000; // la barre du tout dernier insecte
+// Calés pour qu'une nouvelle espèce arrive à intervalles réguliers (toutes les 3-4 vagues, puis 2 après la mutation)
+const INFEST_THRESHOLDS = [0, 25, 250, 650, 1500, 3600, 6400, 9500, 14000, 20000, 28000, 38000, 52000, 70000, 95000, 125000, 165000, 215000];
+const INFEST_MAX = 280000; // la barre du tout dernier insecte
 
 // =====================================================================
 //  AMÉLIORATIONS PERMANENTES (atelier) — avec leurs skins
@@ -3215,7 +3216,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.20';
+const VERSION = '2026-10-03.21';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
