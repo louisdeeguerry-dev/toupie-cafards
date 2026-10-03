@@ -17,6 +17,8 @@
     --pink: #ff8ad8;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* Pas de zoom du navigateur au double appui (on appuie souvent vite deux fois sur « Acheter ») */
+  html, body, button, #shop, #toybox, #menu, #pause, #modal { touch-action: manipulation; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; color: var(--text);
     font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
   #game { position: fixed; inset: 0; touch-action: none; }
@@ -3475,7 +3477,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.23';
+const VERSION = '2026-10-04.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4252,6 +4254,10 @@ window.visualViewport?.addEventListener('resize', onScreenResize);
 if (window.ResizeObserver) new ResizeObserver(() => placeCamera()).observe(container);
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+// Le navigateur ne doit jamais zoomer la page (double appui, pincement hors du plateau) : seul le plateau se zoome
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 && !e.target.closest('#game')) e.preventDefault(); }, { passive: false });
 placeCamera();
 updateLauncherSkin();
 $('hud').dataset.mode = state.run.mode;
