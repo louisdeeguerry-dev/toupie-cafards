@@ -524,6 +524,10 @@ const UPGRADES = [
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
   { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 20,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
+  { id: 'trampoline', tab: 'bureau', wave: 1, stage: 1, name: 'Bords trampolines', desc: 'Les bords de la table deviennent des trampolines : la toupie rebondit dessus et repart encore plus vite.', base: 5000, growth: 1.5, max: 10,
+    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
+    skins: [[0, 'Bords en bois'], [1, 'Trampolines bleus'], [4, 'Trampolines de cirque'], [8, 'Super-trampolines fluo']],
+    fmt: s => s.bounce > 1 ? `rebond ×${s.bounce.toFixed(2)}` : 'bords en bois' },
   { id: 'bocal', tab: 'bureau', wave: 1, stage: 1, name: 'Bocal de collection', desc: 'Les insectes mutants et les araignées rapportent plus d’argent.', base: 4000, growth: 1.45, max: 20,
     unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
     fmt: s => `×${s.mutantBounty.toFixed(2)} argent des mutants` },
@@ -620,6 +624,9 @@ function computeStats(L, P = perkLevel) {
     stealth: 1 / (1 + 0.12 * L('feutre')),
     webGrip: 1 / (1 + 0.25 * L('antitoile')),
     sting: 1 + 1.2 / (1 + 0.35 * L('antidard')),
+    // Bords trampolines : la toupie repart plus vite qu'elle n'est arrivée (avec une vitesse maximale)
+    bounce: L('trampoline') ? 1.1 + 0.05 * L('trampoline') : 0,
+    bounceCap: 1.2 + 0.1 * L('trampoline'),
   };
 }
 // Durée de rotation estimée (sans chocs) pour un lancer à pleine puissance
@@ -833,6 +840,7 @@ scene.add(desk);
 
 // Petits rebords sur les côtés du bureau (la toupie rebondit dessus)
 const rimMat = new THREE.MeshStandardMaterial({ color: 0x5b3a1e, roughness: 0.6 });
+const rimMeshes = [];
 for (const [w, d, x, z] of [
   [DESK_X * 2 + 0.06, 0.03, 0, -DESK_Z - 0.015], [DESK_X * 2 + 0.06, 0.03, 0, DESK_Z + 0.015],
   [0.03, DESK_Z * 2, -DESK_X - 0.015, 0], [0.03, DESK_Z * 2, DESK_X + 0.015, 0],
@@ -841,6 +849,7 @@ for (const [w, d, x, z] of [
   rim.position.set(x, 0.009, z);
   rim.castShadow = rim.receiveShadow = true;
   scene.add(rim);
+  rimMeshes.push(rim);
 }
 
 // =====================================================================
@@ -1323,6 +1332,75 @@ function updateLauncherSkin() {
   lBodyMat.metalness = looks.metal;
   lBodyMat.roughness = looks.rough;
   lFins.visible = t >= 2;
+  updateTrampolines();
+}
+
+// Bords trampolines : une toile élastique tendue sur des ressorts, à la place des rebords en bois
+const tramp = { group: new THREE.Group(), bands: [], hit: [0, 0, 0, 0], hitAt: [0, 0, 0, 0], tier: -1 };
+scene.add(tramp.group);
+function updateTrampolines() {
+  const t = skinTier('trampoline');
+  for (const rim of rimMeshes) rim.visible = t === 0;
+  if (t === tramp.tier) return;
+  tramp.tier = t;
+  tramp.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
+  tramp.group.clear();
+  tramp.bands = [];
+  if (t === 0) return;
+  const colors = [0, 0x2f7dff, 0xe8322a, 0x39ff8a][t];
+  const band = new THREE.MeshStandardMaterial({ color: colors, roughness: 0.55, emissive: t === 3 ? 0x0f7a35 : 0, emissiveIntensity: 0.8 });
+  const stripe = new THREE.MeshStandardMaterial({ color: t === 2 ? 0xffe14a : 0xffffff, roughness: 0.5 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0x2b2f36, metalness: 0.8, roughness: 0.35 });
+  const spring = new THREE.MeshStandardMaterial({ color: 0xc9d1d8, metalness: 0.9, roughness: 0.25 });
+  // Fond, devant, gauche, droite : [longueur, position du bord intérieur, direction vers l'extérieur]
+  const walls = [
+    { len: DESK_X * 2, along: 'x', x: 0, z: -DESK_Z, out: [0, -1] },
+    { len: DESK_X * 2, along: 'x', x: 0, z: DESK_Z, out: [0, 1] },
+    { len: DESK_Z * 2, along: 'z', x: -DESK_X, z: 0, out: [-1, 0] },
+    { len: DESK_Z * 2, along: 'z', x: DESK_X, z: 0, out: [1, 0] },
+  ];
+  walls.forEach((w, i) => {
+    const g = new THREE.Group();
+    g.position.set(w.x, 0, w.z);
+    if (w.along === 'z') g.rotation.y = Math.PI / 2;
+    // Dans le repère du bord : la longueur suit x, l'extérieur est vers +z (ou -z)
+    const outSign = w.along === 'x' ? w.out[1] : w.out[0]; // (rotation d'un quart de tour : le +z local devient le +x du monde)
+    const fr = new THREE.Mesh(new THREE.BoxGeometry(w.len + 0.06, 0.03, 0.012), frame);
+    fr.position.set(0, 0.015, outSign * 0.026);
+    g.add(fr);
+    const bandG = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w.len, 0.026, 0.008), band);
+    b.position.y = 0.014;
+    bandG.add(b);
+    for (const y of [0.006, 0.022]) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(w.len, 0.003, 0.0085), stripe);
+      st.position.y = y;
+      bandG.add(st);
+    }
+    bandG.position.z = outSign * 0.004;
+    g.add(bandG);
+    const n = Math.round(w.len / 0.09);
+    for (let k = 0; k <= n; k++) {
+      const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.018, 6), spring);
+      sp.rotation.x = Math.PI / 2;
+      sp.position.set(-w.len / 2 + (k / n) * w.len, 0.014, outSign * 0.016);
+      g.add(sp);
+    }
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    tramp.group.add(g);
+    tramp.bands.push({ g: bandG, outSign, along: w.along });
+  });
+}
+function animateTrampolines(dt) {
+  tramp.bands.forEach((b, i) => {
+    const h = tramp.hit[i];
+    if (h <= 0) { b.g.position.z = b.outSign * 0.004; b.g.scale.y = 1; return; }
+    // La toile se creuse vers l'extérieur puis revient en vibrant
+    tramp.hit[i] = Math.max(0, h - dt * 3);
+    const wob = Math.sin((1 - h) * 22) * h;
+    b.g.position.z = b.outSign * (0.004 + 0.01 * wob);
+    b.g.scale.y = 1 + 0.25 * Math.abs(wob);
+  });
 }
 
 // Ligne de visée
@@ -2285,10 +2363,10 @@ function stepTop(top, dt, now) {
 
   // Rebonds sur les bords du bureau
   const r = S.radius;
-  if (top.x < -DESK_X + r) { top.x = -DESK_X + r; top.vx = Math.abs(top.vx) * S.restitution; top.spin *= 0.98; }
-  if (top.x > DESK_X - r) { top.x = DESK_X - r; top.vx = -Math.abs(top.vx) * S.restitution; top.spin *= 0.98; }
-  if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
-  if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz) * S.restitution; top.spin *= 0.98; }
+  if (top.x < -DESK_X + r) { top.x = -DESK_X + r; top.vx = Math.abs(top.vx); wallBounce(top, 2); }
+  if (top.x > DESK_X - r) { top.x = DESK_X - r; top.vx = -Math.abs(top.vx); wallBounce(top, 3); }
+  if (top.z < -DESK_Z + r) { top.z = -DESK_Z + r; top.vz = Math.abs(top.vz); wallBounce(top, 0); }
+  if (top.z > DESK_Z - r) { top.z = DESK_Z - r; top.vz = -Math.abs(top.vz); wallBounce(top, 1); }
 
   // Toiles d'araignée : la toupie s'y englue un instant, puis la toile se déchire
   for (const w of webs) {
@@ -2350,6 +2428,22 @@ function stepTop(top, dt, now) {
     top.fallDir = top.prec;
     if (S.shockRadius > 0) shockwave(top);
   }
+}
+
+// Rebond sur un bord (0 fond, 1 devant, 2 gauche, 3 droite) : bois qui amortit, ou trampoline qui relance
+let boingT = -9;
+function wallBounce(top, wall) {
+  if (!S.bounce) {
+    top.vx *= S.restitution; top.vz *= S.restitution;
+    top.spin *= 0.98;
+    return;
+  }
+  const v = Math.hypot(top.vx, top.vz), cap = S.speed * S.bounceCap;
+  const k = Math.min(S.bounce, cap / Math.max(v, 1e-6));
+  top.vx *= Math.max(k, S.restitution); top.vz *= Math.max(k, S.restitution);
+  tramp.hit[wall] = 1;
+  tramp.hitAt[wall] = wall < 2 ? top.x : top.z;
+  if (gameTime - boingT > 0.5) { boingT = gameTime; popup('BOING !', top.x, top.z, 'crit'); }
 }
 
 function pickUpTops() {
@@ -2968,7 +3062,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.5';
+const VERSION = '2026-10-03.6';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3573,6 +3667,7 @@ function update(dt) {
   // Charge du lanceur (en temps réel, même en vitesse ×2, pour garder la même difficulté de visée)
   if (charging) chargeT += dt / gameSpeed();
   $('gaugeFill').style.width = (charging ? gaugeValue() : 0) * 100 + '%';
+  animateTrampolines(dt);
   launcherKick = Math.max(0, launcherKick - dt * 4);
   lBody.position.z = -launcherKick * 0.02;
   lRing.rotation.z += (charging ? 25 : 2) * dt;
