@@ -43,6 +43,14 @@
   #hud.tuto-infest { z-index: 9; }
   @keyframes hurt { 0%, 100% { background: var(--panel); } 30% { background: rgba(180, 30, 20, .9); } }
   #perksLine { margin-top: 6px; font-size: 15px; letter-spacing: 1px; }
+  /* Boutons de vue (zoom, recentrer), au milieu du bord droit */
+  #viewBtns { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+  #viewBtns button { width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--panel); color: var(--text);
+    font-size: 20px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.4); padding: 0; }
+  #viewBtns button:active { transform: scale(.92); }
+  #recenterBtn { font-size: 17px !important; }
+  #recenterBtn.moved { background: var(--accent) !important; }
+  @media (max-height: 500px) { #viewBtns { right: 6px; gap: 4px; } #viewBtns button { width: 34px; height: 34px; font-size: 17px; } }
   /* Bouton « Ramasser » : gros, en bas à droite (sous le pouce), seulement pendant qu'une toupie tourne */
   #pickBtn { position: fixed; right: 16px; bottom: 16px; z-index: 3; display: none; align-items: center; gap: 8px;
     padding: 14px 24px; border: 3px solid #fff7e0; border-radius: 18px; background: linear-gradient(#ffd96a, #ff9f43);
@@ -250,6 +258,11 @@
   <div class="bar"><div id="infestBar"></div></div>
   <div id="perksLine"></div>
 </div>
+<div id="viewBtns">
+  <button id="zoomInBtn" aria-label="Zoomer">＋</button>
+  <button id="zoomOutBtn" aria-label="Dézoomer">－</button>
+  <button id="recenterBtn" aria-label="Recentrer la vue">🎯</button>
+</div>
 <button id="pickBtn" aria-label="Ramasser la toupie"><span class="hand">✋</span>Ramasser</button>
 
 <div id="status"></div>
@@ -328,7 +341,7 @@
 <div id="toybox">
   <div class="menuBox">
     <h1>📦 Le Carton à Jouets</h1>
-    <p class="tag">Au fond de mon vieux carton, il reste des trésors. Chaque vague repoussée me rapporte 1 🌊, même si je perds la partie.</p>
+    <p class="tag">Au fond de mon vieux carton, il reste des trésors. Chaque vague repoussée me rapporte 1 🌊 (2 après la mutation des cafards, 3 avec les araignées), même si je perds la partie.</p>
     <div class="balance" id="toyBalance"></div>
     <div id="toyList"></div>
     <button class="bigBtn" id="toyClose">Fermer</button>
@@ -387,10 +400,10 @@ const BUG_TYPES = [
   // Les petits cafards meurent toujours en un coup ; la résistance arrive à l'infestation 2
   { id: 'petit',    pts: 1,   name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
   { id: 'cafard',   pts: 2,   name: 'Cafard',              r: 0.024, hp: 6,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     pts: 5,   name: 'Gros cafard',         r: 0.034, hp: 35,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   pts: 15,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 150,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', pts: 40,  name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 600,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    pts: 150, name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 4000, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'gros',     pts: 5,   name: 'Gros cafard',         r: 0.034, hp: 24,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   pts: 15,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 90,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', pts: 40,  name: 'Scarabée rhinocéros', r: 0.055, hp: 650,  speed: 0.07, reward: 300,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    pts: 150, name: 'Reine des cafards',   r: 0.085, hp: 4000, speed: 0.05, reward: 1800, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
   // --- Stade 2 : les insectes mutants (une fois la barre des reines remplie) ---
   { id: 'perce',    pts: 20,  name: 'Perce-oreille',       r: 0.030, hp: 300,  speed: 0.12, reward: 260,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
     tip: 'Rapide, avec des pinces à l’arrière.' },
@@ -444,7 +457,7 @@ const STAGES = [
 BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.from ? k : a), 0); });
 FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
-const INFEST_THRESHOLDS = [0, 25, 120, 500, 2000, 8000, 16000, 22000, 30000, 40000, 55000, 75000, 100000, 130000, 170000, 220000, 290000, 380000];
+const INFEST_THRESHOLDS = [0, 25, 250, 900, 3000, 9000, 16000, 22000, 30000, 40000, 55000, 75000, 100000, 130000, 170000, 220000, 290000, 380000];
 const INFEST_MAX = 500000; // la barre du tout dernier insecte
 
 // =====================================================================
@@ -521,8 +534,8 @@ const UPGRADES = [
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
   { id: 'recharge', tab: 'lanceur', wave: 2, modes: ['carnage'], name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
-  { id: 'multi', tab: 'lanceur', wave: 14, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
-    unlock: () => infestLevel() >= 2, lockText: 'Niveau d’infestation 3',
+  { id: 'multi', tab: 'lanceur', wave: 12, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
+    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
 
   // --- Bureau / économie ---
@@ -599,7 +612,19 @@ function smellRadius(n) { return 0.06 + 0.035 * n; }
 function smellChance(n) { return Math.min(0.6, 0.2 + 0.13 * n); }
 
 // Calcule toutes les stats à partir des niveaux (atelier) et des bonus de la partie
+// Durée de rotation plafonnée en douceur : 10 s restent ~9 s, 100 s deviennent ~47 s, jamais plus de ~90 s
+// (sinon un lancer dure des minutes et l'Appât suffit à remplir n'importe quel objectif)
+const SPIN_SOFT_CAP = 90;
+function softDecay(decayRaw, fallRatio) {
+  const ln = Math.log(1 / fallRatio), raw = ln / decayRaw;
+  return ln / (raw / (1 + raw / SPIN_SOFT_CAP));
+}
 function computeStats(L, P = perkLevel) {
+  const s = rawStats(L, P);
+  s.decay = softDecay(s.decay, s.fallRatio);
+  return s;
+}
+function rawStats(L, P) {
   return {
     radius: 0.036 * (1 + 0.08 * L('diametre')),
     mass: 20 * (1 + 0.15 * L('poids')) * Math.pow(1.25, P('plomb')),
@@ -789,8 +814,25 @@ scene.background = new THREE.Color(0x2a221c);
 scene.fog = new THREE.Fog(0x2a221c, 2.2, 5);
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.01, 10);
+// Vue choisie par le joueur (pincer / molette pour zoomer, glisser pour se déplacer, bouton pour recentrer)
+const view = { target: new THREE.Vector3(0, 0, 0.02), dir: new THREE.Vector3(0, 1, 1).normalize(), dist: 2, zoom: 1, panX: 0, panZ: 0 };
+const ZOOM_MIN = 0.7, ZOOM_MAX = 3.5;
+function applyView() {
+  view.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, view.zoom));
+  view.panX = Math.max(-DESK_X, Math.min(DESK_X, view.panX));
+  view.panZ = Math.max(-DESK_Z - 0.2, Math.min(DESK_Z + 0.1, view.panZ));
+  const t = view.target.clone().add(new THREE.Vector3(view.panX, 0, view.panZ));
+  camera.position.copy(t).addScaledVector(view.dir, view.dist / view.zoom);
+  camera.lookAt(t);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  document.getElementById('recenterBtn')?.classList.toggle('moved', view.zoom !== 1 || view.panX !== 0 || view.panZ !== 0);
+}
+function recenterView() { view.zoom = 1; view.panX = 0; view.panZ = 0; applyView(); }
 function placeCamera() {
   const w = container.clientWidth, h = container.clientHeight;
+  if (!w || !h) return;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(w, h);
   const aspect = w / h;
   camera.aspect = aspect;
@@ -809,6 +851,11 @@ function placeCamera() {
     camera.updateProjectionMatrix();
     if (corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) < 0.94 && v.y > -0.82 && v.y < 0.8; })) break;
   }
+  // Ce cadrage (tout le bureau visible) est la vue « recentrée » ; on y applique le zoom et le déplacement du joueur
+  view.target.copy(target);
+  view.dir.copy(dir);
+  view.dist = camera.position.distanceTo(target);
+  applyView();
 }
 
 // Lumières
@@ -2035,9 +2082,9 @@ function waveSpawnMult() { return isStory() ? 1 : 1 + 0.08 * (state.run.wave - 1
 function bugCap() { return S.maxBugs + Math.min(infestLevel(), 6) * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer') + (stageSeen() >= 1 ? metaLevel('gants') : 0); }
-// L'objectif accélère : 3 à la vague 1, 19 à la vague 10, 70 à la vague 20, 194 à la vague 30, 455 à la vague 40.
+// L'objectif accélère : 3 à la vague 1, 15 à la vague 10, 35 à la vague 15, 76 à la vague 20, 152 à la vague 25, 328 à la vague 31.
 // La part exponentielle finit par dépasser ce qu'un bureau plein peut fournir : la défaite arrive toujours.
-function waveQuota() { const w = state.run.wave - 1; return Math.ceil((3 + 0.4 * w + 0.06 * w * w) * Math.pow(1.035, w)); }
+function waveQuota() { const w = state.run.wave - 1; return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * Math.pow(1.07, w)); }
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
@@ -2690,8 +2737,12 @@ function endWave() {
   state.totalMoney += reward;
   run.money += reward;
   run.lastReward = reward;
-  // Chaque vague repoussée rapporte 1 🌊 pour le Carton à Jouets (gardée même en cas de défaite)
-  state.meta.earned++;
+  // Chaque vague repoussée rapporte des 🌊 pour le Carton à Jouets (gardées même en cas de défaite) :
+  // 1 avec les cafards, 2 après la mutation, 3 avec les araignées
+  const metaGain = 1 + stageSeen();
+  state.meta.earned += metaGain;
+  run.metaGain = (run.metaGain ?? run.wavesCleared) + metaGain;
+  run.lastMetaGain = metaGain;
   run.wavesCleared++;
   const lockedBefore = UPGRADES.filter(u => upgradeLock(u));
   run.wave++;
@@ -2727,7 +2778,7 @@ function showPerkChoice() {
     ? `+${fmtMoney(run.lastReward)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
       + ` · Choisis un bonus. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`
     : `+${fmtMoney(run.lastReward)} · +2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
-  lead.textContent += ' · +1 🌊';
+  lead.textContent += ` · +${run.lastMetaGain || 1} 🌊`;
   let unlock = null;
   if (run.newUnlocks?.length) {
     unlock = document.createElement('p');
@@ -2809,7 +2860,7 @@ function defeat() {
   }
   const note = document.createElement('p');
   note.className = 'lead';
-  note.textContent = `Tout repart de zéro : argent, améliorations de l’atelier et infestation. Mais tes ${run.wavesCleared} vague${run.wavesCleared > 1 ? 's' : ''} repoussée${run.wavesCleared > 1 ? 's' : ''} t’ont rapporté ${run.wavesCleared} 🌊 pour le Carton à Jouets (tu en as ${metaBalance()}).`;
+  note.textContent = `Tout repart de zéro : argent, améliorations de l’atelier et infestation. Mais tes ${run.wavesCleared} vague${run.wavesCleared > 1 ? 's' : ''} repoussée${run.wavesCleared > 1 ? 's' : ''} t’ont rapporté ${run.metaGain || run.wavesCleared} 🌊 pour le Carton à Jouets (tu en as ${metaBalance()}).`;
   const btns = document.createElement('div');
   btns.style.cssText = 'display:flex; gap:10px; justify-content:center; flex-wrap:wrap;';
   const box = document.createElement('button');
@@ -2852,7 +2903,7 @@ function applyToybox(run) {
 
 function restartRun() {
   const mode = state.run.mode;
-  const kept = state.run.over ? 0 : state.run.wavesCleared; // (après une défaite, la fenêtre l'a déjà dit)
+  const kept = state.run.over ? 0 : state.run.wavesCleared, keptMeta = state.run.metaGain || kept; // (après une défaite, la fenêtre l'a déjà dit)
   state.games[mode]++;
   state.run = state.savedRuns[mode] = newRun(mode);
   previewDirty = true;
@@ -2870,7 +2921,7 @@ function restartRun() {
   document.getElementById('toybox').classList.remove('open');
   paused = false;
   banner('Nouvelle partie', kept
-    ? `📦 Tes ${kept} vague${kept > 1 ? 's' : ''} repoussée${kept > 1 ? 's sont gardées' : ' est gardée'} dans le Carton à Jouets (🌊 ${metaBalance()} à dépenser)`
+    ? `📦 Tes ${kept} vague${kept > 1 ? 's' : ''} repoussée${kept > 1 ? 's' : ''} t’ont rapporté ${keptMeta} 🌊, gardées dans le Carton à Jouets (🌊 ${metaBalance()} à dépenser)`
     : mode === 'histoire' ? `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !` : 'Protège ton goûter !');
   shopDirty = true;
 }
@@ -3030,7 +3081,7 @@ function renderToybox() {
   }
 }
 function openMenuRefresh() {
-  const runWaves = state.savedRuns.histoire.wavesCleared + state.savedRuns.carnage.wavesCleared;
+  const runWaves = ['histoire', 'carnage'].reduce((a, m) => a + (state.savedRuns[m].metaGain ?? state.savedRuns[m].wavesCleared), 0);
   document.getElementById('toyboxBalance').textContent = `🌊 ${metaBalance()} à dépenser` + (runWaves ? ` · dont ${runWaves} gagnée${runWaves > 1 ? 's' : ''} dans tes parties en cours` : '');
   shopDirty = true;
 }
@@ -3099,7 +3150,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.7';
+const VERSION = '2026-10-03.8';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3161,21 +3212,90 @@ function onLauncher(e) {
   return Math.hypot(e.clientX - cx, e.clientY - cy) < r;
 }
 let launcherHintT = -9;
+// Point du bureau sous un endroit de l'écran
+function deskHit(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hit = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(deskPlane, hit) ? hit : null;
+}
+// « Attraper » le bureau : le point attrapé reste sous le doigt
+function dragViewTo(grab, clientX, clientY) {
+  const h = grab && deskHit(clientX, clientY);
+  if (!h) return;
+  view.panX += grab.x - h.x;
+  view.panZ += grab.z - h.z;
+  applyView();
+}
+const pointers = new Map();
+let gesture = null, chargeId = null;
+function pinchInfo() {
+  const [a, b] = [...pointers.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+}
 canvas.addEventListener('pointerdown', e => {
   lastInput = gameTime;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* capture impossible : sans gravité */ }
   if (introStep >= 0) { nextIntroLine(); return; }
-  if (!isReady()) return;
-  if (!onLauncher(e)) {
-    // Toucher ailleurs ne lance plus rien : on rappelle juste où poser le doigt
-    if (gameTime - launcherHintT > 1.5) { launcherHintT = gameTime; popup('👇 Pose le doigt sur le lanceur', LAUNCH.x, LAUNCH.y - 0.1, 'big'); }
+  if (charging) return; // un deuxième doigt pendant la visée ne change rien
+  if (pointers.size === 2) {
+    // Deux doigts : on pince pour zoomer (et on déplace la vue avec le milieu des doigts)
+    const p = pinchInfo();
+    gesture = { type: 'pinch', d0: Math.max(10, p.d), zoom0: view.zoom, grab: deskHit(p.mx, p.my) };
     return;
   }
-  charging = true;
-  chargeT = 0;
-  try { canvas.setPointerCapture(e.pointerId); } catch { /* capture impossible : sans gravité */ }
+  if (pointers.size > 2) return;
+  if (isReady() && onLauncher(e)) {
+    charging = true;
+    chargeT = 0;
+    chargeId = e.pointerId;
+    gesture = null;
+    return;
+  }
+  // Ailleurs : glisser déplace la vue, une simple touche rappelle où poser le doigt
+  gesture = { type: 'pan', id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, grab: deskHit(e.clientX, e.clientY) };
 });
-// La direction suit le doigt pendant qu'on le fait glisser depuis le lanceur
-canvas.addEventListener('pointermove', e => { if (charging) pointerToDesk(e); });
+canvas.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // La direction suit le doigt pendant qu'on le fait glisser depuis le lanceur
+  if (charging) { if (e.pointerId === chargeId) pointerToDesk(e); return; }
+  if (gesture?.type === 'pan' && gesture.id === e.pointerId) {
+    if (!gesture.moved && Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 8) gesture.moved = true;
+    if (gesture.moved) dragViewTo(gesture.grab, e.clientX, e.clientY);
+  } else if (gesture?.type === 'pinch' && pointers.size >= 2) {
+    const p = pinchInfo();
+    view.zoom = gesture.zoom0 * p.d / gesture.d0;
+    applyView();
+    dragViewTo(gesture.grab, p.mx, p.my);
+  }
+});
+function pointerEnd(e, cancelled) {
+  pointers.delete(e.pointerId);
+  if (charging && e.pointerId === chargeId) {
+    chargeId = null;
+    if (cancelled) charging = false; else release();
+    return;
+  }
+  if (gesture?.type === 'pan' && gesture.id === e.pointerId) {
+    if (!gesture.moved && !cancelled && isReady() && gameTime - launcherHintT > 1.5) {
+      // Toucher ailleurs ne lance rien : on rappelle juste où poser le doigt
+      launcherHintT = gameTime;
+      popup('👇 Pose le doigt sur le lanceur', LAUNCH.x, LAUNCH.y - 0.1, 'big');
+    }
+    gesture = null;
+  } else if (gesture?.type === 'pinch' && pointers.size < 2) gesture = null;
+}
+// Molette (ordinateur) : zoom vers le curseur
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const grab = deskHit(e.clientX, e.clientY);
+  view.zoom *= Math.exp(-e.deltaY * 0.0015);
+  applyView();
+  dragViewTo(grab, e.clientX, e.clientY);
+}, { passive: false });
 function release() {
   if (!charging) return;
   charging = false;
@@ -3185,8 +3305,12 @@ function release() {
   if (perfect) popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big');
   launchTops(aimPoint, g, perfect);
 }
-canvas.addEventListener('pointerup', release);
-canvas.addEventListener('pointercancel', () => { charging = false; });
+canvas.addEventListener('pointerup', e => pointerEnd(e, false));
+canvas.addEventListener('pointercancel', e => pointerEnd(e, true));
+// Boutons de vue : zoomer, dézoomer, recentrer
+document.getElementById('zoomInBtn').onclick = () => { view.zoom *= 1.25; applyView(); };
+document.getElementById('zoomOutBtn').onclick = () => { view.zoom /= 1.25; applyView(); };
+document.getElementById('recenterBtn').onclick = recenterView;
 
 // =====================================================================
 //  INTERFACE : HUD, atelier, stats
@@ -3800,7 +3924,15 @@ function update(dt) {
   if (saveTimer <= 0) { saveTimer = 5; save(); }
 }
 
-window.addEventListener('resize', placeCamera);
+function onScreenResize() {
+  placeCamera();
+  setTimeout(placeCamera, 120);
+  setTimeout(placeCamera, 400);
+}
+window.addEventListener('resize', onScreenResize);
+window.addEventListener('orientationchange', onScreenResize);
+window.visualViewport?.addEventListener('resize', onScreenResize);
+if (window.ResizeObserver) new ResizeObserver(() => placeCamera()).observe(container);
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 placeCamera();
