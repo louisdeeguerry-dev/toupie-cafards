@@ -431,8 +431,8 @@ const STAGES = [
   { from: 0,  name: 'Les cafards',          fodder: 'petit' },
   // hp : les mutants sont bien plus coriaces que leur fiche (×50, puis ×150) — le Carton à Jouets aide beaucoup
   { from: 6,  name: 'Les insectes mutants', fodder: 'fourmi', hp: 50, lines: [
-    { face: '😳', text: 'Hein ?! Les cafards… ils ont changé. On dirait qu’ils ont muté !' },
-    { face: '😤', text: 'Ils ne lâchent pas l’affaire, ces bestioles. Fourmis, perce-oreilles, mille-pattes… tout le jardin débarque sur mon bureau !' },
+    { face: '😳', text: 'Hein ?! Ce cafard-là… il n’est pas normal. On dirait que certains ont muté !' },
+    { face: '😤', text: 'Ils ne lâchent pas l’affaire, ces bestioles. Et voilà que fourmis, perce-oreilles et mille-pattes s’en mêlent… tout le jardin débarque sur mon bureau !' },
     { face: '🐜', text: 'Et ces petites fourmis ne comptent même pas : pour repousser une vague, il faut écraser les gros !' },
     { face: '📦', text: 'Ils sont costauds… Mon vieux carton à jouets cache peut-être de quoi les battre.' },
   ] },
@@ -2096,9 +2096,10 @@ function waveSpawnMult() { return isStory() ? 1 : 1 + 0.08 * (state.run.wave - 1
 function bugCap() { return S.maxBugs + Math.min(infestLevel(), 6) * 2 + (isStory() ? 0 : Math.floor((state.run.wave - 1) / 2)); }
 // Histoire : X insectes à écraser en un nombre limité de lancers
 function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer') + (stageSeen() >= 1 ? metaLevel('gants') : 0); }
-// L'objectif accélère : 3 à la vague 1, 15 à la vague 10, 35 à la vague 15, 76 à la vague 20, 152 à la vague 25, 328 à la vague 31.
+// L'objectif accélère : 3 à la vague 1, 15 à la vague 10, 39 à la vague 15, 91 à la vague 20, 182 à la vague 25, 347 à la vague 30
+// (+20 % au plus à partir de la vague 12, quand le multi-lancer devient abordable)
 // La part exponentielle finit par dépasser ce qu'un bureau plein peut fournir : la défaite arrive toujours.
-function waveQuota() { const w = state.run.wave - 1; return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * Math.pow(1.07, w)); }
+function waveQuota() { const w = state.run.wave - 1; return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * Math.pow(1.07, w) * (1 + Math.min(0.2, 0.025 * Math.max(0, w - 10)))); }
 // Carnage : nombre d'insectes affamés envoyés vers le goûter pendant la vague
 function waveRaiders() { return 1 + Math.floor(0.75 * (state.run.wave - 1)); }
 
@@ -2112,10 +2113,9 @@ function pickBugType() {
   if (tough >= Math.floor(bugCap() * Math.min(0.9, 0.5 + 0.1 * lvl))) return fodder;
   // Plus l'infestation monte, plus les petits deviennent rares et les gros fréquents :
   // le dernier type débloqué est assez courant, le précédent est le plus courant, les plus anciens disparaissent peu à peu
-  // Après une mutation, seuls les insectes du nouveau stade arrivent (avec leurs petits, qui jouent le rôle des petits cafards)
+  // Une nouvelle espèce (même mutante) se mélange aux anciennes : plus on avance, moins on voit les cafards d'origine
   const pool = [];
-  if (st.from > 0) pool.push([fodder, Math.pow(0.5, lvl - st.from)]);
-  for (let t = st.from; t <= lvl; t++) {
+  for (let t = 0; t <= lvl; t++) {
     let w = t === lvl ? 0.7 : Math.pow(0.5, lvl - 1 - t);
     if (BUG_TYPES[t].rare) w *= 0.25;
     pool.push([BUG_TYPES[t], w]);
@@ -2312,14 +2312,7 @@ function mutate() {
   const run = state.run, k = stageIndex();
   if (k <= (run.stageSeen || 0)) return;
   run.stageSeen = k;
-  for (let i = bugs.length - 1; i >= 0; i--) {
-    const b = bugs[i];
-    if (b.dying || b.gone || b.t.stage >= k || b.mode === 'hungry') continue;
-    const { x, z } = b;
-    removeBug(i);
-    spawnBug(false, 0.12, { type: pickBugType(), x, z });
-    addShock(x, z, 0.08, 0x7dff5a);
-  }
+  // Les cafards déjà là ne changent pas : la nouvelle espèce arrive avec les prochains insectes qui tombent
   const st = STAGES[k];
   paused = true;
   charging = false;
@@ -3164,7 +3157,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-03.18';
+const VERSION = '2026-10-03.19';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3902,7 +3895,7 @@ function update(dt) {
     if (s.t > 0.5) { scene.remove(s.m); s.m.material.dispose(); shocks.splice(i, 1); }
   }
 
-  if (pendingMutation && !paused) mutate();
+  if (pendingMutation && !paused && !aliveTops().length) mutate();
   else if (pendingTuto && !paused && introStep < 0) showTuto(pendingTuto);
 
   // Interface (pas à chaque image, pour économiser la batterie)
