@@ -2489,7 +2489,293 @@ function buildScorpion(g, legs, t, mat, dark) {
 }
 const BUG_BUILDERS = { ant: buildAnt, earwig: buildEarwig, centipede: buildCentipede, stag: buildStag, cricket: buildCricket, goliath: buildGoliath, spider: buildSpider, scorpion: buildScorpion };
 
+// =====================================================================
+//  LA REINE DU NID : un boss unique, debout face à nous, mélange de toutes les bestioles du jeu
+//  (corps de cafard, abdomen de mygale, pattes d'araignée, pattes sauteuses et ailes de sauterelle,
+//  bras de mante, corne de scarabée rhinocéros… et une couronne). Construite en mètres, échelle 1.
+// =====================================================================
+const qUp = new THREE.Vector3(0, 1, 0);
+// Un segment cylindrique (effilé) d'un point a à un point b
+function qLimb(parent, a, b, r1, r2, mat, seg = 10) {
+  const dir = new THREE.Vector3().subVectors(b, a), len = dir.length();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, len, seg), mat);
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(qUp, dir.normalize());
+  parent.add(m);
+  return m;
+}
+function qBall(parent, r, mat, x, y, z, sx = 1, sy = 1, sz = 1, seg = 18) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.max(8, seg * 0.7 | 0)), mat);
+  m.position.set(x, y, z);
+  m.scale.set(sx, sy, sz);
+  parent.add(m);
+  return m;
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+// Texture d'aile : membrane bleutée avec des nervures
+const queenWingTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(190, 230, 255, 0.42)';
+  g.beginPath(); g.ellipse(64, 32, 62, 28, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(70, 40, 30, 0.75)'; g.lineWidth = 2;
+  g.beginPath(); g.ellipse(64, 32, 61, 27, 0, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 1.3;
+  for (let i = 0; i < 7; i++) {
+    g.beginPath(); g.moveTo(4, 32);
+    g.quadraticCurveTo(50, 32 + (i - 3) * 6, 124, 32 + (i - 3) * 9);
+    g.stroke();
+  }
+  for (let i = 0; i < 12; i++) { const x = 20 + i * 8.5; g.beginPath(); g.moveTo(x, 10 + (i % 3)); g.lineTo(x + 4, 54 - (i % 2) * 3); g.stroke(); }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+function makeQueenMesh(target = scene) {
+  const M = (color, rough = 0.4, metal = 0.1, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
+  const shell = M(0x8a2a18, 0.3, 0.25);          // carapace de cafard, rouge-brun brillant
+  const shellDark = M(0x3d120a, 0.3, 0.3);
+  const belly = M(0xf0d2a0, 0.6, 0);
+  const fur = M(0x3a2248, 0.9, 0);                // poils de mygale, violet sombre
+  const furBand = M(0xff8a2a, 0.7, 0);            // rayures orange de tarentule
+  const green = M(0x86c03a, 0.45, 0.05);          // sauterelle
+  const greenDark = M(0x4c7a1c, 0.5, 0.05);
+  const spine = M(0xd8203a, 0.4, 0.1);
+  const ivory = M(0xf6efd8, 0.3, 0);
+  const gold = M(0xffc934, 0.2, 0.9);
+  const eyeWhite = M(0xffffff, 0.15, 0);
+  const pupil = M(0x140a10, 0.1, 0.2);
+  const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const spiderEye = M(0xd4102e, 0.1, 0.4, { emissive: 0x700010, emissiveIntensity: 0.4 });
+  const cheek = M(0xff7a9a, 0.8, 0, { transparent: true, opacity: 0.75 });
+  const gemMats = [0xff2050, 0x30e080, 0x3a7dff].map(c => M(c, 0.1, 0.3, { emissive: c, emissiveIntensity: 0.35 }));
+  const wingMat = new THREE.MeshStandardMaterial({ map: queenWingTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 0.15, metalness: 0.3 });
+
+  const g = new THREE.Group();        // racine (posée au sol, tournée vers la caméra : +z)
+  const body = new THREE.Group();     // tout ce qui « respire »
+  g.add(body);
+  const P = {};
+
+  // --- Abdomen de mygale, derrière (poilu, rayé) ---
+  const abd = new THREE.Group();
+  abd.position.set(0, 0.14, -0.15);
+  body.add(abd);
+  qBall(abd, 0.13, fur, 0, 0, 0, 1, 0.85, 1.15, 24);
+  for (let i = 0; i < 4; i++) qBall(abd, 0.03, furBand, 0, 0.085 - i * 0.005, 0.07 - i * 0.055, 2.1 - i * 0.3, 0.35, 0.55);
+  for (let i = 0; i < 70; i++) {          // les poils
+    const u = Math.random() * Math.PI * 2, v = Math.random() * Math.PI * 0.75;
+    const n = V(Math.sin(v) * Math.cos(u), Math.cos(v), Math.sin(v) * Math.sin(u) * 1.1).normalize();
+    const base = V(n.x * 0.13, n.y * 0.11, n.z * 0.15);
+    qLimb(abd, base, base.clone().addScaledVector(n, 0.022 + Math.random() * 0.015), 0.0035, 0.0006, fur, 4);
+  }
+  qBall(body, 0.04, shellDark, 0, 0.13, -0.05);    // la « taille » qui relie l'abdomen
+
+  // --- Pattes d'araignée : 4 de chaque côté, de longues pattes rayées qui la portent ---
+  P.spiderLegs = [];
+  for (const s of [-1, 1]) {
+    [0.8, 0.28, -0.25, -0.75].forEach((ang, i) => {
+      const leg = new THREE.Group();
+      const hip = V(s * 0.065, 0.15, 0.03 - i * 0.04);
+      leg.position.copy(hip);
+      body.add(leg);
+      const d = V(s * Math.cos(ang), 0, Math.sin(ang));
+      const knee = d.clone().multiplyScalar(0.11).add(V(0, 0.09, 0));
+      const ankle = d.clone().multiplyScalar(0.2).add(V(0, -0.06, 0));
+      const foot = d.clone().multiplyScalar(0.23).add(V(0, -hip.y + 0.005, 0));
+      qLimb(leg, V(0, 0, 0), knee, 0.013, 0.01, fur);
+      qBall(leg, 0.013, furBand, knee.x, knee.y, knee.z);
+      qLimb(leg, knee, ankle, 0.01, 0.007, fur);
+      qBall(leg, 0.008, furBand, ankle.x, ankle.y, ankle.z);
+      qLimb(leg, ankle, foot, 0.007, 0.003, shellDark);
+      P.spiderLegs.push({ leg, phase: i * 1.3 + (s > 0 ? 0.6 : 0) });
+    });
+  }
+
+  // --- Pattes sauteuses de sauterelle, derrière : grosses cuisses rayées, genoux au-dessus des épaules ---
+  for (const s of [-1, 1]) {
+    const hip = V(s * 0.08, 0.13, -0.1), knee = V(s * 0.15, 0.36, -0.22), foot = V(s * 0.16, 0.005, -0.12);
+    const thigh = qLimb(body, hip, knee, 0.034, 0.014, green, 14);
+    thigh.scale.set(1, 1, 1.25);
+    for (let k = 1; k <= 4; k++) {           // chevrons sombres sur la cuisse
+      const p = hip.clone().lerp(knee, k / 5.2);
+      qBall(body, 0.026 - k * 0.003, greenDark, p.x + s * 0.004, p.y, p.z + 0.004, 1.05, 0.25, 1.05);
+    }
+    qBall(body, 0.016, greenDark, knee.x, knee.y, knee.z);
+    qLimb(body, knee, foot, 0.009, 0.006, green);
+    for (let k = 1; k <= 4; k++) {            // petites épines rouges sur le tibia
+      const p = knee.clone().lerp(foot, k / 5);
+      qLimb(body, p, p.clone().add(V(s * 0.012, 0.004, 0.012)), 0.003, 0.0005, spine, 4);
+    }
+  }
+
+  // Le haut du corps se penche un peu en arrière (depuis la taille) : vue d'en haut, on la voit bien de face
+  const lean = new THREE.Group();
+  lean.position.y = 0.15;
+  lean.rotation.x = -0.32;
+  body.add(lean);
+  const upper = new THREE.Group();
+  upper.position.y = -0.15;
+  lean.add(upper);
+  // --- Ailes (sauterelle), légèrement ouvertes dans le dos ---
+  P.wings = [];
+  for (const s of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(s * 0.03, 0.31, -0.07);
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.13), wingMat);
+    w.position.set(s * 0.13, 0, 0);
+    if (s < 0) w.rotation.y = Math.PI;
+    pivot.add(w);
+    pivot.rotation.set(-0.5, s * 0.75, s * -0.55);
+    upper.add(pivot);
+    P.wings.push({ pivot, s });
+  }
+
+  // --- Le corps de cafard, debout : carapace brillante et ventre crème en anneaux ---
+  const torso = qBall(upper, 0.1, shell, 0, 0.21, 0, 1, 1.45, 0.88, 24);
+  P.torso = torso;
+  [0.13, 0.165, 0.2, 0.235, 0.27].forEach((y, i) => qBall(upper, 0.07 - Math.abs(i - 1.5) * 0.008, belly, 0, y, 0.058, 1, 0.26, 0.42));
+  qBall(upper, 0.13, shellDark, 0, 0.3, -0.035, 1, 0.42, 0.85, 24);     // le bouclier du dos (pronotum)
+  qBall(upper, 0.115, shell, 0, 0.31, -0.03, 1, 0.38, 0.8, 24);
+  // Collerette de poils de mygale autour du cou
+  const ruff = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.02, 10, 22), fur);
+  ruff.rotation.x = Math.PI / 2;
+  ruff.position.set(0, 0.325, 0.01);
+  upper.add(ruff);
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; qBall(upper, 0.012, furBand, Math.cos(a) * 0.062, 0.33, 0.01 + Math.sin(a) * 0.062, 1, 0.6, 1); }
+
+  // --- Bras de mante (les « pattes » qui frappent) ---
+  P.arms = [];
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Group();
+    arm.position.set(s * 0.09, 0.27, 0.03);
+    upper.add(arm);
+    const elbow = V(s * 0.07, -0.06, 0.06), hand = V(s * 0.085, 0.06, 0.11);
+    qBall(arm, 0.02, shell, 0, 0, 0);
+    qLimb(arm, V(0, 0, 0), elbow, 0.017, 0.012, green);
+    qBall(arm, 0.014, greenDark, elbow.x, elbow.y, elbow.z);
+    qLimb(arm, elbow, hand, 0.014, 0.009, green);
+    for (let k = 1; k <= 3; k++) {          // dents de la lame
+      const p = elbow.clone().lerp(hand, k / 4);
+      qLimb(arm, p, p.clone().add(V(-s * 0.016, 0.004, 0.006)), 0.004, 0.0006, spine, 4);
+    }
+    qLimb(arm, hand, hand.clone().add(V(-s * 0.018, 0.028, 0.012)), 0.007, 0.001, ivory, 6);   // griffes
+    qLimb(arm, hand, hand.clone().add(V(-s * 0.004, 0.034, 0.016)), 0.006, 0.001, ivory, 6);
+    P.arms.push({ arm, s });
+  }
+
+  // --- La tête : gros yeux gentils, yeux d'araignée, joues roses, sourire à crochets ---
+  const head = new THREE.Group();
+  head.position.set(0, 0.4, 0.025);
+  upper.add(head);
+  P.head = head;
+  qBall(head, 0.085, shell, 0, 0, 0, 1, 0.95, 0.95, 26);
+  qBall(head, 0.055, belly, 0, -0.03, 0.045, 1.1, 0.75, 0.7);         // le museau clair
+  P.eyes = [];
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Group();
+    eye.position.set(s * 0.036, 0.015, 0.064);
+    head.add(eye);
+    qBall(eye, 0.03, eyeWhite, 0, 0, 0, 1, 1.1, 0.8);
+    qBall(eye, 0.018, pupil, s * -0.002, -0.002, 0.018, 1, 1.15, 0.6);
+    qBall(eye, 0.006, shine, s * -0.008, 0.01, 0.03, 1, 1, 0.5, 8);
+    qBall(eye, 0.003, shine, s * 0.004, -0.007, 0.031, 1, 1, 0.5, 6);
+    P.eyes.push(eye);
+  }
+  // Six petits yeux d'araignée, en arc sur le front
+  P.spiderEyes = [];
+  [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05].forEach((x, i) => {
+    const y = 0.058 - Math.abs(x) * 0.25, z = Math.sqrt(Math.max(0, 0.085 * 0.085 - x * x - y * y)) * 0.97;
+    P.spiderEyes.push(qBall(head, i === 2 || i === 3 ? 0.011 : 0.008, spiderEye, x, y, z, 1, 1, 0.7, 10));
+  });
+  for (const s of [-1, 1]) qBall(head, 0.016, cheek, s * 0.06, -0.025, 0.055, 1, 0.6, 0.4);
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.017, 0.0035, 6, 14, Math.PI), shellDark);
+  smile.rotation.z = Math.PI;
+  smile.position.set(0, -0.032, 0.083);
+  head.add(smile);
+  for (const s of [-1, 1]) {                   // deux petits crochets d'araignée
+    qBall(head, 0.009, shellDark, s * 0.016, -0.05, 0.072);
+    qLimb(head, V(s * 0.016, -0.05, 0.075), V(s * 0.01, -0.078, 0.082), 0.0055, 0.0008, ivory, 6);
+  }
+  // Antennes de sauterelle, très longues
+  P.antennae = [];
+  for (const s of [-1, 1]) {
+    const piv = new THREE.Group();
+    piv.position.set(s * 0.028, 0.07, 0.04);
+    head.add(piv);
+    const curve = new THREE.CatmullRomCurve3([V(0, 0, 0), V(s * 0.03, 0.07, 0.01), V(s * 0.09, 0.15, -0.04), V(s * 0.17, 0.18, -0.12), V(s * 0.22, 0.16, -0.18)]);
+    piv.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.0035, 6), shellDark));
+    qBall(piv, 0.008, gold, s * 0.22, 0.16, -0.18);
+    P.antennae.push({ piv, s });
+  }
+  // Corne de scarabée rhinocéros
+  const hornPts = [V(0, 0.05, 0.065), V(0, 0.085, 0.085), V(0, 0.12, 0.088), V(0, 0.145, 0.072)];
+  for (let k = 0; k < 3; k++) qLimb(head, hornPts[k], hornPts[k + 1], 0.014 - k * 0.004, 0.01 - k * 0.0035, shellDark, 10);
+  // La couronne
+  const crown = new THREE.Group();
+  crown.position.set(0, 0.075, -0.02);
+  crown.rotation.set(-0.25, 0, 0.18);
+  head.add(crown);
+  crown.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, 0.03, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xffc934, roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide })));
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.03, 6), gold);
+    tip.position.set(Math.cos(a) * 0.046, 0.028, Math.sin(a) * 0.046);
+    crown.add(tip);
+    qBall(crown, 0.005, gold, Math.cos(a) * 0.046, 0.045, Math.sin(a) * 0.046, 1, 1, 1, 8);
+    qBall(crown, 0.007, gemMats[i % 3], Math.cos(a) * 0.047, 0, Math.sin(a) * 0.047, 1, 1, 0.6, 10);
+  }
+
+  g.traverse(o => { if (o.isMesh && o.material !== wingMat) o.castShadow = true; });
+  // Une lumière douce devant elle : dans la lueur rouge du nid, on voit quand même ses vraies couleurs
+  const spot = new THREE.PointLight(0xfff2e0, 2.6, 1.4);
+  spot.position.set(0, 0.6, 0.42);
+  g.add(spot);
+  target.add(g);
+  return { group: g, legs: [], mat: shell, queen: { ...P, spiderEyeMat: spiderEye, blinkT: 2 } };
+}
+// Animation de la Reine : respiration, antennes, ailes, clignements… et bras levés quand elle attaque
+function animateQueen(b, dt) {
+  const Q = b.queen, t = performance.now() / 1000;
+  if (!Q) return;
+  b.x = b.homeX; b.z = b.homeZ;                       // elle ne bouge jamais du centre
+  b.rear = Math.max(0, (b.rear || 0) - dt * 0.1);
+  b.group.position.set(b.x, (b.drop || 0) + b.rear, b.z);
+  b.group.rotation.set(0, 0, 0);
+  if (b.dying) {                                     // elle tourne sur elle-même et rapetisse
+    b.group.rotation.y = b.dying * 9;
+    b.group.scale.setScalar(Math.max(0.01, 1 - b.dying * 0.9));
+    return;
+  }
+  if (b.landT > 0) b.landT -= dt;
+  const land = b.landT > 0 ? Math.sin((b.landT / 0.25) * Math.PI) * 0.15 : 0;
+  b.group.scale.set(1 + land * 0.5, 1 - land, 1 + land * 0.5);
+  Q.torso.scale.set(1 + 0.02 * Math.sin(t * 2.2), 1.45 + 0.04 * Math.sin(t * 2.2), 0.88);
+  Q.head.rotation.set(-0.3 + 0.05 * Math.sin(t * 1.1), 0.12 * Math.sin(t * 0.7), 0.07 * Math.sin(t * 1.3)); // elle lève la tête vers nous
+  for (const a of Q.antennae) { a.piv.rotation.z = a.s * 0.12 * Math.sin(t * 2.4 + a.s); a.piv.rotation.x = 0.1 * Math.sin(t * 1.7 + a.s); }
+  for (const w of Q.wings) w.pivot.rotation.y = w.s * (0.75 + 0.12 * Math.sin(t * 9 + w.s));
+  for (const l of Q.spiderLegs) l.leg.rotation.y = 0.06 * Math.sin(t * 3 + l.phase);
+  // Les bras : un petit balancement… levés, menaçants, pendant une attaque
+  const attack = qte ? 1 : 0;
+  Q.armLift = (Q.armLift || 0) + (attack - (Q.armLift || 0)) * Math.min(1, dt * 10);
+  for (const a of Q.arms) {
+    a.arm.rotation.x = -0.25 * Math.sin(t * 2 + a.s) * (1 - Q.armLift) - 1.1 * Q.armLift;
+    a.arm.rotation.z = a.s * (0.1 + 0.5 * Q.armLift);
+  }
+  // Clignement des grands yeux
+  Q.blinkT -= dt;
+  if (Q.blinkT < 0) Q.blinkT = 2.5 + Math.random() * 3;
+  const blink = Q.blinkT < 0.12 ? 0.1 : 1;
+  for (const e of Q.eyes) e.scale.y = blink;
+  // Les yeux d'araignée brillent de plus en plus avec la colère ; un éclair rouge quand elle est touchée
+  const ph = nest ? nest.phase : 1;
+  Q.spiderEyeMat.emissiveIntensity = [0, 0.4, 1.2, 2.4][ph] * (0.8 + 0.2 * Math.sin(t * 6));
+  const hit = Math.max(0, 1 - (gameTime - b.lastHit) * 8);
+  b.mat.emissive.setHex(0xff2010);
+  b.mat.emissiveIntensity = hit * 0.6;
+}
 function makeBugMesh(t, target = scene) {
+  if (t.id === 'reinenid') return makeQueenMesh(target);
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: t.color, roughness: 0.35, metalness: t.metal || 0.15 });
   applyPrimeGlow(mat, t);
@@ -2629,7 +2915,7 @@ function newTarget(b) {
 function removeBug(i) {
   const b = bugs[i];
   scene.remove(b.group, b.hpBar.g);
-  b.group.traverse(o => { if (o.isMesh) o.material.dispose(); });
+  b.group.traverse(o => { if (o.isMesh) { o.material.dispose(); if (b.boss) o.geometry.dispose(); } });
   b.hpBar.fill.material.dispose();
   bugs.splice(i, 1);
 }
@@ -3147,7 +3433,12 @@ function baseDamage(ratio, impact) {
 function fmtDmg(d) { return d < 10 ? nf1.format(d) : fmtInt(d); }
 
 function hitBug(top, b, now) {
-  if (now - b.lastHit < 0.12 || b.dying) return;
+  if (b.dying) return;
+  if (b.boss) {
+    // La Reine : chaque toupie la frappe à son rythme (perdre une toupie ralentit vraiment le combat)
+    if (now - (top.bossHit ?? -9) < NEST_TOP_CD) return;
+    top.bossHit = now;
+  } else if (now - b.lastHit < 0.12) return;
   b.lastHit = now;
   const ratio = top.spin / top.launchSpin;
   let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
@@ -3298,7 +3589,7 @@ function stepTop(top, dt, now) {
     if (b.dying) continue;
     if (d < min && d > 0) {
       const nx = dx / d, nz = dz / d;
-      const mt = S.mass, mb = b.t.mass;
+      const mt = S.mass, mb = b.boss ? 1e9 : b.t.mass; // la Reine est inébranlable
       const overlap = min - d;
       top.x -= nx * overlap * (mb / (mt + mb));
       top.z -= nz * overlap * (mb / (mt + mb));
@@ -3371,7 +3662,9 @@ document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropag
 //  Plus aucune toupie : on est repoussé hors du nid.
 // =====================================================================
 const NEST_COST = 1e9;
-const NEST_BOSS = { id: 'reinenid', pts: 0, name: 'La Reine du Nid', r: 0.17, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x4a0a18, fear: 0, metal: 0.35, crown: true, stage: 0 };
+// r = rayon de contact du corps (les longues pattes ne gênent pas les toupies)
+const NEST_BOSS = { id: 'reinenid', pts: 0, name: 'La Reine du Nid', r: 0.16, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x8a2a18, fear: 0, metal: 0.25, stage: 0 };
+const NEST_BOSS_Z = -0.04; // au milieu du plateau
 let nest = null;
 const NEST_INTRO = [
   { face: '😨', text: 'Me voilà dans le nid des cafards… et voilà leur Reine !' },
@@ -3466,7 +3759,7 @@ function exitNestLook() {
 }
 // Chaque coup ne peut retirer qu'une petite part de la vie de la Reine : le combat dure à peu près pareil
 // quelle que soit la force de la toupie (sinon une toupie très améliorée la tuait en quelques secondes)
-let NEST_HIT_CAP = 1 / 140;
+let NEST_HIT_CAP = 1 / 400, NEST_TOP_CD = 0.6;
 function capBoss(b, dmg, k = 1) { return b.boss ? Math.min(dmg, b.maxHp * NEST_HIT_CAP * k) : dmg; }
 let NEST_HP_K = 52, NEST_PULL = 0.5, NEST_PAUSE = [0, 3.4, 2.9, 2.4];
 function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult - 1)); }
@@ -3485,15 +3778,11 @@ function startNest() {
   nest = { launched: false, topsTotal: 0, attackT: 2.5, minionT: 6, phase: 1, deadT: 0, over: false, last: '', seen: {},
     saved: { launchesLeft: run.launchesLeft, cleared: run.cleared, waveKills: run.waveKills } };
   enterNestLook();
-  const b = spawnBug(false, 0.5, { type: NEST_BOSS, x: 0, z: -DESK_Z * 0.35 });
+  const b = spawnBug(false, 0.6, { type: NEST_BOSS, x: 0, z: NEST_BOSS_Z });
   b.boss = true; b.golden = false;
-  b.heading = Math.PI / 2;
+  b.homeX = 0; b.homeZ = NEST_BOSS_Z;
   // Une vie délirante… mais qui suit la puissance du joueur : environ 1 minute de combat sans perdre de toupie
   b.hp = b.maxHp = Math.round(NEST_HP_K * nestHitAvg() * S.tops);
-  b.mat.emissive.setHex(0x500000); b.mat.emissiveIntensity = 0.5;
-  // Yeux rouges qui brillent
-  const eye = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
-  for (const sz of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), eye); e.position.set(1.18, 0.34, sz * 0.12); b.group.add(e); }
   nest.boss = b;
   document.getElementById('nestHud').classList.add('on');
   document.getElementById('quotaText').parentElement.style.display = 'none';
@@ -3605,7 +3894,7 @@ function startQte(pt) {
   // Tout apparaît en même temps ; il faut tout réussir avant la fin du chrono
   for (const it of items) { it.appear = L; it.hitAt = L + D; }
   qte = { pt, t: 0, items, r, fx: [], endT: null, misses: 0, eggMiss: 0, last: performance.now(), D };
-  nest.boss.group.position.y = 0.03; // elle se cabre
+  nest.boss.rear = 0.03; // elle se cabre
   paused = true;
   charging = false;
   qteCanvas.classList.add('on');
@@ -3852,7 +4141,6 @@ function stepNest(dt) {
   if (!n || n.over) return;
   const b = n.boss;
   nestProps.userData.glow.intensity = 1.8 + 0.6 * Math.sin(gameTime * 3);
-  b.group.position.y = Math.max(0, b.group.position.y - dt * 0.08);
   updateNestHud();
   if (!n.launched) return; // la Reine attend qu'on lance
   // Plus aucune toupie : défaite (après la petite chute de la dernière)
@@ -3969,7 +4257,7 @@ function stepBug(b, dt) {
     return;
   }
   // La Reine du Nid ne bouge pas : elle remue les pattes et attaque
-  if (b.boss) { b.walk += dt * 2; b.kx = b.kz = 0; b.pause = 1; return; }
+  if (b.boss) { b.kx = b.kz = 0; b.pause = 1; b.x = b.homeX; b.z = b.homeZ; return; }
   // Pouvoirs des insectes des stades suivants
   if (b.t.jump) {
     b.jumpCd = (b.jumpCd ?? 1) - dt;
@@ -4703,7 +4991,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.23';
+const VERSION = '2026-10-04.24';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -5458,6 +5746,11 @@ function update(dt) {
   for (let i = bugs.length - 1; i >= 0; i--) {
     const b = bugs[i];
     if (b.gone) { removeBug(i); continue; }
+    if (b.boss) {
+      animateQueen(b, dt);
+      if (b.dying) { b.dying += dt; if (b.dying > 1.1) removeBug(i); }
+      continue;
+    }
     b.group.position.set(b.x, b.drop || 0, b.z);
     b.group.rotation.y = -b.heading;
     if (b.drop > 0) {
@@ -5580,7 +5873,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap) => { if (cap) NEST_HIT_CAP = cap; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
