@@ -484,9 +484,7 @@ const FODDER_TYPES = [
   { id: 'fourmi', pts: 1, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
   { id: 'bebe',   pts: 1, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
 ];
-// Le cafard doré : apparaît de temps en temps, file vite, s'envole au bout de 15 s… et rapporte une fortune
-const GOLDEN = { id: 'dore', pts: 0, name: 'Cafard doré', r: 0.024, hp: 0.5, speed: 0.2, reward: 0, mass: 2, bite: 0, color: 0xffc21a, fear: 0.25, metal: 0.6, stage: 0 };
-const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES, GOLDEN];
+const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES];
 const bugType = id => ALL_BUG_TYPES.find(t => t.id === id);
 // Les stades : quand la barre du dernier insecte d'un stade est remplie, les insectes mutent
 const STAGES = [
@@ -597,6 +595,9 @@ const UPGRADES = [
   { id: 'prime', tab: 'bureau', wave: 6, name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 60,
     skins: [[0, 'Sans éclat'], [10, 'Quelques étincelles'], [20, 'Pluie d’étincelles'], [30, 'Scintillement'], [40, 'Feu d’artifice']],
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
+  { id: 'chance', tab: 'bureau', wave: 6, name: 'Trèfle doré', desc: 'Plus de chances qu’un insecte arrive tout doré : il rapporte 10 fois plus.', base: 500, growth: 1.8, max: 10,
+    skins: [[0, 'Trèfle à trois feuilles'], [1, 'Trèfle à quatre feuilles'], [5, 'Trèfle en or'], [10, 'Fer à cheval doré']],
+    fmt: s => `${(s.goldChance * 100).toFixed(1)} % d’insectes dorés` },
   { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 30,
     fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
   { id: 'trampoline', tab: 'bureau', wave: 1, stage: 1, name: 'Bords trampolines', desc: 'Les bords de la table deviennent des trampolines : la toupie rebondit dessus et repart encore plus vite.', base: 5000, growth: 1.5, max: 16,
@@ -707,6 +708,7 @@ function rawStats(L, P) {
     // Contre les insectes des stades suivants
     // Pouvoirs des stades suivants (utiles contre tous les insectes)
     dmgMult: (1 + 0.35 * metaLevel('loupe')) * (1 + 0.3 * metaLevel('trophee')),
+    goldChance: 0.01 + 0.004 * L('chance'),   // 1 % au départ, 5 % au niveau max
     fire: L('feu') ? (0.25 + 0.08 * L('feu')) * (metaLevel('chimiste') ? 2 : 1) : 0,   // dégâts/s, en part d'un coup moyen
     fireLife: 1 + 0.08 * L('feu'),
     souffle: L('souffle') ? 0.03 + 0.012 * L('souffle') : 0,     // rotation rendue par insecte écrasé (part du lancer)
@@ -2127,7 +2129,6 @@ antGeo.translate(0.65, 0, 0);
 // La Prime dore les insectes par paliers de 10 niveaux (et les fait scintiller de petites étincelles)
 // La Prime ne change plus la couleur des insectes : ils scintillent, de plus en plus souvent avec le niveau
 function applyPrimeGlow(mat, t) {
-  if (t === GOLDEN) return;
   mat.color.setHex(t.color);
   mat.metalness = t.metal || 0.15;
   mat.roughness = 0.35;
@@ -2157,9 +2158,9 @@ const sparks = [];
 function animateSparks(dt) {
   // Étincelles par seconde et par insecte : 1 au niveau 10, 2 au niveau 20… 4 au niveau 40 (dès le niveau 1, très rares)
   const rate = lv('prime') / 10;
-  if (rate) {
+  {
     for (const b of bugs) {
-      if (b.dying || b.gone || b.drop > 0 || b.mode === 'hungry' || Math.random() > rate * dt) continue;
+      if (b.dying || b.gone || b.drop > 0 || b.mode === 'hungry' || Math.random() > (b.golden ? Math.max(5, rate) : rate) * dt) continue;
       let sp = sparks.find(x => !x.s.visible);
       if (!sp) {
         if (sparks.length >= 160) continue;
@@ -2514,9 +2515,22 @@ function spawnBug(hungry = false, dropFrom = null, at = null) {
     drop: dropFrom ?? 0.35 + Math.random() * 0.6, dropV: 0, tumble: (Math.random() - 0.5) * 12, landT: 0,
   };
   mesh.group.position.set(x, bug.drop, z);
+  if (!hungry && !at?.type && Math.random() < S.goldChance) {
+    bug.golden = true;
+    gildBug(bug);
+    try { SFX.play('evolve'); } catch { /* sons pas encore prêts */ }
+  }
   newTarget(bug);
   bugs.push(bug);
   return bug;
+}
+// Un insecte doré : même espèce, couleur or, et il scintille
+function gildBug(b) {
+  b.mat.color.setHex(0xffc21a);
+  b.mat.metalness = 0.55;
+  b.mat.roughness = 0.25;
+  b.mat.emissive.setHex(0xffa000);
+  b.mat.emissiveIntensity = 0.55;
 }
 function newTarget(b) {
   b.tx = (Math.random() * 2 - 1) * (DESK_X - 0.06);
@@ -2849,8 +2863,8 @@ const ACHIEVEMENTS = [
   { id: 'toys5', icon: '🧸', name: 'Collectionneur', desc: 'Posséder 5 objets différents du Carton à Jouets.', reward: 5, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: 5 },
   { id: 'toys11', icon: '📦', name: 'Le Carton au complet', desc: 'Posséder tous les objets du Carton à Jouets.', reward: 20, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: TOYBOX.length },
   { id: 'legend', icon: '🌀', name: 'Toupie légendaire', desc: 'Faire évoluer la toupie jusqu’à l’aura légendaire.', reward: 10, v: () => state.run ? topPower() : 0, goal: 175 },
-  { id: 'gold1', icon: '✨', name: 'Ruée vers l’or', desc: 'Écraser un cafard doré.', reward: 2, v: () => state.goldenKills || 0, goal: 1 },
-  { id: 'gold10', icon: '🪙', name: 'Chasseur d’or', desc: 'Écraser 10 cafards dorés.', reward: 8, v: () => state.goldenKills || 0, goal: 10 },
+  { id: 'gold1', icon: '✨', name: 'Ruée vers l’or', desc: 'Écraser un insecte doré.', reward: 2, v: () => state.goldenKills || 0, goal: 1 },
+  { id: 'gold10', icon: '🪙', name: 'Chasseur d’or', desc: 'Écraser 10 insectes dorés.', reward: 8, v: () => state.goldenKills || 0, goal: 10 },
   { id: 'multi5', icon: '🖐️', name: 'Cinq à la fois', desc: 'Lancer 5 toupies d’un coup.', reward: 10, v: () => state.run ? 1 + lv('multi') : 1, goal: 5 },
 ];
 let toastQueue = [], toastBusy = false;
@@ -2920,7 +2934,7 @@ function banner(title, sub) {
 // =====================================================================
 //  COMBAT
 // =====================================================================
-let combo = 0, lastKillTime = -99, gameTime = 0, achTimer = 0, goldenT = 40;
+let combo = 0, lastKillTime = -99, gameTime = 0, achTimer = 0;
 let pendingMutation = false; // la barre du dernier insecte d'un stade vient d'être remplie
 let pendingTuto = null;       // une explication à montrer dès que possible
 const TUTOS = {
@@ -2978,7 +2992,7 @@ function killBug(b) {
   const comboMult = Math.min(COMBO_CAP, 1 + (combo - 1) * S.comboBonus);
   let gain = b.t.reward * S.bounty * comboMult;
   if (b.golden) {
-    gain = Math.max(150, 30 * Math.pow(run.wave, 1.7)) * S.bounty;
+    gain *= 10;
     state.goldenKills = (state.goldenKills || 0) + 1;
     popup('💰 JACKPOT ! +' + fmtMoney(gain), b.x, b.z - 0.08, 'big');
     SFX.play('achieve');
@@ -3104,7 +3118,7 @@ function biteSnack(b) {
   // Rassasié, l'insecte reste sur le bureau et repart se promener (il ne disparaît que si on l'écrase)
   b.mode = 'wander';
   b.hunger = Infinity;
-  applyPrimeGlow(b.mat, b.t);
+  if (b.golden) gildBug(b); else applyPrimeGlow(b.mat, b.t);
   b.pause = 0.5;
   b.tx = (Math.random() - 0.5) * DESK_X;
   b.tz = -Math.random() * DESK_Z * 0.8;
@@ -3265,10 +3279,6 @@ function stepTopsTogether() {
 
 function stepBug(b, dt) {
   if (b.dying || b.gone) return;
-  if (b.golden && b.drop <= 0) {
-    b.goldLife -= dt;
-    if (b.goldLife <= 0) { b.gone = true; addShock(b.x, b.z, 0.06, 0xffd45a); popup('✨ Envolé…', b.x, b.z, 'dmg'); return; }
-  }
   // En train de tomber sur le bureau : il ne bouge pas encore et ne peut pas être touché
   if (b.drop > 0) {
     b.dropV -= 3.5 * dt;
@@ -3877,7 +3887,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.11';
+const VERSION = '2026-10-04.12';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4195,7 +4205,7 @@ function buy(u) {
   state.run.levels[u.id] = lv(u.id) + 1;
   refreshStats();
   updateLauncherSkin();
-  if (u.id === 'prime') for (const b of bugs) if (b.mode !== 'hungry') applyPrimeGlow(b.mat, b.t);
+  if (u.id === 'prime') for (const b of bugs) if (b.mode !== 'hungry' && !b.golden) applyPrimeGlow(b.mat, b.t);
   // Nid : les insectes en plus tombent tout de suite, à n'importe quel moment (même entre deux vagues ou pendant un lancer)
   if (u.id === 'nid' && !state.run.over) refillBoard();
   save();
@@ -4661,21 +4671,6 @@ function update(dt) {
   }
 
   if (pendingMutation && !paused && !aliveTops().length) mutate();
-  if (playing && isStory() && !paused) {
-    goldenT -= dt;
-    if (goldenT <= 0) {
-      goldenT = 50 + Math.random() * 45;
-      if (!bugs.some(b => b.golden && !b.gone && !b.dying)) {
-        const g = spawnBug(false, 0.75, { type: GOLDEN });
-        g.golden = true;
-        g.goldLife = 15;
-        g.mat.emissive.setHex(0xffb000);
-        g.mat.emissiveIntensity = 0.6;
-        popup('✨ Un cafard doré ! Vite !', g.x, g.z - 0.06, 'big');
-        SFX.play('evolve');
-      }
-    }
-  }
   // Ronronnement de la toupie la plus rapide, compteur de combo qui s'éteint, succès
   const spinning = aliveTops();
   const fastest = spinning.reduce((m, t) => Math.max(m, t.spin), 0);
