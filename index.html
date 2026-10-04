@@ -2716,7 +2716,7 @@ function stepFlames(dt) {
   for (const b of bugs) {
     if (b.dying || b.gone || b.drop > 0) continue;
     if (!flames.some(f => f.life > 0 && Math.hypot(f.x - b.x, f.z - b.z) < f.r + b.t.r * 0.6)) continue;
-    const dmg = Math.min(b.hp, dps * dt);
+    const dmg = Math.min(b.hp, capBoss(b, dps, 0.25) * dt); // la Reine brûle, mais lentement
     b.hp -= dmg;
     b.burn = (b.burn || 0) + dmg;
     b.burnT = (b.burnT || 0) + dt;
@@ -3150,7 +3150,7 @@ function hitBug(top, b, now) {
   const crit = Math.random() < S.crit;
   if (crit) { dmg *= S.critMult; SFX.play('crit'); addShake(0.003); buzz(8); }
   else SFX.play('hit', Math.min(1, b.t.r / 0.08));
-  dmg = Math.min(dmg, b.hp); // on n'affiche pas plus que la vie restante
+  dmg = Math.min(capBoss(b, dmg), b.hp); // on n'affiche pas plus que la vie restante
   popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
@@ -3165,7 +3165,7 @@ function hitBug(top, b, now) {
       if (d < best) { best = d; near = o; }
     }
     if (near) {
-      const zap = Math.min(near.hp, dmg * S.chainDmg);
+      const zap = Math.min(near.hp, capBoss(near, dmg * S.chainDmg, 0.5));
       near.hp -= zap;
       addBolt(b.x, b.z, near.x, near.z);
       SFX.play('zap');
@@ -3194,7 +3194,7 @@ function shockwave(top) {
   for (const b of bugs) {
     if (b.dying || b.gone || b.drop > 0) continue;
     if (Math.hypot(b.x - top.x, b.z - top.z) < r + b.t.r) {
-      b.hp -= dmg;
+      b.hp -= capBoss(b, dmg);
       if (b.hp <= 0) killBug(b);
     }
   }
@@ -3464,6 +3464,10 @@ function exitNestLook() {
   nestProps.visible = false;
   nestSaved = null;
 }
+// Chaque coup ne peut retirer qu'une petite part de la vie de la Reine : le combat dure à peu près pareil
+// quelle que soit la force de la toupie (sinon une toupie très améliorée la tuait en quelques secondes)
+let NEST_HIT_CAP = 1 / 185;
+function capBoss(b, dmg, k = 1) { return b.boss ? Math.min(dmg, b.maxHp * NEST_HIT_CAP * k) : dmg; }
 let NEST_HP_K = 52, NEST_PULL = 0.5, NEST_PAUSE = [0, 3.6, 3.0, 2.5];
 function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult - 1)); }
 function startNest() {
@@ -4479,7 +4483,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.20';
+const VERSION = '2026-10-04.21';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -5356,7 +5360,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, tryBlockNest, setNestK: (k, p, pause) => { NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, tryBlockNest, setNestK: (k, p, pause, cap) => { if (cap) NEST_HIT_CAP = cap; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
