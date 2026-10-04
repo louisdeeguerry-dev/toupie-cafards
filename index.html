@@ -192,6 +192,38 @@
   #toybox { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; padding: 16px;
     background: radial-gradient(ellipse at center, #34241a, #0e0905); }
   #toybox.open { display: flex; }
+  #achPanel { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at center, #2c2a1a, #0e0c05); }
+  #achPanel.open { display: flex; }
+  #achPanel h1 { font-size: clamp(24px, 6vw, 36px); }
+  #achPanel .balance { font-size: 18px; font-weight: 800; color: #ffd45a; margin: 0 0 12px; }
+  #achList { text-align: left; margin-bottom: 14px; }
+  .ach { display: grid; grid-template-columns: 34px 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 10px; margin-bottom: 6px;
+    border-radius: 10px; background: #26231a; border: 1px solid rgba(255,255,255,.06); opacity: .75; }
+  .ach.done { opacity: 1; background: linear-gradient(135deg, #3d3416, #2a2412); border-color: rgba(255,212,90,.35); }
+  .ach .ai { font-size: 24px; grid-row: span 2; text-align: center; }
+  .ach .an { font-weight: 800; }
+  .ach .ar { font-weight: 800; color: #7fd1ff; white-space: nowrap; }
+  .ach .ad { grid-column: 2 / -1; font-size: 12px; color: var(--muted); }
+  .ach .bar { grid-column: 2 / -1; height: 4px; margin-top: 3px; }
+  .ach .bar > div { background: #ffd45a; }
+  .achBtn { border-color: rgba(255,212,90,.35) !important; }
+  .settingsRow { display: flex; gap: 14px; justify-content: center; margin-top: 8px; }
+  /* Compteur de combo : grossit à chaque insecte écrasé à la suite */
+  #comboMeter { position: fixed; top: 64px; left: 50%; transform: translateX(-50%) scale(1); z-index: 4; pointer-events: none;
+    font-weight: 900; font-size: 22px; color: #ffe08a; text-shadow: 0 2px 0 #7a3a00, 0 0 12px rgba(255,160,40,.7); opacity: 0;
+    transition: opacity .25s; white-space: nowrap; }
+  #comboMeter.on { opacity: 1; }
+  #comboMeter .ct { font-size: 13px; letter-spacing: 2px; color: #ffd0a0; }
+  #comboMeter.pop { animation: comboPop .22s ease-out; }
+  @keyframes comboPop { 0% { transform: translateX(-50%) scale(1.45); } 100% { transform: translateX(-50%) scale(1); } }
+  @media (max-height: 500px) { #comboMeter { top: 40px; font-size: 18px; } }
+  /* Notification de succès */
+  #toast { position: fixed; left: 50%; bottom: 70px; transform: translate(-50%, 20px); z-index: 30; pointer-events: none; opacity: 0;
+    padding: 10px 18px; border-radius: 14px; background: linear-gradient(135deg, #4a3a10, #2a2008); border: 2px solid #ffd45a;
+    color: #fff3c4; font-weight: 800; box-shadow: 0 6px 20px rgba(0,0,0,.5); transition: opacity .3s, transform .3s; text-align: center; max-width: 90vw; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #toast small { display: block; font-weight: 600; color: #ffe8a0; margin-top: 2px; }
   #toybox h1 { font-size: clamp(24px, 6vw, 36px); }
   #toybox .balance { font-size: 22px; font-weight: 800; color: #7fd1ff; margin: 0 0 12px; }
   #toyList { text-align: left; margin-bottom: 14px; }
@@ -283,6 +315,8 @@
 
 <div id="popups"></div>
 <div id="banner"></div>
+<div id="comboMeter"><span class="ct">COMBO</span> <span id="comboNum">×3</span></div>
+<div id="toast"></div>
 <div id="modal"><div class="modalBox" id="modalBox"></div></div>
 
 <div id="menu">
@@ -303,6 +337,11 @@
       <div class="mt">📦 Le Carton à Jouets</div>
       <div class="md">Dépense les vagues que tu as repoussées pour être plus fort à chaque nouvelle partie.</div>
       <div class="mr" id="toyboxBalance"></div>
+    </button>
+    <button class="modeBtn achBtn" id="achBtn">
+      <div class="mt">🏅 Succès</div>
+      <div class="md">Des défis à relever : chacun rapporte des 🌊 pour le Carton à Jouets.</div>
+      <div class="mr" id="achCount"></div>
     </button>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
     <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
@@ -326,6 +365,20 @@
       <div class="mt">🚪 Quitter la partie</div>
       <div class="md">Retour au menu principal. Ta partie est sauvegardée, et tes vagues repoussées sont déjà dans le Carton à Jouets.</div>
     </button>
+    <div class="settingsRow">
+      <button class="linkBtn" id="soundBtn"></button>
+      <button class="linkBtn" id="vibBtn"></button>
+    </div>
+  </div>
+</div>
+
+<div id="achPanel">
+  <div class="menuBox">
+    <h1>🏅 Succès</h1>
+    <p class="tag">Chaque défi relevé rapporte des 🌊 pour le Carton à Jouets.</p>
+    <div class="balance" id="achSummary"></div>
+    <div id="achList"></div>
+    <button class="bigBtn" id="achClose">Fermer</button>
   </div>
 </div>
 
@@ -428,7 +481,9 @@ const FODDER_TYPES = [
   { id: 'fourmi', pts: 1, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
   { id: 'bebe',   pts: 1, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
 ];
-const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES];
+// Le cafard doré : apparaît de temps en temps, file vite, s'envole au bout de 15 s… et rapporte une fortune
+const GOLDEN = { id: 'dore', pts: 0, name: 'Cafard doré', r: 0.024, hp: 0.5, speed: 0.2, reward: 0, mass: 2, bite: 0, color: 0xffc21a, fear: 0.25, metal: 0.6, stage: 0 };
+const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES, GOLDEN];
 const bugType = id => ALL_BUG_TYPES.find(t => t.id === id);
 // Les stades : quand la barre du dernier insecte d'un stade est remplie, les insectes mutent
 const STAGES = [
@@ -685,6 +740,9 @@ const state = {
   totalMoney: 0, kills: 0, launches: 0, bestCombo: 0, killsByType: {},
   mode: 'histoire', introSeen: false,
   tutos: {}, // les petites explications déjà montrées
+  achievements: {}, // succès débloqués
+  settings: { sound: true, vibrate: true },
+  maxStage: 0, perfectBest: 0, bestRunMoney: 0, goldenKills: 0,
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
@@ -692,7 +750,7 @@ const state = {
   speedX2: false,
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -720,6 +778,9 @@ function load() {
     }
   } catch { /* pas de sauvegarde, ou stockage bloqué */ }
   state.meta = Object.assign({ earned: 0, spent: 0, items: {} }, state.meta);
+  state.settings = Object.assign({ sound: true, vibrate: true }, state.settings);
+  state.achievements = state.achievements || {};
+  state.maxStage = Math.max(state.maxStage || 0, state.savedRuns.histoire.stageSeen || 0, state.savedRuns.carnage.stageSeen || 0);
   // Les punaises au sol n'existent plus : on rend les 🌊 dépensées
   if (state.meta.items.punaises) {
     state.meta.spent -= [0, 50, 140, 270][Math.min(3, state.meta.items.punaises)];
@@ -2016,6 +2077,8 @@ function launchTops(aim, power, perfect) {
   dir.normalize();
   const mult = perfect ? 1.25 : 1;
   const n = S.tops + (Math.random() < S.twinChance ? 1 : 0);
+  SFX.play('launch', power);
+  buzz(12);
   for (let i = 0; i < n; i++) {
     const ang = (i - (n - 1) / 2) * 0.28;
     const d = dir.clone().rotateAround(new THREE.Vector2(), ang);
@@ -2061,6 +2124,7 @@ antGeo.translate(0.65, 0, 0);
 // La Prime dore les insectes par paliers de 10 niveaux (et les fait scintiller de petites étincelles)
 // La Prime ne change plus la couleur des insectes : ils scintillent, de plus en plus souvent avec le niveau
 function applyPrimeGlow(mat, t) {
+  if (t === GOLDEN) return;
   mat.color.setHex(t.color);
   mat.metalness = t.metal || 0.15;
   mat.roughness = 0.35;
@@ -2660,6 +2724,188 @@ function popup(text, x, z, cls = '') {
 }
 const bannerEl = document.getElementById('banner');
 let bannerTimer = 0;
+// ---------- Sons : tout est fabriqué à la volée avec Web Audio ----------
+const SFX = (() => {
+  let ctx = null, master = null, hum = null;
+  const last = {};
+  function init() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = 0.55;
+      const comp = ctx.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(ctx.destination);
+    } catch { ctx = null; }
+  }
+  const on = () => ctx && state.settings?.sound !== false;
+  function tone(freq, dur, o = {}) {
+    const { type = 'sine', vol = 0.2, slide = 0, delay = 0, attack = 0.004 } = o;
+    const t0 = ctx.currentTime + delay;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq * slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+  let noiseBuf = null;
+  function noise(dur, o = {}) {
+    const { vol = 0.2, freq = 1500, q = 1, delay = 0, type = 'lowpass', sweep = 0 } = o;
+    if (!noiseBuf) {
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.6, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t0 = ctx.currentTime + delay;
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuf;
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(freq, t0);
+    if (sweep) f.frequency.exponentialRampToValueAtTime(freq * sweep, t0 + dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t0); src.stop(t0 + dur + 0.02);
+  }
+  const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
+  const SOUNDS = {
+    launch(power) { noise(0.32, { vol: 0.25, freq: 500, sweep: 5, type: 'bandpass', q: 2 }); tone(180, 0.3, { type: 'triangle', vol: 0.12, slide: 2.5 + power }); },
+    hit(size) { tone(170 - 90 * size, 0.09, { type: 'sine', vol: 0.22, slide: 0.5 }); noise(0.04, { vol: 0.12, freq: 2500 }); },
+    crit() { tone(1320, 0.18, { type: 'triangle', vol: 0.16 }); tone(1980, 0.22, { type: 'sine', vol: 0.1, delay: 0.03 }); },
+    kill(size) { noise(0.13 + size * 0.1, { vol: 0.22 + size * 0.1, freq: 1100 - size * 500, sweep: 0.4 }); tone(320 - 160 * size, 0.12, { type: 'square', vol: 0.05, slide: 0.35 }); },
+    combo(n) { const st = SCALE[Math.min(SCALE.length - 1, n - 3)]; tone(523 * Math.pow(2, st / 12), 0.16, { type: 'triangle', vol: 0.13 }); },
+    perfect() { [660, 880, 1320].forEach((f, i) => tone(f, 0.2, { type: 'triangle', vol: 0.13, delay: i * 0.06 })); },
+    wave() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i === 3 ? 0.45 : 0.16, { type: 'square', vol: 0.07, delay: i * 0.11 })); },
+    defeat() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.35, { type: 'sawtooth', vol: 0.06, delay: i * 0.2, slide: 0.97 })); },
+    buy() { tone(988, 0.08, { type: 'square', vol: 0.07 }); tone(1319, 0.25, { type: 'square', vol: 0.07, delay: 0.07 }); },
+    evolve() { [523, 784, 1047, 1568, 2093].forEach((f, i) => tone(f, 0.25, { type: 'triangle', vol: 0.1, delay: i * 0.07 })); },
+    level() { tone(440, 0.18, { type: 'square', vol: 0.06 }); tone(330, 0.3, { type: 'square', vol: 0.06, delay: 0.18 }); },
+    mutation() { for (let i = 0; i < 6; i++) tone(200 + 80 * Math.sin(i), 0.25, { type: 'sawtooth', vol: 0.05, delay: i * 0.09, slide: 1.4 }); },
+    boing() { tone(220, 0.22, { type: 'sine', vol: 0.15, slide: 2.6 }); },
+    fall() { noise(0.15, { vol: 0.12, freq: 3000, type: 'highpass' }); tone(300, 0.18, { type: 'triangle', vol: 0.08, slide: 0.4 }); },
+    pick() { tone(500, 0.12, { type: 'sine', vol: 0.14, slide: 2 }); },
+    achieve() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); },
+    zap() { noise(0.08, { vol: 0.1, freq: 4000, type: 'highpass' }); tone(1800, 0.06, { type: 'square', vol: 0.04, slide: 0.5 }); },
+  };
+  const MIN_GAP = { hit: 0.035, kill: 0.03, crit: 0.06, combo: 0.05, boing: 0.12, zap: 0.06 };
+  function play(name, arg = 0) {
+    if (!on()) return;
+    const t = ctx.currentTime;
+    if (MIN_GAP[name] && t - (last[name] || 0) < MIN_GAP[name]) return;
+    last[name] = t;
+    try { SOUNDS[name](arg); } catch { /* son impossible : sans gravité */ }
+  }
+  // Ronronnement de la toupie : sa note suit la vitesse de rotation
+  function spin(rpm, ratio) {
+    if (!on() || !rpm) { if (hum) { hum.g.gain.setTargetAtTime(0, ctx.currentTime, 0.08); } return; }
+    if (!hum) {
+      const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      o.type = 'sawtooth'; f.type = 'lowpass'; f.frequency.value = 600; g.gain.value = 0;
+      o.connect(f); f.connect(g); g.connect(master); o.start();
+      hum = { o, f, g };
+    }
+    hum.o.frequency.setTargetAtTime(55 + Math.min(5000, rpm) / 28, ctx.currentTime, 0.05);
+    hum.f.frequency.setTargetAtTime(300 + 900 * ratio, ctx.currentTime, 0.05);
+    hum.g.gain.setTargetAtTime(0.035 * Math.max(0.2, ratio), ctx.currentTime, 0.05);
+  }
+  return { init, play, spin };
+})();
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => SFX.init(), { passive: true }));
+function buzz(ms) { if (state.settings?.vibrate !== false && navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* pas de vibreur */ } } }
+// Secousse de l'écran (coups critiques, gros insectes écrasés)
+let shake = 0;
+function addShake(a) { shake = Math.min(0.025, shake + a); }
+
+// ---------- Succès : des défis qui rapportent des 🌊 ----------
+const ACHIEVEMENTS = [
+  { id: 'k1', icon: '🪳', name: 'Premier écrasé', desc: 'Écraser un insecte.', reward: 1, v: () => state.kills, goal: 1 },
+  { id: 'k100', icon: '🧹', name: 'Grand ménage', desc: 'Écraser 100 insectes.', reward: 2, v: () => state.kills, goal: 100 },
+  { id: 'k1000', icon: '💪', name: 'Exterminateur', desc: 'Écraser 1 000 insectes.', reward: 5, v: () => state.kills, goal: 1000 },
+  { id: 'k10000', icon: '☠️', name: 'Fléau des cafards', desc: 'Écraser 10 000 insectes.', reward: 15, v: () => state.kills, goal: 10000 },
+  { id: 'k100000', icon: '👑', name: 'Légende du bureau', desc: 'Écraser 100 000 insectes.', reward: 40, v: () => state.kills, goal: 100000 },
+  { id: 'c10', icon: '🔥', name: 'En série', desc: 'Faire un combo ×10.', reward: 4, v: () => state.bestCombo, goal: 10 },
+  { id: 'c25', icon: '⚡', name: 'Déchaîné', desc: 'Faire un combo ×25.', reward: 10, v: () => state.bestCombo, goal: 25 },
+  { id: 'c50', icon: '🌪️', name: 'Tornade vivante', desc: 'Faire un combo ×50.', reward: 20, v: () => state.bestCombo, goal: 50 },
+  { id: 'w10', icon: '🛡️', name: 'Ça résiste', desc: 'Atteindre la vague 10.', reward: 3, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 10 },
+  { id: 'w20', icon: '🏰', name: 'Forteresse', desc: 'Atteindre la vague 20.', reward: 6, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 20 },
+  { id: 'w30', icon: '🎖️', name: 'Vétéran', desc: 'Atteindre la vague 30.', reward: 12, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 30 },
+  { id: 'w40', icon: '🏆', name: 'Champion', desc: 'Atteindre la vague 40.', reward: 20, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 40 },
+  { id: 'w50', icon: '🌟', name: 'Inarrêtable', desc: 'Atteindre la vague 50.', reward: 35, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 50 },
+  { id: 'reine', icon: '👸', name: 'Régicide', desc: 'Écraser une reine des cafards.', reward: 5, v: () => state.killsByType.reine || 0, goal: 1 },
+  { id: 'mutant', icon: '🧬', name: 'Ça a muté !', desc: 'Voir les insectes mutants.', reward: 8, v: () => state.maxStage, goal: 1 },
+  { id: 'spider', icon: '🕷️', name: 'Arachnophobe', desc: 'Voir les araignées.', reward: 15, v: () => state.maxStage, goal: 2 },
+  { id: 'p5', icon: '🎯', name: 'Main sûre', desc: 'Réussir 5 lancers PARFAIT d’affilée.', reward: 3, v: () => state.perfectBest, goal: 5 },
+  { id: 'p15', icon: '🏹', name: 'Tireur d’élite', desc: 'Réussir 15 lancers PARFAIT d’affilée.', reward: 10, v: () => state.perfectBest, goal: 15 },
+  { id: 'm1', icon: '💰', name: 'Millionnaire', desc: 'Gagner 1 million de $ dans une même partie.', reward: 5, v: () => state.bestRunMoney, goal: 1e6 },
+  { id: 'm1b', icon: '💎', name: 'Milliardaire', desc: 'Gagner 1 milliard de $ dans une même partie.', reward: 15, v: () => state.bestRunMoney, goal: 1e9 },
+  { id: 'toys5', icon: '🧸', name: 'Collectionneur', desc: 'Posséder 5 objets différents du Carton à Jouets.', reward: 5, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: 5 },
+  { id: 'toys11', icon: '📦', name: 'Le Carton au complet', desc: 'Posséder tous les objets du Carton à Jouets.', reward: 20, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: TOYBOX.length },
+  { id: 'legend', icon: '🌀', name: 'Toupie légendaire', desc: 'Faire évoluer la toupie jusqu’à l’aura légendaire.', reward: 10, v: () => state.run ? topPower() : 0, goal: 175 },
+  { id: 'gold1', icon: '✨', name: 'Ruée vers l’or', desc: 'Écraser un cafard doré.', reward: 2, v: () => state.goldenKills || 0, goal: 1 },
+  { id: 'gold10', icon: '🪙', name: 'Chasseur d’or', desc: 'Écraser 10 cafards dorés.', reward: 8, v: () => state.goldenKills || 0, goal: 10 },
+  { id: 'multi5', icon: '🖐️', name: 'Cinq à la fois', desc: 'Lancer 5 toupies d’un coup.', reward: 10, v: () => state.run ? 1 + lv('multi') : 1, goal: 5 },
+];
+let toastQueue = [], toastBusy = false;
+function showToast(html) {
+  toastQueue.push(html);
+  if (toastBusy) return;
+  const next = () => {
+    const h = toastQueue.shift();
+    if (!h) { toastBusy = false; return; }
+    toastBusy = true;
+    const t = document.getElementById('toast');
+    t.innerHTML = h;
+    t.classList.add('on');
+    setTimeout(() => { t.classList.remove('on'); setTimeout(next, 350); }, 2600);
+  };
+  next();
+}
+function checkAchievements() {
+  if (!state.achievements) state.achievements = {};
+  for (const a of ACHIEVEMENTS) {
+    if (state.achievements[a.id]) continue;
+    let v = 0;
+    try { v = a.v(); } catch { continue; }
+    if (v < a.goal) continue;
+    state.achievements[a.id] = true;
+    state.meta.earned += a.reward;
+    SFX.play('achieve');
+    buzz([20, 40, 20]);
+    showToast(`🏅 ${a.icon} ${a.name}<small>Succès débloqué · +${a.reward} 🌊 pour le Carton à Jouets</small>`);
+    save();
+  }
+}
+function renderAchievements() {
+  const list = document.getElementById('achList');
+  list.replaceChildren();
+  let done = 0, won = 0;
+  for (const a of ACHIEVEMENTS) {
+    const ok = !!state.achievements?.[a.id];
+    if (ok) { done++; won += a.reward; }
+    let v = 0; try { v = a.v(); } catch { /* */ }
+    const el = document.createElement('div');
+    el.className = 'ach' + (ok ? ' done' : '');
+    el.innerHTML = '<div class="ai"></div><div class="an"></div><div class="ar"></div><div class="ad"></div>' + (ok ? '' : '<div class="bar"><div></div></div>');
+    el.querySelector('.ai').textContent = ok ? a.icon : '🔒';
+    el.querySelector('.an').textContent = a.name;
+    el.querySelector('.ar').textContent = ok ? '✓ +' + a.reward + ' 🌊' : '+' + a.reward + ' 🌊';
+    el.querySelector('.ad').textContent = a.desc + (ok ? '' : ` (${fmtInt(Math.min(v, a.goal))} / ${fmtInt(a.goal)})`);
+    if (!ok) el.querySelector('.bar > div').style.width = Math.min(100, v / a.goal * 100) + '%';
+    list.appendChild(el);
+  }
+  document.getElementById('achSummary').textContent = `${done} / ${ACHIEVEMENTS.length} succès · ${won} 🌊 gagnées`;
+}
+function updateAchCount() {
+  const done = ACHIEVEMENTS.filter(a => state.achievements?.[a.id]).length;
+  const el = document.getElementById('achCount');
+  if (el) el.textContent = `${done} / ${ACHIEVEMENTS.length} succès`;
+}
+
 function banner(title, sub) {
   bannerEl.textContent = title;
   if (sub) { const s = document.createElement('small'); s.textContent = sub; bannerEl.appendChild(s); }
@@ -2671,7 +2917,7 @@ function banner(title, sub) {
 // =====================================================================
 //  COMBAT
 // =====================================================================
-let combo = 0, lastKillTime = -99, gameTime = 0;
+let combo = 0, lastKillTime = -99, gameTime = 0, achTimer = 0, goldenT = 40;
 let pendingMutation = false; // la barre du dernier insecte d'un stade vient d'être remplie
 let pendingTuto = null;       // une explication à montrer dès que possible
 const TUTOS = {
@@ -2703,6 +2949,10 @@ function mutate() {
   const run = state.run, k = stageIndex();
   if (k <= (run.stageSeen || 0)) return;
   run.stageSeen = k;
+  state.maxStage = Math.max(state.maxStage || 0, k);
+  SFX.play('mutation');
+  addShake(0.02);
+  buzz([60, 40, 60]);
   // Les cafards déjà là ne changent pas : la nouvelle espèce arrive avec les prochains insectes qui tombent
   const st = STAGES[k];
   paused = true;
@@ -2723,7 +2973,15 @@ function killBug(b) {
   lastKillTime = gameTime;
   state.bestCombo = Math.max(state.bestCombo, combo);
   const comboMult = Math.min(COMBO_CAP, 1 + (combo - 1) * S.comboBonus);
-  const gain = b.t.reward * S.bounty * comboMult;
+  let gain = b.t.reward * S.bounty * comboMult;
+  if (b.golden) {
+    gain = Math.max(150, 30 * Math.pow(run.wave, 1.7)) * S.bounty;
+    state.goldenKills = (state.goldenKills || 0) + 1;
+    popup('💰 JACKPOT ! +' + fmtMoney(gain), b.x, b.z - 0.08, 'big');
+    SFX.play('achieve');
+    addShake(0.008);
+    buzz([30, 30, 60]);
+  }
   state.run.cash += gain;
   state.totalMoney += gain;
   state.kills++;
@@ -2740,6 +2998,18 @@ function killBug(b) {
   }
   popup('+' + fmtMoney(gain), b.x, b.z);
   if (combo >= 3) popup('Combo ×' + combo, b.x, b.z - 0.05, 'crit');
+  // Sons, compteur de combo et secousse selon la taille de l'insecte
+  const size = Math.min(1, b.t.r / 0.08);
+  SFX.play('kill', size);
+  if (combo >= 3) {
+    SFX.play('combo', combo);
+    const cm = document.getElementById('comboMeter');
+    document.getElementById('comboNum').textContent = '×' + combo;
+    cm.classList.add('on');
+    cm.classList.remove('pop'); void cm.offsetWidth; cm.classList.add('pop');
+  }
+  if (b.t.mass >= 20) { addShake(0.002 + 0.006 * size); buzz(b.t.rare ? 60 : 20); }
+  state.bestRunMoney = Math.max(state.bestRunMoney || 0, run.money);
   addSplat(b.x, b.z, b.t.r);
   b.dying = 0.001;
   b.hpBar.g.visible = false;
@@ -2747,7 +3017,7 @@ function killBug(b) {
   if (newLevel > prevLevel) {
     const t = BUG_TYPES[newLevel], st = STAGES[t.stage];
     if (t.stage > (run.stageSeen || 0)) pendingMutation = true;
-    else banner(`Infestation niveau ${newLevel - st.from + 1} !`, `Nouvel insecte : ${t.name}${t.tip ? ' — ' + t.tip : ''}`);
+    else { banner(`Infestation niveau ${newLevel - st.from + 1} !`, `Nouvel insecte : ${t.name}${t.tip ? ' — ' + t.tip : ''}`); SFX.play('level'); }
     if (!state.tutos?.infest) pendingTuto = 'infest';
     shopDirty = true;
     previewDirty = true;
@@ -2767,7 +3037,8 @@ function hitBug(top, b, now) {
   const ratio = top.spin / top.launchSpin;
   let dmg = baseDamage(ratio, Math.hypot(top.vx, top.vz));
   const crit = Math.random() < S.crit;
-  if (crit) dmg *= S.critMult;
+  if (crit) { dmg *= S.critMult; SFX.play('crit'); addShake(0.003); buzz(8); }
+  else SFX.play('hit', Math.min(1, b.t.r / 0.08));
   dmg = Math.min(dmg, b.hp); // on n'affiche pas plus que la vie restante
   popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
@@ -2786,6 +3057,7 @@ function hitBug(top, b, now) {
       const zap = Math.min(near.hp, dmg * S.chainDmg);
       near.hp -= zap;
       addBolt(b.x, b.z, near.x, near.z);
+      SFX.play('zap');
       popup('⚡ −' + fmtDmg(zap), near.x, near.z - 0.02, 'crit');
       if (near.hp <= 0) killBug(near);
     }
@@ -2933,6 +3205,7 @@ function stepTop(top, dt, now) {
   top.spin *= Math.exp(-S.decay * dt);
   if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
     top.falling = 0.001;
+    SFX.play('fall');
     top.fallDir = top.prec;
     if (S.shockRadius > 0) shockwave(top);
   }
@@ -2952,6 +3225,7 @@ function wallBounce(top, wall) {
   tramp.hit[wall] = 1;
   tramp.hitAt[wall] = wall < 2 ? top.x : top.z;
   if (gameTime - boingT > 0.5) { boingT = gameTime; popup('BOING !', top.x, top.z, 'crit'); }
+  SFX.play('boing');
 }
 
 function pickUpTops() {
@@ -2962,6 +3236,7 @@ function pickUpTops() {
     top.picked = true;
   }
   popup('✋ Ramassée', alive[0].x, alive[0].z - 0.05, 'big');
+  SFX.play('pick');
 }
 document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropagation(); pickUpTops(); });
 
@@ -2987,6 +3262,10 @@ function stepTopsTogether() {
 
 function stepBug(b, dt) {
   if (b.dying || b.gone) return;
+  if (b.golden && b.drop <= 0) {
+    b.goldLife -= dt;
+    if (b.goldLife <= 0) { b.gone = true; addShock(b.x, b.z, 0.06, 0xffd45a); popup('✨ Envolé…', b.x, b.z, 'dmg'); return; }
+  }
   // En train de tomber sur le bureau : il ne bouge pas encore et ne peut pas être touché
   if (b.drop > 0) {
     b.dropV -= 3.5 * dt;
@@ -3171,7 +3450,14 @@ function endWave() {
   const lockedBefore = UPGRADES.filter(u => upgradeLock(u));
   run.wave++;
   startWave();
-  if (run.wave > state.best[run.mode]) { state.best[run.mode] = run.wave; refreshStats(); }
+  if (run.wave > state.best[run.mode]) {
+    // Nouveau record (une seule annonce par partie, et pas pour les toutes premières vagues)
+    if (!run.recordShown && state.best[run.mode] >= 5) run.newRecord = run.recordShown = true;
+    state.best[run.mode] = run.wave;
+    refreshStats();
+  }
+  SFX.play('wave');
+  buzz(30);
   run.newUnlocks = lockedBefore.filter(u => !upgradeLock(u)).map(u => u.name);
   run.choice = pickChoices();
   shopDirty = true;
@@ -3195,7 +3481,8 @@ function showPerkChoice() {
   modalBox.className = 'modalBox';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = `Vague ${run.wave - 1} repoussée !`;
+  h.textContent = `Vague ${run.wave - 1} repoussée !` + (run.newRecord ? ' 🏆 Nouveau record !' : '');
+  run.newRecord = false;
   const lead = document.createElement('p');
   lead.className = 'lead';
   lead.textContent = isStory()
@@ -3250,6 +3537,8 @@ function takePerk(id) {
 function defeat() {
   const run = state.run;
   if (run.over) return;
+  SFX.play('defeat');
+  buzz([80, 60, 160]);
   run.over = true;
   paused = true;
   charging = false;
@@ -3490,6 +3779,7 @@ function renderToybox() {
     btn.onclick = () => {
       if (maxed || metaBalance() < cost) return;
       state.meta.spent += cost;
+      SFX.play('buy');
       state.meta.items[t.id] = n + 1;
       rebuildToyDecor();
       if (t.id === 'montre') updateSpeedBtn();
@@ -3505,11 +3795,20 @@ function renderToybox() {
   }
 }
 function openMenuRefresh() {
+  updateAchCount();
   const runWaves = ['histoire', 'carnage'].reduce((a, m) => a + (state.savedRuns[m].metaGain ?? state.savedRuns[m].wavesCleared), 0);
   document.getElementById('toyboxBalance').textContent = `🌊 ${metaBalance()} à dépenser` + (runWaves ? ` · dont ${runWaves} gagnée${runWaves > 1 ? 's' : ''} dans tes parties en cours` : '');
   shopDirty = true;
 }
 document.getElementById('toyboxBtn').onclick = openToybox;
+document.getElementById('achBtn').onclick = () => { renderAchievements(); document.getElementById('achPanel').classList.add('open'); };
+document.getElementById('achClose').onclick = () => { document.getElementById('achPanel').classList.remove('open'); updateAchCount(); openMenuRefresh(); };
+function updateSettingsBtns() {
+  document.getElementById('soundBtn').textContent = state.settings.sound !== false ? '🔊 Son : activé' : '🔇 Son : coupé';
+  document.getElementById('vibBtn').textContent = state.settings.vibrate !== false ? '📳 Vibrations : activées' : '📴 Vibrations : coupées';
+}
+document.getElementById('soundBtn').onclick = () => { state.settings.sound = state.settings.sound === false; updateSettingsBtns(); SFX.init(); SFX.play('buy'); save(); };
+document.getElementById('vibBtn').onclick = () => { state.settings.vibrate = state.settings.vibrate === false; updateSettingsBtns(); buzz(30); save(); };
 document.getElementById('toyClose').onclick = () => {
   toyboxEl.classList.remove('open');
   // Depuis l'écran de défaite, on y revient en le reconstruisant (le solde a pu changer)
@@ -3521,6 +3820,7 @@ const pauseEl = document.getElementById('pause'), restartBtn = document.getEleme
 let restartArmed = false, restartTimer = 0;
 function openPause() {
   if (introStep >= 0) endIntro();
+  updateSettingsBtns();
   save();
   paused = true;
   charging = false;
@@ -3574,7 +3874,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.9';
+const VERSION = '2026-10-04.10';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3705,7 +4005,9 @@ function release() {
   if (!isReady()) return;
   const g = gaugeValue();
   const perfect = g >= 1 - S.perfect;
-  if (perfect) popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big');
+  if (perfect) { popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big'); SFX.play('perfect'); }
+  state.perfectStreak = perfect ? (state.perfectStreak || 0) + 1 : 0;
+  state.perfectBest = Math.max(state.perfectBest || 0, state.perfectStreak);
   launchTops(aimPoint, g, perfect);
 }
 canvas.addEventListener('pointerup', e => pointerEnd(e, false));
@@ -3896,7 +4198,8 @@ function buy(u) {
   save();
   shopDirty = true;
   previewDirty = true;
-  if (evolutionIndex() > evoBefore) banner('🌀 Ta toupie évolue !', EVOLUTIONS[evolutionIndex()][1]);
+  SFX.play('buy');
+  if (evolutionIndex() > evoBefore) { banner('🌀 Ta toupie évolue !', EVOLUTIONS[evolutionIndex()][1]); SFX.play('evolve'); }
   else if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
 }
 
@@ -4114,10 +4417,17 @@ function frame(now) {
   canvasRect = null; // re-mesurée au premier texte flottant de cette image
   // La montre du Carton à Jouets : tout le jeu tourne deux fois plus vite
   if (!paused) update(dt * gameSpeed());
-  else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); }
+  else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); SFX.spin(0, 0); }
   if (introTop) animateIntroTop(dt);
   animateSteam(dt);
-  renderer.render(scene, camera);
+  // Secousse de l'écran : on décale un instant la caméra le temps de dessiner l'image
+  if (shake > 0.0002) {
+    const ox = (Math.random() - 0.5) * shake, oy = (Math.random() - 0.5) * shake;
+    camera.position.x += ox; camera.position.y += oy;
+    renderer.render(scene, camera);
+    camera.position.x -= ox; camera.position.y -= oy;
+    shake *= Math.exp(-dt * 12);
+  } else renderer.render(scene, camera);
   renderPreview(dt);
 }
 function gameSpeed() { return metaLevel('montre') && state.speedX2 ? 2 : 1; }
@@ -4319,6 +4629,28 @@ function update(dt) {
   }
 
   if (pendingMutation && !paused && !aliveTops().length) mutate();
+  if (playing && isStory() && !paused) {
+    goldenT -= dt;
+    if (goldenT <= 0) {
+      goldenT = 50 + Math.random() * 45;
+      if (!bugs.some(b => b.golden && !b.gone && !b.dying)) {
+        const g = spawnBug(false, 0.75, { type: GOLDEN });
+        g.golden = true;
+        g.goldLife = 15;
+        g.mat.emissive.setHex(0xffb000);
+        g.mat.emissiveIntensity = 0.6;
+        popup('✨ Un cafard doré ! Vite !', g.x, g.z - 0.06, 'big');
+        SFX.play('evolve');
+      }
+    }
+  }
+  // Ronronnement de la toupie la plus rapide, compteur de combo qui s'éteint, succès
+  const spinning = aliveTops();
+  const fastest = spinning.reduce((m, t) => Math.max(m, t.spin), 0);
+  SFX.spin(fastest, spinning.length ? Math.max(...spinning.map(t => t.spin / t.launchSpin)) : 0);
+  if (gameTime - lastKillTime > S.comboWindow) document.getElementById('comboMeter').classList.remove('on');
+  achTimer -= dt;
+  if (achTimer <= 0) { achTimer = 0.5; checkAchievements(); }
   else if (pendingTuto && !paused && introStep < 0) showTuto(pendingTuto);
 
   // Interface (pas à chaque image, pour économiser la batterie)
@@ -4356,7 +4688,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
