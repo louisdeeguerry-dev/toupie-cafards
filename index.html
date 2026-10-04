@@ -240,6 +240,15 @@
   #comboMeter.pop { animation: comboPop .22s ease-out; }
   @keyframes comboPop { 0% { transform: translateX(-50%) scale(1.45); } 100% { transform: translateX(-50%) scale(1); } }
   @media (max-height: 500px) { #comboMeter { top: 40px; font-size: 18px; } }
+  /* Combat du nid : vie de la Reine et cœurs du joueur */
+  #nestHud { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); width: min(420px, 64vw); z-index: 4; display: none;
+    text-align: center; pointer-events: none; }
+  #nestHud.on { display: block; }
+  #nestHud .nn { font-weight: 900; color: #ffb0b0; text-shadow: 0 2px 6px #000; font-size: 15px; }
+  #nestHud .nbar { height: 12px; border-radius: 6px; background: rgba(0,0,0,.6); border: 1px solid #ff6a6a; overflow: hidden; margin: 3px 0; }
+  #nestHp { height: 100%; width: 100%; background: linear-gradient(90deg, #ff2a2a, #ff9a3a); transition: width .2s; }
+  #nestHearts { font-size: 22px; letter-spacing: 4px; text-shadow: 0 2px 6px #000; }
+  @media (max-height: 500px) { #nestHud { top: 34px; } #nestHearts { font-size: 18px; } }
   /* Notification de succès */
   #toast { position: fixed; left: 50%; bottom: 70px; transform: translate(-50%, 20px); z-index: 30; pointer-events: none; opacity: 0;
     padding: 10px 18px; border-radius: 14px; background: linear-gradient(135deg, #4a3a10, #2a2008); border: 2px solid #ffd45a;
@@ -252,6 +261,8 @@
   .buyModeRow { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
   .buyModeRow button { border: 0; border-radius: 8px; padding: 5px 12px; font-weight: 800; background: var(--panel-2); color: var(--text); cursor: pointer; }
   .buyModeRow button.on { background: var(--accent); color: #1a1410; }
+  .nestCard { background: linear-gradient(135deg, #4a1010, #2a0808) !important; border: 1px solid rgba(255,90,60,.45); }
+  .nestCard .desc { grid-column: 1 / -1; }
   .evoCard { background: linear-gradient(135deg, #3a2a52, #24334a) !important; border: 1px solid rgba(255,255,255,.12); }
   .evoCard .desc { grid-column: 1 / -1; }
   #toyList .card { background: #2c2118; border: 1px solid rgba(255,255,255,.08); }
@@ -342,6 +353,7 @@
 <div id="banner"></div>
 <div id="comboMeter"><span class="ct">COMBO</span> <span id="comboNum">×3</span></div>
 <div id="toast"></div>
+<div id="nestHud"><div class="nn">👑 La Reine du Nid</div><div class="nbar"><div id="nestHp"></div></div><div id="nestHearts"></div></div>
 <div id="modal"><div class="modalBox" id="modalBox"></div></div>
 
 <div id="menu">
@@ -804,6 +816,7 @@ const state = {
   settings: { sound: true, vibrate: true },
   maxStage: 0, perfectBest: 0, bestRunMoney: 0, goldenKills: 0,
   pseudo: '',
+  nestWins: 0,
   lb: { uid: '', refreshToken: '', sent: 0, sentPseudo: '' }, // compte anonyme du classement (créé tout seul)
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
@@ -812,7 +825,7 @@ const state = {
   speedX2: false,
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills', 'pseudo', 'lb'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills', 'pseudo', 'lb', 'nestWins'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -983,6 +996,7 @@ function zoomKeeping(zoom, full, clientX, clientY) {
   view.cy = (y0 + H / (2 * view.zoom)) / H;
   applyView();
 }
+let lastCamDist = 2;
 function placeCamera() {
   const w = container.clientWidth, h = container.clientHeight;
   if (!w || !h) return;
@@ -1012,14 +1026,16 @@ function placeCamera() {
   // Le brouillard (qui assombrit le fond de la pièce) commence toujours un peu derrière le plateau :
   // en portrait la caméra est plus loin, sans ça l'image devenait sombre
   const camDist = camera.position.distanceTo(target);
-  scene.fog.near = camDist + 1;
-  scene.fog.far = camDist + 3.8;
+  lastCamDist = camDist;
+  scene.fog.near = camDist + (nest ? 0.25 : 1);
+  scene.fog.far = camDist + (nest ? 1.6 : 3.8);
   // Ce cadrage (tout le bureau visible) est la vue la plus large ; on y applique le zoom du joueur
   applyView();
 }
 
 // Lumières
-scene.add(new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 0.75));
+const hemiLight = new THREE.HemisphereLight(0xfff1dc, 0x3a2a1e, 0.75);
+scene.add(hemiLight);
 const lamp = new THREE.DirectionalLight(0xffe2b8, 1.6);
 lamp.position.set(-0.6, 1.6, 0.4);
 lamp.castShadow = true;
@@ -2922,6 +2938,7 @@ const ACHIEVEMENTS = [
   { id: 'legend', icon: '🌀', name: 'Toupie légendaire', desc: 'Faire évoluer la toupie jusqu’à l’aura légendaire.', reward: 10, v: () => state.run ? topPower() : 0, goal: 175 },
   { id: 'gold1', icon: '✨', name: 'Ruée vers l’or', desc: 'Écraser un insecte doré.', reward: 2, v: () => state.goldenKills || 0, goal: 1 },
   { id: 'gold10', icon: '🪙', name: 'Chasseur d’or', desc: 'Écraser 10 insectes dorés.', reward: 8, v: () => state.goldenKills || 0, goal: 10 },
+  { id: 'nest', icon: '🔥', name: 'Exterminateur', desc: 'Détruire le nid des cafards.', reward: 30, v: () => state.nestWins || 0, goal: 1 },
   { id: 'multi5', icon: '🖐️', name: 'Cinq à la fois', desc: 'Lancer 5 toupies d’un coup.', reward: 10, v: () => state.run ? 1 + lv('multi') : 1, goal: 5 },
 ];
 let toastQueue = [], toastBusy = false;
@@ -3042,6 +3059,13 @@ function mutate() {
 
 function killBug(b) {
   const run = state.run;
+  if (b.boss) {
+    b.dying = 0.001;
+    b.hpBar.g.visible = false;
+    addSplat(b.x, b.z, b.t.r * 1.5);
+    nestVictory();
+    return;
+  }
   const prevLevel = infestLevel();
   combo = gameTime - lastKillTime <= S.comboWindow ? combo + 1 : 1;
   lastKillTime = gameTime;
@@ -3063,7 +3087,7 @@ function killBug(b) {
   run.infest += b.t.pts || 1; // l'infestation monte selon la taille des insectes écrasés
   run.money += gain;
   state.killsByType[b.t.id] = (state.killsByType[b.t.id] || 0) + 1;
-  if (isStory()) {
+  if (isStory() && !nest) {
     if (countsForQuota(b.t)) run.waveKills++;
     if (!run.cleared && run.waveKills >= waveQuota()) {
       run.cleared = true;
@@ -3317,6 +3341,315 @@ function pickUpTops() {
 }
 document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropagation(); pickUpTops(); });
 
+// =====================================================================
+//  L'ASSAUT DU NID : une fortune pour trouver le nid, puis un combat contre la Reine.
+//  Pendant le combat, il faut toucher les zones rouges pour parer ses coups de patte,
+//  et les œufs (zones jaunes) avant qu'ils n'éclosent. 5 cœurs : à 0, on est repoussé hors du nid.
+// =====================================================================
+const NEST_COST = 1e9, NEST_HEARTS = 5;
+const NEST_BOSS = { id: 'reinenid', pts: 0, name: 'La Reine du Nid', r: 0.17, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x4a0a18, fear: 0, metal: 0.35, crown: true, stage: 0 };
+let nest = null;
+const nestRingGeo = new THREE.RingGeometry(0.82, 1, 48);
+nestRingGeo.rotateX(-Math.PI / 2);
+const nestDiscGeo = new THREE.CircleGeometry(1, 48);
+nestDiscGeo.rotateX(-Math.PI / 2);
+const NEST_INTRO = [
+  { face: '😨', text: 'Me voilà dans le nid des cafards… et voilà leur Reine !' },
+  { face: '🛡️', text: 'Quand une zone ROUGE apparaît, je la touche vite pour parer son coup de patte. Si je rate, je perds un cœur ❤️ (j’en ai 5).' },
+  { face: '🥚', text: 'Les zones JAUNES, ce sont des œufs : je les touche avant qu’ils n’éclosent !' },
+  { face: '🌀', text: 'Entre deux attaques, je lance mes toupies sur elle. Allez, on détruit ce nid !' },
+];
+const nestTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2a0e0a'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 70; i++) {
+    g.strokeStyle = `rgba(${120 + Math.random() * 80}, ${20 + Math.random() * 30}, 20, ${0.15 + Math.random() * 0.3})`;
+    g.lineWidth = 1 + Math.random() * 3;
+    g.beginPath(); g.moveTo(Math.random() * 256, Math.random() * 256);
+    g.bezierCurveTo(Math.random() * 256, Math.random() * 256, Math.random() * 256, Math.random() * 256, Math.random() * 256, Math.random() * 256);
+    g.stroke();
+  }
+  for (let i = 0; i < 18; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 3 + Math.random() * 5;
+    g.fillStyle = 'rgba(230, 210, 160, .55)'; g.beginPath(); g.ellipse(x, y, r, r * 1.3, Math.random() * 3, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 2);
+  return t;
+})();
+const nestProps = new THREE.Group();
+(() => {
+  const egg = new THREE.MeshStandardMaterial({ color: 0xe8dcb0, roughness: 0.5, emissive: 0x402a10, emissiveIntensity: 0.4 });
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2, x = Math.cos(a) * (DESK_X + 0.16), z = Math.sin(a) * (DESK_Z + 0.14);
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.025 + Math.random() * 0.015, 10, 8), egg);
+      m.scale.y = 1.3;
+      m.position.set(x + (Math.random() - 0.5) * 0.08, 0.02, z + (Math.random() - 0.5) * 0.08);
+      nestProps.add(m);
+    }
+  }
+  // Le sol du nid, organique, qui remplace la chambre tout autour du plateau
+  const groundTex = nestTex.clone();
+  groundTex.repeat.set(5, 5);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 48), new THREE.MeshStandardMaterial({ map: groundTex, color: 0x8a4a40, roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.045;
+  nestProps.add(ground);
+  const glow = new THREE.PointLight(0xff3020, 2.2, 3);
+  glow.position.set(0, 0.6, -0.2);
+  nestProps.add(glow);
+  nestProps.userData.glow = glow;
+  nestProps.visible = false;
+  scene.add(nestProps);
+})();
+let nestSaved = null, nestHidden = [];
+function enterNestLook() {
+  nestSaved = { bg: scene.background.getHex(), fog: scene.fog.color.getHex(), map: desk.material.map, deskColor: desk.material.color.getHex(),
+    hemi: hemiLight.color.getHex(), ground: hemiLight.groundColor.getHex(), lamp: lamp.color.getHex(), rim: rimMat.color.getHex() };
+  scene.background.setHex(0x0b0405);
+  scene.fog.color.setHex(0x0b0405);
+  desk.material.map = nestTex; desk.material.color.setHex(0xffffff); desk.material.needsUpdate = true;
+  hemiLight.color.setHex(0xff9a8a); hemiLight.groundColor.setHex(0x200505);
+  lamp.color.setHex(0xff7050);
+  rimMat.color.setHex(0x3a0c0c);
+  toyDecor.visible = false;
+  // On cache la chambre (table, murs, sol, objets autour du plateau) : seul le plateau reste
+  const box = new THREE.Box3();
+  nestHidden = scene.children.filter(c => {
+    if (!c.visible || c.isLight || c === desk || c === nestProps || c === toyDecor) return false;
+    box.setFromObject(c);
+    if (box.isEmpty()) return false;
+    return box.max.y < -0.03 || box.min.z < -DESK_Z - 0.06 || box.max.z > DESK_Z + 0.06 || box.min.x < -DESK_X - 0.06 || box.max.x > DESK_X + 0.06;
+  });
+  for (const c of nestHidden) c.visible = false;
+  nestProps.visible = true;
+  placeCamera();
+}
+function exitNestLook() {
+  if (!nestSaved) return;
+  scene.background.setHex(nestSaved.bg);
+  scene.fog.color.setHex(nestSaved.fog);
+  desk.material.map = nestSaved.map; desk.material.color.setHex(nestSaved.deskColor); desk.material.needsUpdate = true;
+  hemiLight.color.setHex(nestSaved.hemi); hemiLight.groundColor.setHex(nestSaved.ground);
+  lamp.color.setHex(nestSaved.lamp);
+  rimMat.color.setHex(nestSaved.rim);
+  toyDecor.visible = true;
+  for (const c of nestHidden) c.visible = true;
+  nestHidden = [];
+  nestProps.visible = false;
+  nestSaved = null;
+}
+function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult - 1)); }
+function startNest() {
+  const run = state.run;
+  if (!isStory() || nest) return;
+  if (!run.nestPaid) {
+    if (run.cash < NEST_COST) return;
+    run.cash -= NEST_COST;
+    run.nestPaid = true;
+  }
+  shopEl.classList.remove('open');
+  for (const t of tops) disposeTop(t);
+  tops.length = 0;
+  clearBoard();
+  nest = { hearts: NEST_HEARTS, attackT: 3, minionT: 6, phase: 1, zones: [], over: false,
+    saved: { launchesLeft: run.launchesLeft, cleared: run.cleared, waveKills: run.waveKills } };
+  enterNestLook();
+  const b = spawnBug(false, 0.5, { type: NEST_BOSS, x: 0, z: -DESK_Z * 0.35 });
+  b.boss = true; b.golden = false;
+  b.heading = Math.PI / 2;
+  // Sa vie suit la puissance du joueur : environ 1 min 30 de combat, quel que soit le niveau atteint
+  b.hp = b.maxHp = Math.round(65 * nestHitAvg() * (1 + 0.1 * (S.tops - 1)));
+  b.mat.emissive.setHex(0x500000); b.mat.emissiveIntensity = 0.5;
+  // Yeux rouges qui brillent
+  const eye = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
+  for (const sz of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), eye); e.position.set(1.18, 0.34, sz * 0.12); b.group.add(e); }
+  nest.boss = b;
+  document.getElementById('nestHud').classList.add('on');
+  updateNestHud();
+  save();
+  SFX.play('mutation');
+  addShake(0.02);
+  paused = true;
+  charging = false;
+  playDialog(NEST_INTRO, () => { paused = false; banner('🔥 Le nid des cafards', 'Pare ses attaques et détruis la Reine !'); });
+}
+function updateNestHud() {
+  if (!nest) return;
+  const b = nest.boss;
+  document.getElementById('nestHp').style.width = Math.max(0, b.hp / b.maxHp * 100) + '%';
+  document.getElementById('nestHearts').textContent = '❤️'.repeat(Math.max(0, nest.hearts)) + '🖤'.repeat(Math.max(0, NEST_HEARTS - nest.hearts));
+}
+function makeNestZone(x, z, r, type, dur) {
+  const col = type === 'egg' ? 0xffd040 : 0xff2a2a;
+  const ring = new THREE.Mesh(nestRingGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95, depthWrite: false }));
+  const disc = new THREE.Mesh(nestDiscGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.2, depthWrite: false }));
+  ring.position.set(x, 0.006, z); disc.position.set(x, 0.005, z);
+  disc.scale.setScalar(r);
+  scene.add(ring, disc);
+  const zone = { x, z, r, type, t: dur, max: dur, ring, disc, done: false };
+  nest.zones.push(zone);
+  return zone;
+}
+function removeNestZone(zn) {
+  zn.done = true;
+  scene.remove(zn.ring, zn.disc);
+  zn.ring.material.dispose(); zn.disc.material.dispose();
+}
+function nestAttack() {
+  const n = nest, ph = n.phase;
+  const pawTime = [0, 1.45, 1.25, 1.05][ph];
+  const spot = () => {
+    // Vise de préférence une toupie qui tourne (sinon un endroit au hasard)
+    const alive = aliveTops();
+    if (alive.length && Math.random() < 0.7) { const t = alive[Math.floor(Math.random() * alive.length)]; return [t.x, t.z]; }
+    return [(Math.random() * 2 - 1) * (DESK_X - 0.15), -DESK_Z * 0.1 + Math.random() * DESK_Z * 0.9];
+  };
+  const roll = Math.random();
+  const eggs = ph === 1 ? roll < 0.3 : roll < 0.28;
+  const double = !eggs && ph >= 2 && Math.random() < (ph === 3 ? 0.6 : 0.4);
+  n.boss.group.position.y = 0.03; // elle se cabre
+  if (eggs) {
+    for (let i = 0; i < 3; i++) { const [x, z] = [(Math.random() * 2 - 1) * (DESK_X - 0.12), (Math.random() * 2 - 1) * (DESK_Z - 0.15)]; makeNestZone(x, z, 0.06, 'egg', 1.8); }
+    SFX.play('level');
+  } else {
+    const [x, z] = spot();
+    makeNestZone(x, z, 0.11, 'paw', pawTime);
+    if (double) { const [x2, z2] = spot(); makeNestZone(x2 + (Math.abs(x2 - x) < 0.25 ? 0.3 * Math.sign(-x || 1) : 0), z2, 0.11, 'paw', pawTime); }
+    SFX.play('mutation');
+  }
+}
+function nestZoneFail(zn) {
+  removeNestZone(zn);
+  if (zn.type === 'egg') {
+    const m = spawnBug(false, 0.05, { type: pickBugType(), x: zn.x, z: zn.z });
+    popup('🐣 Éclos !', zn.x, zn.z, 'dmg');
+    return m;
+  }
+  // Coup de patte non paré : un cœur en moins, et les toupies touchées sont renversées
+  nest.hearts--;
+  popup('💥 −1 ❤️', zn.x, zn.z, 'big');
+  addShock(zn.x, zn.z, 0.2, 0xff3020);
+  addShake(0.02);
+  buzz([80, 40, 80]);
+  SFX.play('fall');
+  for (const t of aliveTops()) if (Math.hypot(t.x - zn.x, t.z - zn.z) < zn.r + 0.08) { t.falling = 0.001; t.fallDir = t.prec; }
+  updateNestHud();
+  if (nest.hearts <= 0) nestDefeat();
+}
+function tryBlockNest(e) {
+  if (!nest || nest.over || paused || !nest.zones.length) return false;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNdc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hit = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(deskPlane, hit)) return false;
+  // Zone généreuse : on accepte un appui un peu à côté
+  const zn = nest.zones.filter(z => !z.done).sort((a, b) => Math.hypot(a.x - hit.x, a.z - hit.z) - Math.hypot(b.x - hit.x, b.z - hit.z))[0];
+  if (!zn || Math.hypot(zn.x - hit.x, zn.z - hit.z) > Math.max(0.09, zn.r * 1.4)) return false;
+  removeNestZone(zn);
+  popup(zn.type === 'egg' ? '🥚 Écrasé !' : '🛡️ Paré !', zn.x, zn.z, 'big');
+  addShock(zn.x, zn.z, zn.r * 1.5, zn.type === 'egg' ? 0xffd040 : 0x7fd1ff);
+  SFX.play(zn.type === 'egg' ? 'kill' : 'perfect');
+  buzz(15);
+  return true;
+}
+function stepNest(dt) {
+  const n = nest;
+  if (!n || n.over) return;
+  const b = n.boss;
+  const frac = b.hp / b.maxHp;
+  const ph = frac < 0.25 ? 3 : frac < 0.55 ? 2 : 1;
+  if (ph > n.phase) { n.phase = ph; banner(ph === 2 ? '😡 La Reine s’énerve !' : '🔥 La Reine est furieuse !', 'Ses attaques sont plus rapides'); }
+  for (const zn of n.zones) {
+    if (zn.done) continue;
+    zn.t -= dt;
+    const k = Math.max(0, zn.t / zn.max);           // 1 → 0 : l'anneau se resserre sur la zone
+    zn.ring.scale.setScalar(zn.r * (1 + 1.4 * k));
+    zn.disc.material.opacity = 0.18 + 0.4 * (1 - k);
+    if (zn.t <= 0) nestZoneFail(zn);
+    if (!nest || n.over) return;
+  }
+  n.zones = n.zones.filter(zn => !zn.done);
+  b.group.position.y = Math.max(0, b.group.position.y - dt * 0.08);
+  n.attackT -= dt;
+  if (n.attackT <= 0 && !n.zones.length) { nestAttack(); n.attackT = [0, 3.4, 2.8, 2.3][n.phase]; }
+  n.minionT -= dt;
+  if (n.minionT <= 0) {
+    n.minionT = 7;
+    if (bugs.filter(o => !o.dying && !o.gone && !o.boss).length < 10) for (let i = 0; i < 2; i++) spawnBug();
+  }
+  nestProps.userData.glow.intensity = 1.8 + 0.6 * Math.sin(gameTime * 3);
+  updateNestHud();
+}
+function leaveNest() {
+  if (!nest) return;
+  for (const zn of nest.zones) if (!zn.done) removeNestZone(zn);
+  const sv = nest.saved;
+  nest = null;
+  document.getElementById('nestHud').classList.remove('on');
+  for (const t of tops) disposeTop(t);
+  tops.length = 0;
+  clearBoard();
+  exitNestLook();
+  placeCamera();
+  const run = state.run;
+  run.launchesLeft = sv.launchesLeft; run.cleared = sv.cleared; run.waveKills = sv.waveKills;
+}
+function nestDefeat() {
+  nest.over = true;
+  SFX.play('defeat');
+  paused = true;
+  charging = false;
+  playDialog([
+    { face: '😵', text: 'Aïe… la Reine m’a repoussé hors du nid.' },
+    { face: '💪', text: 'Je connais ses attaques maintenant. Je peux y retourner quand je veux depuis l’atelier : le chemin est trouvé, c’est gratuit !' },
+  ], () => {
+    leaveNest();
+    refillBoard();
+    paused = false;
+    banner('🏠 De retour au bureau', 'Retente l’assaut du nid depuis l’atelier (onglet Bureau)');
+    save();
+  });
+}
+function nestVictory() {
+  nest.over = true;
+  for (const zn of nest.zones) if (!zn.done) removeNestZone(zn);
+  SFX.play('evolve'); setTimeout(() => SFX.play('achieve'), 500);
+  addShake(0.025);
+  buzz([60, 40, 60, 40, 120]);
+  state.nestWins = (state.nestWins || 0) + 1;
+  const reward = 100;
+  state.meta.earned += reward;
+  save();
+  paused = true;
+  charging = false;
+  playDialog([
+    { face: '🎉', text: 'La Reine est tombée ! Le nid est détruit !' },
+    { face: '😌', text: 'Mon bureau est enfin tranquille… Merci, ma vieille toupie.' },
+  ], () => {
+    const run = state.run;
+    modalBox.className = 'modalBox';
+    modalBox.replaceChildren();
+    const h = document.createElement('h2');
+    h.textContent = '🏆 Le nid est détruit !';
+    const lead = document.createElement('p');
+    lead.className = 'lead';
+    lead.textContent = `Tu as vaincu la Reine du Nid à la vague ${run.wave}. L’invasion est terminée… pour cette fois ! +${reward} 🌊 pour le Carton à Jouets.`;
+    const btn = document.createElement('button');
+    btn.className = 'bigBtn';
+    btn.textContent = 'Nouvelle partie';
+    btn.onclick = () => { leaveNest(); state.best.histoire = Math.max(state.best.histoire, run.wave); lbSubmit(); restartRun(); };
+    modalBox.append(h, lead, btn);
+    modal.classList.add('open');
+  });
+}
+
 function stepTopsTogether() {
   // Chocs entre toupies (multi-lancer)
   for (let i = 0; i < tops.length; i++) {
@@ -3351,6 +3684,8 @@ function stepBug(b, dt) {
     if (b.drop <= 0) { b.drop = 0; b.landT = 0.25; b.jvx = b.jvz = 0; }
     return;
   }
+  // La Reine du Nid ne bouge pas : elle remue les pattes et attaque
+  if (b.boss) { b.walk += dt * 2; b.kx = b.kz = 0; b.pause = 1; return; }
   // Pouvoirs des insectes des stades suivants
   if (b.t.jump) {
     b.jumpCd = (b.jumpCd ?? 1) - dt;
@@ -3689,6 +4024,7 @@ function applyToybox(run) {
 }
 
 function restartRun() {
+  if (nest) leaveNest();
   const mode = state.run.mode;
   const kept = state.run.over ? 0 : state.run.wavesCleared, keptMeta = state.run.metaGain || kept; // (après une défaite, la fenêtre l'a déjà dit)
   state.games[mode]++;
@@ -4069,6 +4405,7 @@ restartBtn.onclick = () => {
   restartRun();
 };
 document.getElementById('quitBtn').onclick = () => {
+  if (nest) { leaveNest(); refillBoard(); }
   lbSubmit();
   pauseEl.classList.remove('open');
   save();
@@ -4079,7 +4416,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.16';
+const VERSION = '2026-10-04.17';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4123,6 +4460,7 @@ function pointerToDesk(e) {
 // Histoire : on relance dès que la toupie tombe. Carnage : il faut attendre la recharge.
 function isReady() {
   if (paused || introStep >= 0 || aliveTops().length) return false;
+  if (nest) return !nest.over;
   return isStory() ? state.run.launchesLeft > 0 && !state.run.cleared : cooldown <= 0;
 }
 function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
@@ -4152,6 +4490,7 @@ canvas.addEventListener('pointerdown', e => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { canvas.setPointerCapture(e.pointerId); } catch { /* capture impossible : sans gravité */ }
   if (introStep >= 0) { nextIntroLine(); return; }
+  if (nest && tryBlockNest(e)) return; // parer une attaque de la Reine
   if (charging) return; // un deuxième doigt pendant la visée ne change rien
   if (pointers.size === 2) {
     // Deux doigts : on pince pour zoomer (et on déplace la vue avec le milieu des doigts)
@@ -4451,6 +4790,28 @@ function renderShop() {
       : 'Ta toupie a atteint sa forme ultime !');
     shopList.appendChild(card);
   }
+  if (currentTab === 'bureau' && isStory() && stageSeen() >= 1) {
+    const run = state.run, ok = stageSeen() >= 2;
+    const card = document.createElement('div');
+    card.className = 'card nestCard' + (ok ? '' : ' locked');
+    card.innerHTML = '<div><span class="name"></span></div><button></button><div class="desc"></div>';
+    card.querySelector('.name').textContent = '🔥 Détruire le nid';
+    const btn = card.querySelector('button');
+    if (!ok) {
+      card.querySelector('.desc').textContent = '🔒 Débloqué au stade 3, quand les araignées arriveront.';
+      btn.textContent = '🔒'; btn.disabled = true;
+    } else if (run.nestPaid) {
+      card.querySelector('.desc').textContent = 'Le nid est localisé. Retourne affronter la Reine quand tu veux (gratuit).';
+      btn.textContent = '⚔️ Y aller'; btn.onclick = startNest;
+    } else {
+      card.querySelector('.desc').textContent = 'Trouver le nid des cafards et affronter leur Reine. Ça coûte une fortune… mais c’est la fin de l’invasion.';
+      btn.textContent = fmtMoney(NEST_COST);
+      btn.dataset.cost = NEST_COST;
+      btn.disabled = run.cash < NEST_COST;
+      btn.onclick = startNest;
+    }
+    shopList.appendChild(card);
+  }
   for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)) && (u.stage || 0) <= stageSeen() + 1)) {
     const card = document.createElement('div');
     card.className = 'card';
@@ -4618,6 +4979,7 @@ function updateHud() {
   if (introStep >= 0) msg = '…';
   else if (paused) msg = run.over ? 'Défaite…' : run.choice ? 'Choisis un bonus' : 'Pause';
   else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
+  else if (nest) msg = nest.zones.length ? '⚠️ Touche vite les zones pour parer !' : alive.length ? '🌀 Vise la Reine… et surveille ses attaques' : 'Lance tes toupies sur la Reine du Nid !';
   else if (isStory()) {
     const missing = waveQuota() - run.waveKills;
     if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
@@ -4696,7 +5058,7 @@ function update(dt) {
 
   // Apparition des insectes : l'Appât n'attire de nouveaux cafards que pendant un lancer
   // (entre deux lancers rien ne tombe : le bureau est rempli d'un coup quand la toupie tombe)
-  if (aliveTops().length) spawnTimer += dt * S.spawnRate * waveSpawnMult();
+  if (aliveTops().length && !nest) spawnTimer += dt * S.spawnRate * waveSpawnMult();
   while (spawnTimer >= 1) {
     spawnTimer -= 1;
     if (bugs.filter(b => !b.dying && !b.gone).length < bugCap()) spawnBug();
@@ -4769,7 +5131,7 @@ function update(dt) {
   // Carnage : la recharge démarre quand la dernière toupie tombe
   const aliveNow = aliveTops().length;
   // Quand la dernière toupie tombe, le bureau se remplit de cafards jusqu'au maximum du Nid
-  if (aliveBefore > 0 && aliveNow === 0 && playing) refillBoard();
+  if (aliveBefore > 0 && aliveNow === 0 && playing && !nest) refillBoard();
   if (!isStory()) {
     if (aliveBefore > 0 && aliveNow === 0) cooldown = S.cooldown;
     if (aliveNow === 0 && cooldown > 0) cooldown -= dt;
@@ -4779,7 +5141,7 @@ function update(dt) {
 
   // Histoire : fin de vague une fois les toupies tombées
   // (objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi)
-  if (isStory() && playing && tops.length === 0) {
+  if (isStory() && playing && tops.length === 0 && !nest) {
     if (run.cleared) { endWave(); return; }
     if (run.launchesLeft <= 0 && !tryRescue()) { defeat(); return; }
   }
@@ -4862,7 +5224,8 @@ function update(dt) {
     if (s.t > 0.5) { scene.remove(s.m); s.m.material.dispose(); shocks.splice(i, 1); }
   }
 
-  if (pendingMutation && !paused && !aliveTops().length) mutate();
+  if (pendingMutation && !paused && !aliveTops().length && !nest) mutate();
+  if (nest && playing && !paused) stepNest(dt);
   // Ronronnement de la toupie la plus rapide, compteur de combo qui s'éteint, succès
   const spinning = aliveTops();
   const fastest = spinning.reduce((m, t) => Math.max(m, t.spin), 0);
@@ -4907,7 +5270,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, get nest() { return nest; }, tryBlockNest, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
