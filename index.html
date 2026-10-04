@@ -3877,7 +3877,7 @@ document.getElementById('toyboxBtn').onclick = openToybox;
 //  du mode Histoire est enregistrée avec son pseudo. La configuration ci-dessous est publique par nature
 //  (c'est l'adresse du projet) ; ce sont les règles de la base qui empêchent la triche simple.
 // =====================================================================
-const LB_CONFIG = { apiKey: '', dbURL: '' };
+const LB_CONFIG = { apiKey: 'AIzaSyA8PL7hfbqEkHbw9_t4Jj2s8aAgBfZBSfc', dbURL: 'https://toupie-cafards-default-rtdb.europe-west1.firebasedatabase.app' };
 const lbReady = () => !!(LB_CONFIG.apiKey && LB_CONFIG.dbURL);
 let lbToken = null, lbTokenExp = 0;
 async function lbAuth() {
@@ -4076,7 +4076,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.14';
+const VERSION = '2026-10-04.15';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4904,7 +4904,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
