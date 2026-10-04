@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "leaderboard": {
+      "histoire": {
+        ".read": true,
+        ".indexOn": ["wave"],
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['pseudo', 'wave', 't']) && (!data.exists() || newData.child('wave').val() >= data.child('wave').val())",
+          "pseudo": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+          "wave": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 300" },
+          "t": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}

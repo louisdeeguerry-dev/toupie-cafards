@@ -202,6 +202,18 @@
   .pseudoRow label { font-weight: 800; }
   .pseudoRow input { width: min(220px, 60vw); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: #1c140e;
     color: var(--text); font-size: 16px; font-weight: 700; text-align: center; user-select: text; -webkit-user-select: text; }
+  #lbPanel { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at center, #2a1f3a, #0b0710); }
+  #lbPanel.open { display: flex; }
+  #lbPanel h1 { font-size: clamp(24px, 6vw, 36px); }
+  #lbList { text-align: left; margin: 6px 0 12px; }
+  .lbRow { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; margin-bottom: 5px;
+    border-radius: 10px; background: #221a2c; font-weight: 700; }
+  .lbRow .rk { font-weight: 900; color: var(--muted); text-align: center; }
+  .lbRow.top1 .rk { color: #ffd45a; font-size: 20px; } .lbRow.top2 .rk { color: #d8dde3; font-size: 18px; } .lbRow.top3 .rk { color: #d08a4a; font-size: 17px; }
+  .lbRow.me { background: linear-gradient(135deg, #4a3a10, #2a2008); border: 1px solid #ffd45a; }
+  .lbRow .wv { color: #7fd1ff; white-space: nowrap; }
+  .lbBtn { border-color: rgba(200,160,255,.35) !important; }
   #achPanel { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; padding: 16px;
     background: radial-gradient(ellipse at center, #2c2a1a, #0e0c05); }
   #achPanel.open { display: flex; }
@@ -357,6 +369,10 @@
       <div class="md">Des défis à relever : chacun rapporte des 🌊 pour le Carton à Jouets.</div>
       <div class="mr" id="achCount"></div>
     </button>
+    <button class="modeBtn lbBtn" id="lbBtn">
+      <div class="mt">🏆 Classement</div>
+      <div class="md">Les meilleurs joueurs du mode Histoire : ta meilleure vague est envoyée avec ton pseudo.</div>
+    </button>
     <button class="modeBtn" id="saveBtn">
       <div class="mt">💾 Sauvegarde</div>
       <div class="md">Copie ton code de sauvegarde pour retrouver ta progression sur un autre téléphone.</div>
@@ -401,6 +417,16 @@
     <button class="bigBtn" id="loadSave" style="background: var(--panel-2); color: var(--text)">📥 Charger ce code</button>
     <p class="tag" id="saveMsg"></p>
     <button class="linkBtn" id="saveClose">Fermer</button>
+  </div>
+</div>
+
+<div id="lbPanel">
+  <div class="menuBox">
+    <h1>🏆 Classement</h1>
+    <p class="tag">Mode Histoire · meilleure vague atteinte</p>
+    <div id="lbList"></div>
+    <p class="tag" id="lbMsg"></p>
+    <button class="bigBtn" id="lbClose">Fermer</button>
   </div>
 </div>
 
@@ -778,6 +804,7 @@ const state = {
   settings: { sound: true, vibrate: true },
   maxStage: 0, perfectBest: 0, bestRunMoney: 0, goldenKills: 0,
   pseudo: '',
+  lb: { uid: '', refreshToken: '', sent: 0, sentPseudo: '' }, // compte anonyme du classement (créé tout seul)
   best: { histoire: 1, carnage: 1 },
   games: { histoire: 0, carnage: 0 },
   savedRuns: { histoire: newRun('histoire'), carnage: newRun('carnage') },
@@ -785,7 +812,7 @@ const state = {
   speedX2: false,
   run: null,
 };
-const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills', 'pseudo'];
+const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills', 'pseudo', 'lb'];
 function load() {
   try {
     const data = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -3582,6 +3609,7 @@ function defeat() {
   if (run.over) return;
   SFX.play('defeat');
   buzz([80, 60, 160]);
+  setTimeout(() => lbSubmit(), 500);
   run.over = true;
   paused = true;
   charging = false;
@@ -3844,6 +3872,91 @@ function openMenuRefresh() {
   shopDirty = true;
 }
 document.getElementById('toyboxBtn').onclick = openToybox;
+// =====================================================================
+//  CLASSEMENT EN LIGNE (Firebase) : chaque joueur reçoit un compte anonyme, et sa meilleure vague
+//  du mode Histoire est enregistrée avec son pseudo. La configuration ci-dessous est publique par nature
+//  (c'est l'adresse du projet) ; ce sont les règles de la base qui empêchent la triche simple.
+// =====================================================================
+const LB_CONFIG = { apiKey: '', dbURL: '' };
+const lbReady = () => !!(LB_CONFIG.apiKey && LB_CONFIG.dbURL);
+let lbToken = null, lbTokenExp = 0;
+async function lbAuth() {
+  if (lbToken && Date.now() < lbTokenExp - 60000) return lbToken;
+  state.lb = state.lb || {};
+  let r;
+  if (state.lb.refreshToken) {
+    r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${LB_CONFIG.apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(state.lb.refreshToken),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      lbToken = j.id_token; lbTokenExp = Date.now() + Number(j.expires_in) * 1000;
+      state.lb.uid = j.user_id; state.lb.refreshToken = j.refresh_token;
+      save();
+      return lbToken;
+    }
+  }
+  r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${LB_CONFIG.apiKey}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }),
+  });
+  if (!r.ok) throw new Error('connexion impossible');
+  const j = await r.json();
+  lbToken = j.idToken; lbTokenExp = Date.now() + Number(j.expiresIn) * 1000;
+  state.lb.uid = j.localId; state.lb.refreshToken = j.refreshToken;
+  save();
+  return lbToken;
+}
+// Envoie la meilleure vague (seulement si elle a progressé, ou si le pseudo a changé)
+let lbSending = false;
+async function lbSubmit(force = false) {
+  if (!lbReady() || lbSending) return;
+  const pseudo = (state.pseudo || '').trim();
+  const best = state.best.histoire || 1;
+  if (!pseudo || best < 2) return;
+  if (!force && state.lb?.sent >= best && state.lb?.sentPseudo === pseudo) return;
+  lbSending = true;
+  try {
+    const token = await lbAuth();
+    const r = await fetch(`${LB_CONFIG.dbURL}/leaderboard/histoire/${state.lb.uid}.json?auth=${token}`, {
+      method: 'PUT', body: JSON.stringify({ pseudo: pseudo.slice(0, 16), wave: best, t: Date.now() }),
+    });
+    if (r.ok) { state.lb.sent = best; state.lb.sentPseudo = pseudo; save(); }
+  } catch { /* hors ligne : on réessaiera plus tard */ }
+  lbSending = false;
+}
+async function lbFetch() {
+  const r = await fetch(`${LB_CONFIG.dbURL}/leaderboard/histoire.json?orderBy=%22wave%22&limitToLast=50`);
+  if (!r.ok) throw new Error('lecture impossible');
+  const data = (await r.json()) || {};
+  return Object.entries(data).map(([uid, e]) => ({ uid, pseudo: e.pseudo, wave: e.wave, t: e.t }))
+    .sort((a, b) => b.wave - a.wave || a.t - b.t);
+}
+async function openLeaderboard() {
+  const list = document.getElementById('lbList'), msg = document.getElementById('lbMsg');
+  document.getElementById('lbPanel').classList.add('open');
+  list.replaceChildren();
+  if (!lbReady()) { msg.textContent = '🔧 Le classement en ligne arrive très bientôt !'; return; }
+  msg.textContent = 'Chargement…';
+  await lbSubmit();
+  try {
+    const rows = await lbFetch();
+    rows.forEach((e, i) => {
+      const el = document.createElement('div');
+      el.className = 'lbRow' + (i < 3 ? ' top' + (i + 1) : '') + (e.uid === state.lb?.uid ? ' me' : '');
+      el.innerHTML = '<span class="rk"></span><span class="ps"></span><span class="wv"></span>';
+      el.querySelector('.rk').textContent = ['🥇', '🥈', '🥉'][i] || (i + 1);
+      el.querySelector('.ps').textContent = e.pseudo || '???';
+      el.querySelector('.wv').textContent = 'vague ' + e.wave;
+      list.appendChild(el);
+    });
+    msg.textContent = !(state.pseudo || '').trim() ? '👤 Entre un pseudo dans le menu pour apparaître dans le classement.'
+      : rows.length ? '' : 'Personne pour l’instant : à toi de jouer !';
+  } catch { msg.textContent = '📡 Classement indisponible (pas de connexion ?)'; }
+}
+document.getElementById('lbBtn').onclick = openLeaderboard;
+document.getElementById('lbClose').onclick = () => document.getElementById('lbPanel').classList.remove('open');
+
 // Code de sauvegarde : la sauvegarde complète, en texte (base64), avec une petite vérification
 function exportSave() {
   save();
@@ -3862,7 +3975,13 @@ function importSave(code) {
 }
 const pseudoInput = document.getElementById('pseudoInput');
 pseudoInput.value = state.pseudo || '';
-pseudoInput.addEventListener('input', () => { state.pseudo = pseudoInput.value.trim().slice(0, 16); save(); });
+let pseudoTimer = 0;
+pseudoInput.addEventListener('input', () => {
+  state.pseudo = pseudoInput.value.trim().slice(0, 16);
+  save();
+  clearTimeout(pseudoTimer);
+  pseudoTimer = setTimeout(() => lbSubmit(), 1500);
+});
 document.getElementById('saveBtn').onclick = () => {
   document.getElementById('saveCode').value = exportSave();
   document.getElementById('saveMsg').textContent = '';
@@ -3947,6 +4066,7 @@ restartBtn.onclick = () => {
   restartRun();
 };
 document.getElementById('quitBtn').onclick = () => {
+  lbSubmit();
   pauseEl.classList.remove('open');
   save();
   openMenu();
@@ -3956,7 +4076,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.13';
+const VERSION = '2026-10-04.14';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
