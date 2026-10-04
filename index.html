@@ -245,7 +245,8 @@
     text-align: center; pointer-events: none; }
   #nestHud.on { display: block; }
   #nestHud .nn { font-weight: 900; color: #ffb0b0; text-shadow: 0 2px 6px #000; font-size: 15px; }
-  #nestHud .nbar { height: 12px; border-radius: 6px; background: rgba(0,0,0,.6); border: 1px solid #ff6a6a; overflow: hidden; margin: 3px 0; }
+  #nestHud .nbar { position: relative; height: 16px; border-radius: 8px; background: rgba(0,0,0,.6); border: 1px solid #ff6a6a; overflow: hidden; margin: 3px 0; }
+  #nestHpTxt { position: absolute; inset: 0; font-size: 11px; line-height: 16px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000; }
   #nestHp { height: 100%; width: 100%; background: linear-gradient(90deg, #ff2a2a, #ff9a3a); transition: width .2s; }
   #nestHearts { font-size: 22px; letter-spacing: 4px; text-shadow: 0 2px 6px #000; }
   @media (max-height: 500px) { #nestHud { top: 34px; } #nestHearts { font-size: 18px; } }
@@ -353,7 +354,7 @@
 <div id="banner"></div>
 <div id="comboMeter"><span class="ct">COMBO</span> <span id="comboNum">×3</span></div>
 <div id="toast"></div>
-<div id="nestHud"><div class="nn">👑 La Reine du Nid</div><div class="nbar"><div id="nestHp"></div></div><div id="nestHearts"></div></div>
+<div id="nestHud"><div class="nn">👑 La Reine du Nid</div><div class="nbar"><div id="nestHp"></div><span id="nestHpTxt"></span></div><div id="nestHearts"></div></div>
 <div id="modal"><div class="modalBox" id="modalBox"></div></div>
 
 <div id="menu">
@@ -2177,7 +2178,8 @@ function launchTops(aim, power, perfect) {
   if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
   state.run.launches++;
-  if (isStory()) state.run.launchesLeft--;
+  if (isStory() && !nest) state.run.launchesLeft--;
+  if (nest) { nest.launched = true; nest.topsTotal = tops.length; }
   launcherKick = 1;
 }
 function disposeTop(top) {
@@ -3232,6 +3234,10 @@ function stepTop(top, dt, now) {
       az += ((best.z - top.z) / bd) * S.chase * ratio;
     }
   }
+  if (nest && nest.boss && !nest.over) {
+    const dx = nest.boss.x - top.x, dz = nest.boss.z - top.z, d = Math.hypot(dx, dz) || 1;
+    ax += (dx / d) * NEST_PULL; az += (dz / d) * NEST_PULL;
+  }
   top.vx += ax * dt;
   top.vz += az * dt;
   const fr = Math.exp(-S.linFric * dt);
@@ -3304,6 +3310,8 @@ function stepTop(top, dt, now) {
   // Au bout de 40 s, la toupie se fatigue de plus en plus vite : un lancer ne dure jamais des minutes
   top.age = (top.age || 0) + dt;
   if (top.age > 40) top.spin -= top.spin * 0.02 * (top.age - 40) * dt;
+  // Dans le nid, les toupies ne s'arrêtent jamais (seule la Reine peut les détruire)
+  if (nest && !top.nestKilled) top.spin = top.launchSpin;
   if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
     top.falling = 0.001;
     SFX.play('fall');
@@ -3343,10 +3351,11 @@ document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropag
 
 // =====================================================================
 //  L'ASSAUT DU NID : une fortune pour trouver le nid, puis un combat contre la Reine.
-//  Pendant le combat, il faut toucher les zones rouges pour parer ses coups de patte,
-//  et les œufs (zones jaunes) avant qu'ils n'éclosent. 5 cœurs : à 0, on est repoussé hors du nid.
+//  Un seul lancer, et les toupies tournent sans fin. Il faut toucher les zones rouges pour parer ses coups
+//  de patte (chaque coup raté détruit une toupie) et les œufs (zones jaunes) avant qu'ils n'éclosent.
+//  Plus aucune toupie : on est repoussé hors du nid.
 // =====================================================================
-const NEST_COST = 1e9, NEST_HEARTS = 5;
+const NEST_COST = 1e9;
 const NEST_BOSS = { id: 'reinenid', pts: 0, name: 'La Reine du Nid', r: 0.17, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x4a0a18, fear: 0, metal: 0.35, crown: true, stage: 0 };
 let nest = null;
 const nestRingGeo = new THREE.RingGeometry(0.82, 1, 48);
@@ -3355,9 +3364,9 @@ const nestDiscGeo = new THREE.CircleGeometry(1, 48);
 nestDiscGeo.rotateX(-Math.PI / 2);
 const NEST_INTRO = [
   { face: '😨', text: 'Me voilà dans le nid des cafards… et voilà leur Reine !' },
-  { face: '🛡️', text: 'Quand une zone ROUGE apparaît, je la touche vite pour parer son coup de patte. Si je rate, je perds un cœur ❤️ (j’en ai 5).' },
-  { face: '🥚', text: 'Les zones JAUNES, ce sont des œufs : je les touche avant qu’ils n’éclosent !' },
-  { face: '🌀', text: 'Entre deux attaques, je lance mes toupies sur elle. Allez, on détruit ce nid !' },
+  { face: '🌀', text: 'Ici, je n’ai qu’un seul lancer… mais mes toupies tournent sans jamais s’arrêter !' },
+  { face: '🛡️', text: 'Quand une zone ROUGE apparaît, je la touche vite pour parer son coup de patte. Si je rate, elle détruit une de mes toupies.' },
+  { face: '🥚', text: 'Les zones JAUNES, ce sont des œufs : je les écrase avant qu’ils n’éclosent. Plus de toupie = perdu. Allez !' },
 ];
 const nestTex = (() => {
   const c = document.createElement('canvas');
@@ -3444,6 +3453,7 @@ function exitNestLook() {
   nestProps.visible = false;
   nestSaved = null;
 }
+let NEST_HP_K = 52, NEST_PULL = 0.5, NEST_PAUSE = [0, 3.6, 3.0, 2.5];
 function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult - 1)); }
 function startNest() {
   const run = state.run;
@@ -3457,20 +3467,21 @@ function startNest() {
   for (const t of tops) disposeTop(t);
   tops.length = 0;
   clearBoard();
-  nest = { hearts: NEST_HEARTS, attackT: 3, minionT: 6, phase: 1, zones: [], over: false,
+  nest = { launched: false, topsTotal: 0, attackT: 2.5, minionT: 6, phase: 1, zones: [], queue: [], deadT: 0, over: false, last: '',
     saved: { launchesLeft: run.launchesLeft, cleared: run.cleared, waveKills: run.waveKills } };
   enterNestLook();
   const b = spawnBug(false, 0.5, { type: NEST_BOSS, x: 0, z: -DESK_Z * 0.35 });
   b.boss = true; b.golden = false;
   b.heading = Math.PI / 2;
-  // Sa vie suit la puissance du joueur : environ 1 min 30 de combat, quel que soit le niveau atteint
-  b.hp = b.maxHp = Math.round(65 * nestHitAvg() * (1 + 0.1 * (S.tops - 1)));
+  // Une vie délirante… mais qui suit la puissance du joueur : environ 1 minute de combat sans perdre de toupie
+  b.hp = b.maxHp = Math.round(NEST_HP_K * nestHitAvg() * S.tops);
   b.mat.emissive.setHex(0x500000); b.mat.emissiveIntensity = 0.5;
   // Yeux rouges qui brillent
   const eye = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
   for (const sz of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), eye); e.position.set(1.18, 0.34, sz * 0.12); b.group.add(e); }
   nest.boss = b;
   document.getElementById('nestHud').classList.add('on');
+  document.getElementById('quotaText').parentElement.style.display = 'none';
   updateNestHud();
   save();
   SFX.play('mutation');
@@ -3483,7 +3494,9 @@ function updateNestHud() {
   if (!nest) return;
   const b = nest.boss;
   document.getElementById('nestHp').style.width = Math.max(0, b.hp / b.maxHp * 100) + '%';
-  document.getElementById('nestHearts').textContent = '❤️'.repeat(Math.max(0, nest.hearts)) + '🖤'.repeat(Math.max(0, NEST_HEARTS - nest.hearts));
+  document.getElementById('nestHpTxt').textContent = fmtInt(Math.max(0, b.hp)) + ' PV';
+  const alive = nest.launched ? aliveTops().length : S.tops, total = nest.launched ? nest.topsTotal : S.tops;
+  document.getElementById('nestHearts').textContent = '🌀'.repeat(alive) + '✖️'.repeat(Math.max(0, total - alive));
 }
 function makeNestZone(x, z, r, type, dur) {
   const col = type === 'egg' ? 0xffd040 : 0xff2a2a;
@@ -3501,46 +3514,73 @@ function removeNestZone(zn) {
   scene.remove(zn.ring, zn.disc);
   zn.ring.material.dispose(); zn.disc.material.dispose();
 }
+// Un endroit visé : souvent une toupie (sinon un endroit au hasard du plateau)
+function nestSpot() {
+  const alive = aliveTops();
+  if (alive.length && Math.random() < 0.75) { const t = alive[Math.floor(Math.random() * alive.length)]; return [t.x, t.z]; }
+  return [(Math.random() * 2 - 1) * (DESK_X - 0.15), -DESK_Z * 0.1 + Math.random() * DESK_Z * 0.85];
+}
+const clampX = x => Math.max(-DESK_X + 0.12, Math.min(DESK_X - 0.12, x));
+const clampZ = z => Math.max(-DESK_Z + 0.12, Math.min(DESK_Z - 0.12, z));
+// Les patterns de la Reine : simples, toujours annoncés, et de plus en plus nombreux selon la phase
+const NEST_PATTERNS = [
+  { id: 'patte', name: '🦵 Coup de patte !', phase: 1, w: 3, make(ph) {
+    const [x, z] = nestSpot();
+    return [{ at: 0, x, z, type: 'paw', dur: [0, 1.4, 1.25, 1.1][ph] }];
+  } },
+  { id: 'ponte', name: '🥚 Ponte !', phase: 1, w: 1.5, make() {
+    return [0, 1, 2].map(i => ({ at: i * 0.15, x: (Math.random() * 2 - 1) * (DESK_X - 0.15), z: (Math.random() * 2 - 1) * (DESK_Z - 0.18), type: 'egg', dur: 1.8 }));
+  } },
+  { id: 'balayage', name: '〰️ Balayage !', phase: 1, w: 1.5, make(ph) {
+    // Une rangée de zones, de gauche à droite (ou l'inverse), qui tombent l'une après l'autre
+    const n = 3, z = -DESK_Z * 0.15 + Math.random() * DESK_Z * 0.8, dir = Math.random() < 0.5 ? 1 : -1;
+    return Array.from({ length: n }, (_, i) => ({ at: i * 0.5, x: clampX(dir * (-DESK_X + 0.15 + i * (2 * DESK_X - 0.3) / (n - 1))), z, type: 'paw', dur: 1.35 }));
+  } },
+  { id: 'double', name: '🦵🦵 Double patte !', phase: 2, w: 2, make(ph) {
+    const [x, z] = nestSpot();
+    let [x2, z2] = nestSpot();
+    if (Math.hypot(x2 - x, z2 - z) < 0.3) { x2 = clampX(-x || 0.4); z2 = clampZ(z + 0.2); }
+    const dur = ph === 3 ? 1.25 : 1.4;
+    return [{ at: 0, x, z, type: 'paw', dur }, { at: 0, x: x2, z: z2, type: 'paw', dur }];
+  } },
+  { id: 'furie', name: '🌪️ Furie !', phase: 3, w: 1.5, make() {
+    // Quatre coups rapides, un peu partout
+    return Array.from({ length: 4 }, (_, i) => { const [x, z] = nestSpot(); return { at: i * 0.4, x: clampX(x), z: clampZ(z), type: 'paw', dur: 1.15 }; });
+  } },
+];
 function nestAttack() {
   const n = nest, ph = n.phase;
-  const pawTime = [0, 1.45, 1.25, 1.05][ph];
-  const spot = () => {
-    // Vise de préférence une toupie qui tourne (sinon un endroit au hasard)
-    const alive = aliveTops();
-    if (alive.length && Math.random() < 0.7) { const t = alive[Math.floor(Math.random() * alive.length)]; return [t.x, t.z]; }
-    return [(Math.random() * 2 - 1) * (DESK_X - 0.15), -DESK_Z * 0.1 + Math.random() * DESK_Z * 0.9];
-  };
-  const roll = Math.random();
-  const eggs = ph === 1 ? roll < 0.3 : roll < 0.28;
-  const double = !eggs && ph >= 2 && Math.random() < (ph === 3 ? 0.6 : 0.4);
+  // Jamais deux fois le même pattern de suite : le joueur voit toute la panoplie
+  const pool = NEST_PATTERNS.filter(pt => pt.phase <= ph && pt.id !== n.last);
+  let r = Math.random() * pool.reduce((a, pt) => a + pt.w, 0), pick = pool[0];
+  for (const pt of pool) { r -= pt.w; if (r <= 0) { pick = pt; break; } }
+  n.last = pick.id;
+  for (const z of pick.make(ph)) n.queue.push({ ...z, at: gameTime + z.at });
+  popup(pick.name, n.boss.x, n.boss.z + 0.2, 'big');
   n.boss.group.position.y = 0.03; // elle se cabre
-  if (eggs) {
-    for (let i = 0; i < 3; i++) { const [x, z] = [(Math.random() * 2 - 1) * (DESK_X - 0.12), (Math.random() * 2 - 1) * (DESK_Z - 0.15)]; makeNestZone(x, z, 0.06, 'egg', 1.8); }
-    SFX.play('level');
-  } else {
-    const [x, z] = spot();
-    makeNestZone(x, z, 0.11, 'paw', pawTime);
-    if (double) { const [x2, z2] = spot(); makeNestZone(x2 + (Math.abs(x2 - x) < 0.25 ? 0.3 * Math.sign(-x || 1) : 0), z2, 0.11, 'paw', pawTime); }
-    SFX.play('mutation');
-  }
+  SFX.play(pick.id === 'ponte' ? 'level' : 'mutation');
 }
 function nestZoneFail(zn) {
   removeNestZone(zn);
   if (zn.type === 'egg') {
-    const m = spawnBug(false, 0.05, { type: pickBugType(), x: zn.x, z: zn.z });
+    for (let i = 0; i < 2; i++) spawnBug(false, 0.05, { type: pickBugType(), x: zn.x + (i - 0.5) * 0.05, z: zn.z });
     popup('🐣 Éclos !', zn.x, zn.z, 'dmg');
-    return m;
+    return;
   }
-  // Coup de patte non paré : un cœur en moins, et les toupies touchées sont renversées
-  nest.hearts--;
-  popup('💥 −1 ❤️', zn.x, zn.z, 'big');
+  // Coup de patte non paré : la toupie la plus proche est détruite
   addShock(zn.x, zn.z, 0.2, 0xff3020);
   addShake(0.02);
   buzz([80, 40, 80]);
   SFX.play('fall');
-  for (const t of aliveTops()) if (Math.hypot(t.x - zn.x, t.z - zn.z) < zn.r + 0.08) { t.falling = 0.001; t.fallDir = t.prec; }
+  const alive = aliveTops();
+  if (!alive.length) return;
+  const t = alive.sort((a, b) => Math.hypot(a.x - zn.x, a.z - zn.z) - Math.hypot(b.x - zn.x, b.z - zn.z))[0];
+  t.nestKilled = true;
+  t.falling = 0.001;
+  t.fallDir = t.prec;
+  addShock(t.x, t.z, 0.12, 0xff3020);
+  popup('💥 Toupie détruite !', t.x, t.z, 'big');
   updateNestHud();
-  if (nest.hearts <= 0) nestDefeat();
 }
 function tryBlockNest(e) {
   if (!nest || nest.over || paused || !nest.zones.length) return false;
@@ -3563,9 +3603,18 @@ function stepNest(dt) {
   const n = nest;
   if (!n || n.over) return;
   const b = n.boss;
+  nestProps.userData.glow.intensity = 1.8 + 0.6 * Math.sin(gameTime * 3);
+  b.group.position.y = Math.max(0, b.group.position.y - dt * 0.08);
+  updateNestHud();
+  if (!n.launched) return; // la Reine attend qu'on lance
+  // Plus aucune toupie : défaite (après la petite chute de la dernière)
+  if (!aliveTops().length) { n.deadT += dt; if (n.deadT > 0.8) nestDefeat(); return; }
   const frac = b.hp / b.maxHp;
-  const ph = frac < 0.25 ? 3 : frac < 0.55 ? 2 : 1;
-  if (ph > n.phase) { n.phase = ph; banner(ph === 2 ? '😡 La Reine s’énerve !' : '🔥 La Reine est furieuse !', 'Ses attaques sont plus rapides'); }
+  const ph = frac < 0.3 ? 3 : frac < 0.65 ? 2 : 1;
+  if (ph > n.phase) { n.phase = ph; banner(ph === 2 ? '😡 La Reine s’énerve !' : '🔥 La Reine est furieuse !', ph === 2 ? 'Nouvelle attaque : la double patte' : 'Nouvelle attaque : la furie'); }
+  // Les zones programmées par le pattern en cours apparaissent à leur tour
+  for (const q of n.queue) if (q.at <= gameTime) { makeNestZone(q.x, q.z, q.type === 'egg' ? 0.06 : 0.11, q.type, q.dur); q.done = true; }
+  n.queue = n.queue.filter(q => !q.done);
   for (const zn of n.zones) {
     if (zn.done) continue;
     zn.t -= dt;
@@ -3576,23 +3625,25 @@ function stepNest(dt) {
     if (!nest || n.over) return;
   }
   n.zones = n.zones.filter(zn => !zn.done);
-  b.group.position.y = Math.max(0, b.group.position.y - dt * 0.08);
-  n.attackT -= dt;
-  if (n.attackT <= 0 && !n.zones.length) { nestAttack(); n.attackT = [0, 3.4, 2.8, 2.3][n.phase]; }
+  // Une nouvelle attaque quand la précédente est finie (de plus en plus vite)
+  if (!n.zones.length && !n.queue.length) {
+    n.attackT -= dt;
+    if (n.attackT <= 0) { nestAttack(); n.attackT = NEST_PAUSE[n.phase]; }
+  }
   n.minionT -= dt;
   if (n.minionT <= 0) {
-    n.minionT = 7;
-    if (bugs.filter(o => !o.dying && !o.gone && !o.boss).length < 10) for (let i = 0; i < 2; i++) spawnBug();
+    n.minionT = 8;
+    if (bugs.filter(o => !o.dying && !o.gone && !o.boss).length < 8) for (let i = 0; i < 2; i++) spawnBug();
   }
-  nestProps.userData.glow.intensity = 1.8 + 0.6 * Math.sin(gameTime * 3);
-  updateNestHud();
 }
 function leaveNest() {
   if (!nest) return;
   for (const zn of nest.zones) if (!zn.done) removeNestZone(zn);
+  nest.queue = [];
   const sv = nest.saved;
   nest = null;
   document.getElementById('nestHud').classList.remove('on');
+  document.getElementById('quotaText').parentElement.style.display = '';
   for (const t of tops) disposeTop(t);
   tops.length = 0;
   clearBoard();
@@ -3607,7 +3658,7 @@ function nestDefeat() {
   paused = true;
   charging = false;
   playDialog([
-    { face: '😵', text: 'Aïe… la Reine m’a repoussé hors du nid.' },
+    { face: '😵', text: 'Aïe… la Reine a détruit toutes mes toupies. Je dois fuir le nid !' },
     { face: '💪', text: 'Je connais ses attaques maintenant. Je peux y retourner quand je veux depuis l’atelier : le chemin est trouvé, c’est gratuit !' },
   ], () => {
     leaveNest();
@@ -3620,6 +3671,7 @@ function nestDefeat() {
 function nestVictory() {
   nest.over = true;
   for (const zn of nest.zones) if (!zn.done) removeNestZone(zn);
+  nest.queue = [];
   SFX.play('evolve'); setTimeout(() => SFX.play('achieve'), 500);
   addShake(0.025);
   buzz([60, 40, 60, 40, 120]);
@@ -4416,7 +4468,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.17';
+const VERSION = '2026-10-04.18';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4460,7 +4512,7 @@ function pointerToDesk(e) {
 // Histoire : on relance dès que la toupie tombe. Carnage : il faut attendre la recharge.
 function isReady() {
   if (paused || introStep >= 0 || aliveTops().length) return false;
-  if (nest) return !nest.over;
+  if (nest) return !nest.over && !nest.launched;
   return isStory() ? state.run.launchesLeft > 0 && !state.run.cleared : cooldown <= 0;
 }
 function gaugeValue() { return 0.5 - 0.5 * Math.cos((chargeT / 1.2) * Math.PI * 2); }
@@ -4979,7 +5031,7 @@ function updateHud() {
   if (introStep >= 0) msg = '…';
   else if (paused) msg = run.over ? 'Défaite…' : run.choice ? 'Choisis un bonus' : 'Pause';
   else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
-  else if (nest) msg = nest.zones.length ? '⚠️ Touche vite les zones pour parer !' : alive.length ? '🌀 Vise la Reine… et surveille ses attaques' : 'Lance tes toupies sur la Reine du Nid !';
+  else if (nest) msg = nest.zones.length ? '⚠️ Touche vite les zones pour parer !' : nest.launched ? '🌀 Tes toupies tournent sans fin… surveille la Reine !' : 'Un seul lancer : envoie tes toupies sur la Reine !';
   else if (isStory()) {
     const missing = waveQuota() - run.waveKills;
     if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
@@ -5137,7 +5189,7 @@ function update(dt) {
     if (aliveNow === 0 && cooldown > 0) cooldown -= dt;
   }
   aliveBefore = aliveNow;
-  pickBtn.classList.toggle('show', aliveNow > 0 && playing);
+  pickBtn.classList.toggle('show', aliveNow > 0 && playing && !nest);
 
   // Histoire : fin de vague une fois les toupies tombées
   // (objectif atteint = vague repoussée ; plus de lancers sans l'objectif = envahi)
@@ -5270,7 +5322,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, get nest() { return nest; }, tryBlockNest, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, get nest() { return nest; }, tryBlockNest, setNestK: (k, p, pause) => { NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
