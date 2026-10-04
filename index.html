@@ -900,7 +900,6 @@ const UPGRADES = [
 
   // --- Lanceur ---
   { id: 'puissance', tab: 'lanceur', wave: 1, name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 60,
-    skins: [[0, 'Lanceur plastique'], [5, 'Lanceur métal'], [12, 'Lanceur fusée'], [22, 'Lanceur doré']],
     fmt: s => `${fmtInt(s.rpm)} tr/min` },
   { id: 'elan', tab: 'lanceur', wave: 2, name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 32, growth: 1.5, max: 45,
     skins: [[0, 'Sans traînée'], [5, 'Traînée blanche'], [12, 'Traînée bleue'], [20, 'Traînée de feu']],
@@ -1806,37 +1805,342 @@ function updateCookies() {
   cookies.forEach((c, i) => { c.visible = i < shown; });
 }
 
-// Lanceur posé devant le joueur (son apparence dépend de la Puissance)
+// Lanceur posé devant le joueur : il évolue avec les niveaux de l'onglet Lanceur (12 formes, du plastique au mythique)
 const launcher = new THREE.Group();
-const lBodyMat = new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5 });
-const lBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.035, 0.09), lBodyMat);
-lBody.position.y = 0.06;
-const lRing = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 8, 20), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-lRing.rotation.x = Math.PI / 2;
-lRing.position.set(0, 0.04, 0);
-const lFins = new THREE.Group();
-for (const s of [-1, 1]) {
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.04, 0.05), new THREE.MeshStandardMaterial({ color: 0xd93b3b }));
-  fin.position.set(s * 0.038, 0.06, 0.02);
-  fin.rotation.z = s * 0.4;
-  lFins.add(fin);
-}
-launcher.add(lBody, lRing, lFins);
 launcher.position.set(LAUNCH.x, 0, LAUNCH.y + 0.03);
 scene.add(launcher);
+const LZ = -0.03; // le plot de départ de la toupie, dans le repère du lanceur
+let lBody = new THREE.Group(), lRing = new THREE.Group(), LV = null;
+const LAUNCHER_EVOS = [
+  [0, 'Lanceur en plastique'], [4, 'Lanceur renforcé'], [10, 'Lanceur en métal'], [18, 'Lanceur à ressort'],
+  [28, 'Lanceur de course'], [40, 'Lanceur néon'], [54, 'Lanceur turbo'], [70, 'Lanceur fusée'],
+  [88, 'Lanceur doré'], [108, 'Lanceur à plasma'], [128, 'Lanceur légendaire'], [145, 'Lanceur mythique'],
+];
+// Couleurs de chaque forme : coque, accent, lumière
+const LAUNCHER_LOOKS = [
+  { body: 0xff8c2a, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0xffd36a },
+  { body: 0xf2701e, metal: 0.1, rough: 0.4, accent: 0x2b2f36, light: 0xffd36a },
+  { body: 0x9aa4ad, metal: 0.85, rough: 0.28, accent: 0xe84a3a, light: 0xff6a4a },
+  { body: 0x7d8a96, metal: 0.8, rough: 0.3, accent: 0x37c6ff, light: 0x37c6ff },
+  { body: 0xe8322a, metal: 0.35, rough: 0.22, accent: 0xffffff, light: 0xffffff },
+  { body: 0x1c222c, metal: 0.6, rough: 0.3, accent: 0x35e8ff, light: 0x35e8ff },
+  { body: 0x24304a, metal: 0.7, rough: 0.28, accent: 0x58a6ff, light: 0x58a6ff },
+  { body: 0xf2f2f2, metal: 0.3, rough: 0.25, accent: 0xe8322a, light: 0xff8a2a },
+  { body: 0xffc94a, metal: 1, rough: 0.18, accent: 0xfff2b0, light: 0xfff2b0 },
+  { body: 0x2a1a44, metal: 0.6, rough: 0.25, accent: 0xc05aff, light: 0xd07aff },
+  { body: 0x101018, metal: 0.9, rough: 0.15, accent: 0xff3a6a, light: 0xff3a6a },
+  { body: 0xf4f6ff, metal: 0.55, rough: 0.12, accent: 0x7af0ff, light: 0x7af0ff },
+];
+function launcherPower() {
+  return ['puissance', 'elan', 'precision', 'recharge'].reduce((a, id) => a + lv(id), 0) + 5 * lv('multi');
+}
+function launcherEvoIndex(P = launcherPower()) { let i = 0; LAUNCHER_EVOS.forEach(([n], k) => { if (P >= n) i = k; }); return i; }
+// Traits de lumière qui défilent (une texture partagée, qu'on fait glisser)
+const streakTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 8;
+  const g = c.getContext('2d');
+  for (const x0 of [0, 64]) {
+    const grad = g.createLinearGradient(x0, 0, x0 + 40, 0);
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.75, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(x0, 0, 40, 8);
+  }
+  g.fillStyle = 'rgba(255,255,255,0.18)';
+  g.fillRect(0, 0, 128, 8);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 1);
+  return t;
+})();
+// Le dessus du boîtier, vu d'en haut par la caméra : un motif différent pour chaque forme du lanceur
+// (map = les couleurs, glow = ce qui s'allume)
+const launcherFaceCache = new Map();
+function launcherFace(tier) {
+  if (launcherFaceCache.has(tier)) return launcherFaceCache.get(tier);
+  const look = LAUNCHER_LOOKS[tier];
+  const hex = c => '#' + new THREE.Color(c).getHexString();
+  const mk = () => { const c = document.createElement('canvas'); c.width = c.height = 256; return [c, c.getContext('2d')]; };
+  const [mc, m] = mk(), [gc, g] = mk();
+  const C = 128;
+  g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+  // Fond : dégradé de la couleur de la coque
+  const base = new THREE.Color(look.body), light = base.clone().lerp(new THREE.Color(0xffffff), 0.35), deep = base.clone().multiplyScalar(0.6);
+  const rg = m.createRadialGradient(C - 30, C - 30, 10, C, C, 130);
+  rg.addColorStop(0, hex(light)); rg.addColorStop(0.7, hex(base)); rg.addColorStop(1, hex(deep));
+  m.fillStyle = rg; m.fillRect(0, 0, 256, 256);
+  // Métal brossé : de fins cercles
+  if (look.metal > 0.5) { m.strokeStyle = 'rgba(255,255,255,0.07)'; m.lineWidth = 1; for (let r = 8; r < 128; r += 3) { m.beginPath(); m.arc(C, C, r, 0, Math.PI * 2); m.stroke(); } }
+  // Couronne extérieure crantée
+  m.lineWidth = 14; m.strokeStyle = hex(deep); m.beginPath(); m.arc(C, C, 112, 0, Math.PI * 2); m.stroke();
+  m.fillStyle = hex(look.accent);
+  for (let i = 0; i < 24; i++) { m.save(); m.translate(C, C); m.rotate((i / 24) * Math.PI * 2); m.fillRect(-3, -119, 6, 12); m.restore(); }
+  // Emblème central : une spirale de toupie
+  const spiral = (ctx, col, w) => {
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round';
+    for (let arm = 0; arm < 3; arm++) {
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) { const a = arm * (Math.PI * 2 / 3) + k * 0.09, r = 10 + k * 1.6; const x = C + Math.cos(a) * r, y = C + Math.sin(a) * r; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    }
+  };
+  m.fillStyle = hex(deep); m.beginPath(); m.arc(C, C, 82, 0, Math.PI * 2); m.fill();
+  m.fillStyle = hex(base); m.beginPath(); m.arc(C, C, 76, 0, Math.PI * 2); m.fill();
+  spiral(m, hex(look.accent), 9);
+  m.fillStyle = hex(look.accent); m.beginPath(); m.arc(C, C, 12, 0, Math.PI * 2); m.fill();
+  // Les premières formes : autocollants et vis de jouet
+  if (tier <= 1) {
+    m.fillStyle = '#ffffff';
+    for (const [x, y, r] of [[C + 58, C - 58, 9], [C - 62, C + 54, 7]]) {
+      m.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; m.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } m.closePath(); m.fill();
+    }
+  }
+  for (let i = 0; i < 4; i++) {          // 4 vis
+    const a = Math.PI / 4 + i * Math.PI / 2, x = C + Math.cos(a) * 96, y = C + Math.sin(a) * 96;
+    m.fillStyle = tier >= 2 ? '#d9dee3' : '#f2f2f2'; m.beginPath(); m.arc(x, y, 6, 0, Math.PI * 2); m.fill();
+    m.strokeStyle = '#555'; m.lineWidth = 2; m.beginPath(); m.moveTo(x - 4, y); m.lineTo(x + 4, y); m.stroke();
+  }
+  // À partir du lanceur néon : des circuits lumineux
+  if (tier >= 5) {
+    const lc = hex(look.light);
+    for (const ctx of [m, g]) {
+      ctx.strokeStyle = ctx === g ? '#ffffff' : lc; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + 0.2;
+        ctx.beginPath();
+        ctx.moveTo(C + Math.cos(a) * 84, C + Math.sin(a) * 84);
+        ctx.lineTo(C + Math.cos(a) * 100, C + Math.sin(a) * 100);
+        ctx.lineTo(C + Math.cos(a + 0.18) * 104, C + Math.sin(a + 0.18) * 104);
+        ctx.stroke();
+        ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(C + Math.cos(a + 0.18) * 104, C + Math.sin(a + 0.18) * 104, 4, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(C, C, 79, 0, Math.PI * 2); ctx.stroke();
+    }
+    spiral(g, '#ffffff', 7);
+  }
+  const map = new THREE.CanvasTexture(mc), glow = new THREE.CanvasTexture(gc);
+  map.colorSpace = glow.colorSpace = THREE.SRGBColorSpace;
+  const out = { map, glow };
+  launcherFaceCache.set(tier, out);
+  return out;
+}
+function buildLauncher(tier, nLeds) {
+  launcher.traverse(o => { if (o.isMesh) { o.geometry.dispose(); [].concat(o.material).forEach(mt => mt.dispose()); } });
+  launcher.clear();
+  const look = LAUNCHER_LOOKS[tier];
+  const M = (color, metal = 0.3, rough = 0.4, extra = {}) => new THREE.MeshStandardMaterial({ color, metalness: metal, roughness: rough, ...extra });
+  const bodyMat = M(look.body, look.metal, look.rough);
+  const dark = M(0x23262c, 0.6, 0.4);
+  const steel = M(0xc9d1d8, 0.9, 0.25);
+  const accent = M(look.accent, tier >= 2 ? 0.5 : 0.1, 0.35);
+  const lightCol = new THREE.Color(look.light);
+  const glow = (extra = {}) => new THREE.MeshBasicMaterial({ color: lightCol.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, ...extra });
+  const add = (parent, geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  const P = { lights: [], streaks: [], fans: [], flames: [], halos: [], wings: [] };
+  const HY = 0.05;            // hauteur du boîtier rond
+  const NZ0 = LZ + 0.026, NZ1 = 0.072; // le manche, du boîtier jusqu'à la poignée
+
+  // Le plot de départ, sur le plateau
+  const padMat = M(tier >= 4 ? 0xe9edf2 : 0x3a3f47, tier >= 4 ? 0.9 : 0.3, 0.3, { emissive: lightCol, emissiveIntensity: 0 });
+  const pad = add(launcher, new THREE.RingGeometry(0.03, 0.04, 48), padMat, 0, 0.0015, LZ);
+  pad.rotation.x = -Math.PI / 2; pad.castShadow = false;
+  P.pad = padMat;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const tick = add(launcher, new THREE.BoxGeometry(0.0045, 0.0012, 0.0016), tier >= 5 ? glow() : accent, Math.cos(a) * 0.044, 0.0016, LZ + Math.sin(a) * 0.044);
+    tick.rotation.y = -a; tick.castShadow = false;
+    if (tier >= 5) P.lights.push(tick.material);
+  }
+  // Le pied
+  add(launcher, new THREE.CylinderGeometry(0.017, 0.02, 0.006, 24), dark, 0, 0.003, 0.05);
+  add(launcher, new THREE.CylinderGeometry(0.006, 0.007, HY, 12), tier >= 2 ? steel : dark, 0, HY / 2, 0.05);
+
+  // Tout le haut recule à chaque lancer
+  lBody = new THREE.Group();
+  launcher.add(lBody);
+  // Le boîtier rond (son dessus est le motif dessiné)
+  const face = launcherFace(tier);
+  const topMat = M(0xffffff, look.metal * 0.6, look.rough, { map: face.map, emissive: tier >= 5 ? 0xffffff : 0x000000, emissiveMap: tier >= 5 ? face.glow : null, emissiveIntensity: tier >= 5 ? 0.9 : 0 });
+  if (tier >= 5) P.faceMat = topMat;
+  add(lBody, new THREE.CylinderGeometry(0.032, 0.034, 0.016, 48), [bodyMat, topMat, dark], 0, HY, LZ);
+  // Liseré autour du dessus
+  const rimRing = add(lBody, new THREE.TorusGeometry(0.0325, 0.0022, 8, 48), tier >= 5 ? glow() : accent, 0, HY + 0.008, LZ);
+  rimRing.rotation.x = Math.PI / 2;
+  if (tier >= 5) P.lights.push(rimRing.material);
+  // Le mandrin sous le boîtier, et la couronne crantée qui dépasse (elle tourne)
+  add(lBody, new THREE.CylinderGeometry(0.011, 0.014, 0.022, 20), tier >= 2 ? steel : dark, 0, HY - 0.019, LZ);
+  lRing = new THREE.Group();
+  lRing.position.set(0, HY - 0.007, LZ);
+  lBody.add(lRing);
+  const ringMat = tier >= 2 ? M(0xffc94a, 0.9, 0.25) : M(0x3a3f47, 0.3, 0.4);
+  const ring = add(lRing, new THREE.TorusGeometry(0.034, 0.0028, 8, 48), ringMat);
+  ring.rotation.x = Math.PI / 2;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const tooth = add(lRing, new THREE.BoxGeometry(0.006, 0.005, 0.005), ringMat, Math.cos(a) * 0.0375, 0, Math.sin(a) * 0.0375);
+    tooth.rotation.y = -a;
+  }
+  // Le manche : il porte les voyants et mène à la poignée
+  const neckLen = NZ1 - NZ0, NZ = (NZ0 + NZ1) / 2;
+  add(lBody, new THREE.BoxGeometry(0.022, 0.012, neckLen), bodyMat, 0, HY, NZ);
+  add(lBody, new THREE.BoxGeometry(0.016, 0.0016, neckLen * 0.92), dark, 0, HY + 0.0066, NZ);
+  for (const s of [-1, 1]) add(lBody, new THREE.BoxGeometry(0.0022, 0.0018, neckLen), accent, s * 0.0098, HY + 0.0063, NZ);
+  // Voyants de puissance : ils se remplissent quand on charge
+  P.leds = [];
+  for (let i = 0; i < nLeds; i++) {
+    const z = NZ0 + 0.006 + i * ((neckLen - 0.012) / Math.max(1, nLeds - 1));
+    const led = add(lBody, new THREE.SphereGeometry(0.0028, 12, 8), M(look.light, 0, 0.3, { emissive: lightCol, emissiveIntensity: 0.05 }), 0, HY + 0.0075, z);
+    led.scale.y = 0.55;
+    P.leds.push(led.material);
+  }
+  // La poignée à tirer : elle recule quand on charge
+  const handle = new THREE.Group();
+  handle.position.set(0, HY, NZ1);
+  lBody.add(handle);
+  add(handle, new THREE.CylinderGeometry(0.0016, 0.0016, 0.018, 6), dark, 0, 0, 0.009).rotation.x = Math.PI / 2;
+  add(handle, new THREE.BoxGeometry(0.05, 0.007, 0.008), tier >= 2 ? steel : accent, 0, 0, 0.02);
+  for (const s of [-1, 1]) add(handle, new THREE.CylinderGeometry(0.0062, 0.0062, 0.018, 12), dark, s * 0.02, 0, 0.02).rotation.z = Math.PI / 2;
+  P.handle = handle;
+  // Vis sur le manche (dès le lanceur renforcé)
+  if (tier >= 1) for (const s of [-1, 1]) for (const z of [NZ0 + 0.006, NZ1 - 0.006]) add(lBody, new THREE.CylinderGeometry(0.0017, 0.0017, 0.0012, 8), steel, s * 0.0075, HY + 0.0066, z);
+  // Ressorts le long du manche (lanceur à ressort)
+  if (tier >= 3) for (const s of [-1, 1]) {
+    const pts = [];
+    for (let k = 0; k <= 70; k++) { const a = k * 0.6; pts.push(new THREE.Vector3(s * 0.0145 + Math.cos(a) * 0.0034, HY + Math.sin(a) * 0.0034, NZ0 + 0.004 + k * (neckLen - 0.008) / 70)); }
+    add(lBody, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 150, 0.0009, 5), steel);
+  }
+  // Ailerons (lanceur de course)
+  if (tier >= 4) for (const s of [-1, 1]) {
+    const fin = add(lBody, new THREE.BoxGeometry(0.026, 0.003, 0.03), accent, s * 0.024, HY + 0.002, NZ1 - 0.012);
+    fin.rotation.set(0, s * 0.45, s * 0.25);
+    if (tier >= 5) {
+      const edge = add(lBody, new THREE.BoxGeometry(0.027, 0.0024, 0.003), glow({ map: streakTex }), s * 0.026, HY + 0.0045, NZ1 - 0.027);
+      edge.rotation.set(0, s * 0.45, s * 0.25); edge.castShadow = false;
+      P.streaks.push(edge.material);
+    }
+  }
+  // Traits de lumière le long du manche (lanceur néon)
+  if (tier >= 5) for (const s of [-1, 1]) {
+    const strip = add(lBody, new THREE.BoxGeometry(0.002, 0.0025, neckLen), glow({ map: streakTex }), s * 0.0118, HY + 0.003, NZ);
+    strip.castShadow = false;
+    P.streaks.push(strip.material);
+  }
+  // Turbines de chaque côté du boîtier (lanceur turbo)
+  if (tier >= 6) for (const s of [-1, 1]) {
+    const tg = new THREE.Group();
+    tg.position.set(s * 0.044, HY - 0.002, LZ + 0.006);
+    lBody.add(tg);
+    add(tg, new THREE.CylinderGeometry(0.0115, 0.0105, 0.036, 22, 1, true), M(look.body, 0.8, 0.25, { side: THREE.DoubleSide })).rotation.x = Math.PI / 2;
+    const lip = add(tg, new THREE.TorusGeometry(0.0115, 0.0018, 8, 24), glow(), 0, 0, -0.018);
+    P.lights.push(lip.material);
+    const fan = new THREE.Group();
+    fan.position.z = -0.013;
+    tg.add(fan);
+    add(fan, new THREE.CylinderGeometry(0.0032, 0.0032, 0.004, 10), steel).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 7; k++) {
+      const bl = add(fan, new THREE.BoxGeometry(0.002, 0.009, 0.0012), steel);
+      bl.position.set(Math.cos((k / 7) * Math.PI * 2) * 0.0055, Math.sin((k / 7) * Math.PI * 2) * 0.0055, 0);
+      bl.rotation.set(0.5, 0, (k / 7) * Math.PI * 2 + Math.PI / 2);
+    }
+    P.fans.push(fan);
+    add(tg, new THREE.BoxGeometry(0.008, 0.003, 0.014), dark, -s * 0.011, 0, 0);
+  }
+  // Propulseurs au bout du manche (lanceur fusée)
+  if (tier >= 7) for (const s of [-1, 1]) {
+    const nz = add(lBody, new THREE.CylinderGeometry(0.0068, 0.0048, 0.014, 16, 1, true), M(0x3a3f47, 0.8, 0.3, { side: THREE.DoubleSide }), s * 0.017, HY - 0.001, NZ1 - 0.006);
+    nz.rotation.x = Math.PI / 2;
+    const flame = new THREE.Group();
+    flame.position.set(s * 0.017, HY - 0.001, NZ1 + 0.001);
+    lBody.add(flame);
+    const outer = add(flame, new THREE.ConeGeometry(0.006, 0.032, 12), glow({ color: new THREE.Color(0xff7a1a), opacity: 0.85 }));
+    outer.rotation.x = Math.PI / 2; outer.position.z = 0.016; outer.castShadow = false;
+    const inner = add(flame, new THREE.ConeGeometry(0.0032, 0.02, 10), glow({ color: new THREE.Color(0xfff2a0) }));
+    inner.rotation.x = Math.PI / 2; inner.position.z = 0.01; inner.castShadow = false;
+    P.flames.push(flame);
+  }
+  // Pierres précieuses serties tout autour du boîtier (lanceur doré)
+  if (tier >= 8) for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6, c = [0xff2050, 0x30e080, 0x3a7dff][i % 3];
+    add(lBody, new THREE.OctahedronGeometry(0.0042), M(c, 0.3, 0.1, { emissive: c, emissiveIntensity: 0.4 }), Math.cos(a) * 0.0325, HY + 0.0095, LZ + Math.sin(a) * 0.0325);
+  }
+  // Cœur d'énergie sous une bulle de verre, au centre du boîtier (lanceur à plasma)
+  if (tier >= 9) {
+    const core = add(lBody, new THREE.SphereGeometry(0.0085, 18, 12), glow(), 0, HY + 0.01, LZ);
+    core.castShadow = false;
+    add(lBody, new THREE.SphereGeometry(0.0145, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xcfe9ff, transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.2, depthWrite: false }), 0, HY + 0.008, LZ);
+    const orbit = add(lBody, new THREE.TorusGeometry(0.019, 0.0009, 6, 40), glow(), 0, HY + 0.012, LZ);
+    orbit.castShadow = false;
+    P.core = core; P.orbit = orbit;
+    P.lights.push(core.material, orbit.material);
+  }
+  // Halos qui flottent au-dessus du boîtier (lanceur légendaire)
+  if (tier >= 10) for (const [r, y] of [[0.042, HY + 0.02], [0.034, HY + 0.03]]) {
+    const h = add(launcher, new THREE.TorusGeometry(r, 0.0016, 8, 56), glow(), 0, y, LZ);
+    h.rotation.x = Math.PI / 2; h.castShadow = false;
+    P.halos.push(h);
+    P.lights.push(h.material);
+  }
+  // Ailes de lames de chaque côté (lanceur mythique)
+  if (tier >= 11) for (const s of [-1, 1]) {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.lineTo(0.055, 0.016); shape.lineTo(0.05, -0.004); shape.lineTo(0.032, -0.008); shape.lineTo(0, -0.01);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.0025, bevelEnabled: false });
+    const wg = new THREE.Group();
+    wg.position.set(s * 0.03, HY + 0.002, LZ + 0.02);
+    wg.scale.x = s;
+    lBody.add(wg);
+    const blade = add(wg, geo, M(0xf4f6ff, 0.7, 0.15));
+    blade.rotation.x = -Math.PI / 2;
+    const edge = add(wg, new THREE.BoxGeometry(0.055, 0.003, 0.0015), glow({ map: streakTex }), 0.0275, 0.003, -0.008);
+    edge.rotation.y = -0.28; edge.castShadow = false;
+    P.streaks.push(edge.material);
+    P.wings.push({ wg, s });
+  }
+  P.tier = tier;
+  P.lightCol = lightCol;
+  LV = P;
+}
+let launcherBuilt = -1, launcherLeds = -1;
 function updateLauncherSkin() {
-  const t = skinTier('puissance');
-  const looks = [
-    { color: 0xff9f43, metal: 0, rough: 0.5 },
-    { color: 0x9aa4ad, metal: 0.85, rough: 0.3 },
-    { color: 0xf2f2f2, metal: 0.4, rough: 0.35 },
-    { color: 0xffc94a, metal: 1, rough: 0.2 },
-  ][t];
-  lBodyMat.color.setHex(looks.color);
-  lBodyMat.metalness = looks.metal;
-  lBodyMat.roughness = looks.rough;
-  lFins.visible = t >= 2;
+  const pw = launcherPower(), t = launcherEvoIndex(pw), leds = 3 + Math.min(4, Math.floor(pw / 25));
+  if (t !== launcherBuilt || leds !== launcherLeds) {
+    launcherBuilt = t; launcherLeds = leds;
+    buildLauncher(t, leds);
+  }
   updateTrampolines();
+}
+// Toutes les petites animations du lanceur (et ses réactions quand on charge ou qu'on lance)
+function animateLauncher(dt) {
+  if (!LV) return;
+  const t = performance.now() / 1000;
+  const g = charging ? gaugeValue() : 0, kick = launcherKick;
+  lBody.position.z = -kick * 0.02;
+  lRing.rotation.y += (charging ? 25 : 2) * dt;
+  LV.handle.position.z = 0.072 + g * 0.03;
+  // Couleur de la lumière (elle change en continu sur les deux dernières formes)
+  if (LV.tier >= 10) LV.lightCol.setHSL((t * 0.08) % 1, 0.9, 0.62);
+  for (const m of LV.lights) m.color.copy(LV.lightCol);
+  for (const m of LV.streaks) m.color.copy(LV.lightCol);
+  streakTex.offset.x -= dt * (0.5 + 3.5 * g + 6 * kick);
+  // Voyants : ils se remplissent avec la charge ; au repos, une petite lumière qui court
+  const n = LV.leds.length, lit = charging ? Math.ceil(g * n) : -1, run = Math.floor(t * 4) % (n + 3);
+  LV.leds.forEach((m, i) => {
+    m.emissive.copy(LV.lightCol);
+    m.emissiveIntensity = charging ? (n - 1 - i < lit ? 1.6 : 0.05) : (LV.tier >= 2 && n - 1 - i === run ? 0.9 : 0.12);
+  });
+  LV.pad.emissiveIntensity = (LV.tier >= 5 ? 0.45 + 0.25 * Math.sin(t * 3) : 0) + g * 1.2 + kick * 2;
+  if (LV.faceMat) { LV.faceMat.emissive.copy(LV.lightCol); LV.faceMat.emissiveIntensity = 0.7 + 0.3 * Math.sin(t * 3) + g * 1.5 + kick * 2; }
+  for (const f of LV.fans) f.rotation.z += dt * (8 + 70 * g + 40 * kick);
+  for (const f of LV.flames) { const k = 0.35 + 1.2 * g + 2.2 * kick + 0.15 * Math.sin(t * 40 + f.position.x * 900); f.scale.set(1, 1, k); f.visible = k > 0.3; }
+  if (LV.core) { LV.core.scale.setScalar(1 + 0.18 * Math.sin(t * 5) + g * 0.5); LV.orbit.rotation.set(t * 2.2, t * 1.4, 0); }
+  LV.halos.forEach((h, i) => { h.rotation.z = t * (i ? -1.6 : 1.1); h.position.y = (i ? 0.02 : 0.012) + 0.003 * Math.sin(t * 2 + i); });
+  for (const w of LV.wings) w.wg.rotation.y = 0.12 * Math.sin(t * 2.5) - g * 0.3;
+}
+// Un éclair au moment du lancer (à partir du lanceur néon)
+function launcherFlash() {
+  if (LV && LV.tier >= 5) addShock(LAUNCH.x, LAUNCH.y, 0.05 + 0.006 * LV.tier, LV.lightCol.getHex());
 }
 
 // Bords trampolines : une toile élastique tendue sur des ressorts, à la place des rebords en bois
@@ -2473,6 +2777,7 @@ function launchTops(aim, power, perfect) {
   if (isStory() && !nest) state.run.launchesLeft--;
   if (nest) { nest.launched = true; nest.topsTotal = tops.length; }
   launcherKick = 1;
+  launcherFlash();
 }
 function disposeTop(top) {
   for (const o of [top.tilt, top.trail, top.smell]) {
@@ -5482,7 +5787,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.27';
+const VERSION = '2026-10-05.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -5816,7 +6121,7 @@ function buy(u) {
   const c = costOf(u);
   if (state.run.cash < c || lv(u.id) >= u.max || upgradeLock(u)) return;
   const before = u.skins ? skinTier(u.id) : 0;
-  const evoBefore = evolutionIndex();
+  const evoBefore = evolutionIndex(), lEvoBefore = launcherEvoIndex();
   state.run.cash -= c;
   state.run.levels[u.id] = lv(u.id) + 1;
   refreshStats();
@@ -5829,6 +6134,7 @@ function buy(u) {
   previewDirty = true;
   SFX.play('buy');
   if (evolutionIndex() > evoBefore) { banner('🌀 Ta toupie évolue !', EVOLUTIONS[evolutionIndex()][1]); SFX.play('evolve'); }
+  else if (launcherEvoIndex() > lEvoBefore) { banner('🚀 Ton lanceur évolue !', LAUNCHER_EVOS[launcherEvoIndex()][1]); SFX.play('evolve'); }
   else if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
 }
 
@@ -5873,6 +6179,18 @@ function renderShop() {
     card.querySelector('.desc').textContent = (next
       ? `Chaque niveau acheté pour la toupie la fait évoluer. Prochaine transformation : « ${next[1]} » dans ${next[0] - P} niveau${next[0] - P > 1 ? 'x' : ''}.`
       : 'Ta toupie a atteint sa forme ultime !');
+    shopList.appendChild(card);
+  }
+  if (currentTab === 'lanceur') {
+    const P = launcherPower(), i = launcherEvoIndex(P), next = LAUNCHER_EVOS[i + 1];
+    const card = document.createElement('div');
+    card.className = 'card evoCard';
+    card.innerHTML = '<div><span class="name"></span><span class="lvl"></span></div><div class="desc"></div>';
+    card.querySelector('.name').textContent = '🚀 ' + LAUNCHER_EVOS[i][1];
+    card.querySelector('.lvl').textContent = `évolution ${P}`;
+    card.querySelector('.desc').textContent = (next
+      ? `Chaque niveau acheté dans cet onglet fait évoluer le lanceur (le Multi-lancer compte pour 5). Prochaine forme : « ${next[1]} » dans ${next[0] - P} niveau${next[0] - P > 1 ? 'x' : ''}.`
+      : 'Ton lanceur a atteint sa forme ultime !');
     shopList.appendChild(card);
   }
   if (currentTab === 'bureau' && isStory() && stageSeen() >= 1) {
@@ -6260,8 +6578,7 @@ function update(dt) {
   if (playing) { stepFlames(dt); stepVortex(dt); }
   stepBolts(dt);
   launcherKick = Math.max(0, launcherKick - dt * 4);
-  lBody.position.z = -launcherKick * 0.02;
-  lRing.rotation.z += (charging ? 25 : 2) * dt;
+  animateLauncher(dt);
 
   // Ligne de visée
   aimLine.visible = isReady();
@@ -6404,7 +6721,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, setTired: v => { TOP_TIRED = v; }, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, buildLauncher, launcher, get charging() { return charging; }, setCharging: v => { charging = v; chargeT = v ? 0.5 : 0; }, setTired: v => { TOP_TIRED = v; }, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
