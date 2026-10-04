@@ -905,10 +905,12 @@ function infestLevel() {
 }
 function stageIndex(l = infestLevel()) { return BUG_TYPES[l].stage; }
 // Vie d'un insecte : celle de sa fiche, multipliée pour les mutants (pas pour les petits, qui meurent toujours en un coup)
+const LATE = { from: 40, quota: 1.015, hp: 1.015 };
 function bugHp(t) {
   if (FODDER_TYPES.includes(t) || t.hp < 1) return t.hp;
-  // Après la vague 35, les insectes durcissent doucement (+5 % de vie par vague) : les très longues parties finissent par s'arrêter
-  const late = Math.pow(1.05, Math.max(0, (state.run?.wave || 1) - 35));
+  // Vagues 35 à 40 : +5 % de vie par vague ; ensuite seulement +1,5 % (voir LATE)
+  const wv = state.run?.wave || 1;
+  const late = Math.pow(1.05, Math.max(0, Math.min(wv, LATE.from) - 35)) * Math.pow(LATE.hp, Math.max(0, wv - LATE.from));
   return t.hp * (STAGES[t.stage || 0].hp || 1) * late;
 }
 // Après une mutation, les tout petits (fourmis, bébés araignées) ne comptent pas pour l'objectif de la vague
@@ -2530,8 +2532,15 @@ function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer') + (stageSee
 // (+20 % au plus à partir de la vague 12, quand le multi-lancer devient abordable)
 // La part exponentielle finit par dépasser ce qu'un bureau plein peut fournir : la défaite arrive toujours.
 // Vagues 8 à 18 un peu adoucies (jusqu'à −15 %) ; après la vague 28, la croissance ralentit un peu (×1,06 par vague au lieu de ×1,07)
+// Après la vague 40 (les araignées), la difficulté ne grimpe plus que doucement : une toupie bien améliorée
+// peut tenir le dernier stade et économiser pour Détruire le nid (avant, le mur montait de ~11 % par vague)
 function waveQuota() {
-  const w = state.run.wave - 1;
+  const wave = state.run.wave;
+  if (wave > LATE.from) return Math.ceil(quotaAt(LATE.from) * Math.pow(LATE.quota, wave - LATE.from));
+  return quotaAt(wave);
+}
+function quotaAt(wave) {
+  const w = wave - 1;
   const soft = 1 - 0.15 * Math.min(1, Math.max(0, (w - 6) / 5)) * Math.min(1, Math.max(0, (20 - w) / 6));
   const growth = Math.pow(1.07, Math.min(w, 28)) * Math.pow(1.06, Math.max(0, w - 28));
   return Math.ceil((2.5 + 0.3 * w + 0.035 * w * w) * growth * (1 + Math.min(0.2, 0.025 * Math.max(0, w - 10))) * soft);
@@ -4470,7 +4479,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.19';
+const VERSION = '2026-10-04.20';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -5326,14 +5335,16 @@ if (TEST_MODE === 'nid') {
   state.run = run;
   state.introSeen = true;
   state.tutos = new Proxy({}, { get: () => true });
-  state.meta.items = { loupe: 2, gants: 1, trophee: 2 };
-  Object.assign(run.levels, { endurance: 40, diametre: 25, poids: 40, pointe: 30, lames: 45, inertie: 30, equilibre: 30, agressivite: 15,
-    critique: 40, feu: 15, souffle: 8, eclair: 8, tornade: 8, puissance: 45, elan: 30, precision: 15, multi: 4,
-    appat: 25, nid: 30, prime: 40, chance: 5, combo: 20, trampoline: 8 });
+  // Niveaux relevés sur une partie simulée (joueur « humain ») arrivée vers la vague 55 : de quoi tenir le dernier stade
+  state.meta.items = { tirelire: 5, depart: 3, catalogue: 1, doudou: 2, carte: 1, secours: 1, montre: 1, loupe: 2, gants: 1 };
+  Object.assign(run.levels, { endurance: 46, puissance: 47, diametre: 35, lames: 45, elan: 45, poids: 44, appat: 45, pointe: 40, nid: 32,
+    prime: 42, inertie: 41, precision: 20, rebond: 12, multi: 4, equilibre: 40, combo: 30, critique: 38, agressivite: 25, chance: 10,
+    feu: 35, souffle: 18, trampoline: 16, eclair: 18, tornade: 18 });
+  run.perks = { jumelle: 3, lancer: 3, plomb: 4, ressort: 4, roulement: 4, aiguise: 5, or: 5, onde: 3, epines: 3, braise: 3, odeur: 3, insecticide: 3, glu: 1 };
   const spider = BUG_TYPES.findIndex(t => t.stage === 2);
   run.infest = INFEST_THRESHOLDS[spider + 2] + 100;
   run.stageSeen = 2;
-  run.wave = 44;
+  run.wave = 45;
   run.cash = 1.2e9;
   run.toyboxApplied = true;
   refreshStats();
@@ -5345,7 +5356,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, get nest() { return nest; }, tryBlockNest, setNestK: (k, p, pause) => { NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, tryBlockNest, setNestK: (k, p, pause) => { NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
