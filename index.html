@@ -489,7 +489,9 @@ const OBS_BASE = [
   { x: -DESK_X + 0.04, z: -DESK_Z + 0.04, r: 0.04, h: 0.11, kind: 'pot' },
 ];
 const OBS_CARNAGE = [...OBS_BASE, { x: PLATE.x, z: PLATE.z, r: PLATE.r, h: 0.012, kind: 'plate' }];
-const SAVE_KEY = 'toupie-cafards-save-v1';
+// Lien de test (?test=nid) : une sauvegarde à part, pour ne jamais toucher la vraie progression
+const TEST_MODE = new URLSearchParams(location.search).get('test') || '';
+const SAVE_KEY = TEST_MODE ? 'toupie-cafards-test-' + TEST_MODE : 'toupie-cafards-save-v1';
 const BUG_VISUAL = 1.35;       // les insectes sont dessinés un peu plus gros que leur zone de contact
 const COMBO_CAP = 4;           // le bonus de combo ne dépasse jamais ×4
 const BUG_GRIP = 5;            // adhérence des insectes : fait rebondir la toupie
@@ -4301,7 +4303,7 @@ async function lbAuth() {
 // Envoie la meilleure vague (seulement si elle a progressé, ou si le pseudo a changé)
 let lbSending = false;
 async function lbSubmit(force = false) {
-  if (!lbReady() || lbSending) return;
+  if (!lbReady() || lbSending || TEST_MODE) return; // une session de test ne compte pas au classement
   const pseudo = (state.pseudo || '').trim();
   const best = state.best.histoire || 1;
   if (!pseudo || best < 2) return;
@@ -4468,7 +4470,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.18';
+const VERSION = '2026-10-04.19';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -5317,6 +5319,27 @@ rebuildTraps();
 rebuildToyDecor();
 updateCookies();
 updateHud();
+// Session de test « fin de partie » : vague 44, araignées, toupie très améliorée et 1,2 milliard pour Détruire le nid
+if (TEST_MODE === 'nid') {
+  const run = state.savedRuns.histoire = newRun('histoire');
+  state.mode = 'histoire';
+  state.run = run;
+  state.introSeen = true;
+  state.tutos = new Proxy({}, { get: () => true });
+  state.meta.items = { loupe: 2, gants: 1, trophee: 2 };
+  Object.assign(run.levels, { endurance: 40, diametre: 25, poids: 40, pointe: 30, lames: 45, inertie: 30, equilibre: 30, agressivite: 15,
+    critique: 40, feu: 15, souffle: 8, eclair: 8, tornade: 8, puissance: 45, elan: 30, precision: 15, multi: 4,
+    appat: 25, nid: 30, prime: 40, chance: 5, combo: 20, trampoline: 8 });
+  const spider = BUG_TYPES.findIndex(t => t.stage === 2);
+  run.infest = INFEST_THRESHOLDS[spider + 2] + 100;
+  run.stageSeen = 2;
+  run.wave = 44;
+  run.cash = 1.2e9;
+  run.toyboxApplied = true;
+  refreshStats();
+  run.launchesLeft = waveLaunches();
+  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, 1,2 milliard en poche. Ta vraie sauvegarde n’est pas touchée.';
+}
 openMenu();
 requestAnimationFrame(frame);
 
