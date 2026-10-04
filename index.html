@@ -227,6 +227,9 @@
   #toybox h1 { font-size: clamp(24px, 6vw, 36px); }
   #toybox .balance { font-size: 22px; font-weight: 800; color: #7fd1ff; margin: 0 0 12px; }
   #toyList { text-align: left; margin-bottom: 14px; }
+  .buyModeRow { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+  .buyModeRow button { border: 0; border-radius: 8px; padding: 5px 12px; font-weight: 800; background: var(--panel-2); color: var(--text); cursor: pointer; }
+  .buyModeRow button.on { background: var(--accent); color: #1a1410; }
   .evoCard { background: linear-gradient(135deg, #3a2a52, #24334a) !important; border: 1px solid rgba(255,255,255,.12); }
   .evoCard .desc { grid-column: 1 / -1; }
   #toyList .card { background: #2c2118; border: 1px solid rgba(255,255,255,.08); }
@@ -3874,7 +3877,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.10';
+const VERSION = '2026-10-04.11';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -4203,11 +4206,37 @@ function buy(u) {
   else if (u.skins && skinTier(u.id) > before) banner('🎨 Nouveau skin !', u.skins[skinTier(u.id)][1]);
 }
 
+// Combien de niveaux (et pour quel prix) on peut acheter d'un coup selon le mode choisi
+let buyMode = 1, lotRefresh = 0;
+function lotOf(u) {
+  let n = 0, cost = 0;
+  const L0 = lv(u.id);
+  while (n < buyMode && L0 + n < u.max) {
+    state.run.levels[u.id] = L0 + n;            // prix du niveau suivant (on remet le niveau juste après)
+    const c = costOf(u);
+    if (cost + c > state.run.cash) break;
+    cost += c; n++;
+  }
+  state.run.levels[u.id] = L0;
+  if (!L0) delete state.run.levels[u.id];
+  return { n, cost };
+}
 function renderShop() {
   shopDirty = false;
   for (const b of tabsEl.children) b.classList.toggle('active', b.dataset.tab === currentTab);
   shopList.replaceChildren();
   if (currentTab === 'stats') return renderStats();
+  const modeRow = document.createElement('div');
+  modeRow.className = 'buyModeRow';
+  modeRow.innerHTML = '<span>Acheter :</span>';
+  for (const [m, label] of [[1, '×1'], [5, '×5'], [999, 'Max']]) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.classList.toggle('on', buyMode === m);
+    b.onclick = () => { buyMode = m; shopDirty = true; };
+    modeRow.appendChild(b);
+  }
+  shopList.appendChild(modeRow);
   if (currentTab === 'toupie') {
     const P = topPower(), i = evolutionIndex(P), next = EVOLUTIONS[i + 1];
     const card = document.createElement('div');
@@ -4256,10 +4285,12 @@ function renderShop() {
         const nxt = u.skins[t + 1];
         skin.textContent = `🎨 ${u.skins[t][1]}` + (nxt ? ` · prochain : ${nxt[1]} (niv. ${nxt[0]})` : ' · skin max');
       }
-      btn.textContent = maxed ? 'MAX' : fmtMoney(costOf(u));
+      // En mode ×5 / Max : le prix affiché est celui de tous les niveaux qu'on peut s'offrir d'un coup
+      const lot = lotOf(u);
+      btn.textContent = maxed ? 'MAX' : lot.n > 1 ? `${fmtMoney(lot.cost)} ×${lot.n}` : fmtMoney(costOf(u));
       btn.dataset.cost = maxed ? '' : costOf(u);
       btn.disabled = maxed || state.run.cash < costOf(u);
-      btn.onclick = () => buy(u);
+      btn.onclick = () => { const n = lotOf(u).n || 1; for (let i = 0; i < n; i++) buy(u); };
     }
     card.append(name, btn, desc, val);
     if (skin.textContent) card.append(skin);
@@ -4373,6 +4404,7 @@ function updateHud() {
     if (btn.dataset.cost === '') continue;
     btn.disabled = state.run.cash < Number(btn.dataset.cost);
   }
+  if (buyMode > 1 && shopEl.classList.contains('open')) { lotRefresh = (lotRefresh || 0) + 1; if (lotRefresh % 4 === 0) shopDirty = true; }
   for (const u of UPGRADES) {
     if (!upgradeLock(u) && lv(u.id) < u.max && state.run.cash >= costOf(u)) { canBuy = true; break; }
   }
