@@ -561,8 +561,8 @@ BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.fro
 FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
 // Calés pour qu'une nouvelle espèce arrive à intervalles réguliers (toutes les 3-4 vagues, puis 2 après la mutation)
-const INFEST_THRESHOLDS = [0, 45, 380, 750, 1500, 3600, 6400, 9500, 14000, 20000, 28000, 38000, 52000, 70000, 95000, 125000, 165000, 215000];
-const INFEST_MAX = 280000; // la barre du tout dernier insecte
+const INFEST_THRESHOLDS = [0, 45, 380, 750, 1500, 3600, 6400, 9800, 13800, 19000, 27000, 35000, 45000, 58000, 72000, 90000, 110000, 135000];
+const INFEST_MAX = 170000; // la barre du tout dernier insecte
 
 // =====================================================================
 //  AMÉLIORATIONS PERMANENTES (atelier) — avec leurs skins
@@ -702,7 +702,7 @@ const TOYBOX = [
     desc: () => 'Ajoute un bouton ⏩ pour jouer en vitesse ×2 (les toupies, les cafards et les vagues vont deux fois plus vite).' },
   // Pour après la mutation des cafards
   { id: 'loupe', icon: '🔬', name: 'Loupe de naturaliste', max: 3, cost: n => 40 + 20 * n, mutant: true,
-    desc: n => `🧬 On repère les points faibles des insectes : +${35 * n} % de dégâts.` },
+    desc: n => `🧬 On repère les points faibles des insectes : +${15 * n} % de dégâts.` },
   { id: 'chimiste', icon: '🧪', name: 'Boîte du petit chimiste', max: 1, cost: () => 60, mutant: true,
     desc: () => '🧬 Les flammes de la Traînée de feu brûlent deux fois plus fort.' },
   { id: 'gants', icon: '🧤', name: 'Gants de jardinier', max: 2, cost: n => 50 + 30 * n, mutant: true,
@@ -762,7 +762,7 @@ function rawStats(L, P) {
     hungerMult: Math.pow(1.3, P('spray')),
     // Contre les insectes des stades suivants
     // Pouvoirs des stades suivants (utiles contre tous les insectes)
-    dmgMult: (1 + 0.35 * metaLevel('loupe')) * (1 + 0.3 * metaLevel('trophee')),
+    dmgMult: (1 + 0.15 * metaLevel('loupe')) * (1 + 0.3 * metaLevel('trophee')),
     goldChance: 0.01 + 0.004 * L('chance'),   // 1 % au départ, 5 % au niveau max
     fire: L('feu') ? (0.25 + 0.08 * L('feu')) * (metaLevel('chimiste') ? 2 : 1) : 0,   // dégâts/s, en part d'un coup moyen
     fireLife: 1 + 0.08 * L('feu'),
@@ -3277,6 +3277,9 @@ function stepTop(top, dt, now) {
 
   // Perte de rotation
   top.spin *= Math.exp(-S.decay * dt);
+  // Au bout de 40 s, la toupie se fatigue de plus en plus vite : un lancer ne dure jamais des minutes
+  top.age = (top.age || 0) + dt;
+  if (top.age > 40) top.spin -= top.spin * 0.02 * (top.age - 40) * dt;
   if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
     top.falling = 0.001;
     SFX.play('fall');
@@ -4076,7 +4079,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.15';
+const VERSION = '2026-10-04.16';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
