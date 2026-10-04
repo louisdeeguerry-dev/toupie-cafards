@@ -979,7 +979,8 @@ function rawStats(L, P) {
     perfect: 0.06 + 0.02 * L('precision'),
     cooldown: 2.5 / (1 + 0.2 * L('recharge')), // seulement en mode Carnage
     tops: 1 + L('multi'),
-    spawnRate: 0.9 * (1 + 0.15 * L('appat')),
+    // Appât : +15 % par niveau jusqu'au niveau 20, puis ×1,05 par niveau (en fin de partie, chaque niveau compte vraiment)
+    spawnRate: 0.9 * (1 + 0.15 * Math.min(20, L('appat'))) * Math.pow(1.05, Math.max(0, L('appat') - 20)),
     maxBugs: 12 + 2 * L('nid'),
     bounty: (1 + 0.1 * L('prime')) * (1 + 0.25 * P('or')) * (1 + 0.3 * metaLevel('trophee')),
     comboWindow: 1.2 + 0.2 * L('combo'),
@@ -1121,6 +1122,7 @@ function infestLevel() {
 function stageIndex(l = infestLevel()) { return BUG_TYPES[l].stage; }
 // Vie d'un insecte : celle de sa fiche, multipliée pour les mutants (pas pour les petits, qui meurent toujours en un coup)
 const LATE = { from: 40, quota: 1.015, hp: 1.015 };
+let TOP_TIRED = 25; // fin de partie (vague 36+) : secondes avant que la toupie commence à fatiguer
 function bugHp(t) {
   if (FODDER_TYPES.includes(t) || t.hp < 1) return t.hp;
   // Vagues 35 à 40 : +5 % de vie par vague ; ensuite seulement +1,5 % (voir LATE)
@@ -3830,9 +3832,11 @@ function stepTop(top, dt, now) {
 
   // Perte de rotation
   top.spin *= Math.exp(-S.decay * dt);
-  // Au bout de 40 s, la toupie se fatigue de plus en plus vite : un lancer ne dure jamais des minutes
+  // La toupie finit par se fatiguer de plus en plus vite : un lancer ne traîne jamais des minutes
+  // (au bout de 40 s ; 25 s en fin de partie, où les toupies très améliorées tournaient trop longtemps)
   top.age = (top.age || 0) + dt;
-  if (top.age > 40) top.spin -= top.spin * 0.02 * (top.age - 40) * dt;
+  const tired = state.run.wave > 35 ? TOP_TIRED : 40;
+  if (top.age > tired) top.spin -= top.spin * (tired < 40 ? 0.03 : 0.02) * (top.age - tired) * dt;
   // Dans le nid, les toupies ne s'arrêtent jamais (seule la Reine peut les détruire)
   if (nest && !top.nestKilled) top.spin = top.launchSpin;
   if (top.spin < top.launchSpin * S.fallRatio || top.spin <= 0) {
@@ -5211,7 +5215,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.25';
+const VERSION = '2026-10-04.26';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6094,7 +6098,7 @@ requestAnimationFrame(frame);
 
 // Accès pour les tests (lecture des stats et avance du temps)
 window.__dbg = {
-  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
+  state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, setTired: v => { TOP_TIRED = v; }, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
   refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
