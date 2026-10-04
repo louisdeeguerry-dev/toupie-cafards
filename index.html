@@ -3563,7 +3563,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.6';
+const VERSION = '2026-10-04.7';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -3880,8 +3880,8 @@ function buy(u) {
   refreshStats();
   updateLauncherSkin();
   if (u.id === 'prime') for (const b of bugs) if (b.mode !== 'hungry') applyPrimeGlow(b.mat, b.t);
-  // Nid : les insectes en plus tombent tout de suite (si une toupie tourne, l'Appât les fait venir pendant le lancer)
-  if (u.id === 'nid' && !aliveTops().length && introStep < 0 && !state.run.over) refillBoard();
+  // Nid : les insectes en plus tombent tout de suite, à n'importe quel moment (même entre deux vagues ou pendant un lancer)
+  if (u.id === 'nid' && !state.run.over) refillBoard();
   save();
   shopDirty = true;
   previewDirty = true;
