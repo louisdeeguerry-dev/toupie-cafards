@@ -526,7 +526,8 @@ const UPGRADES = [
     fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
   { id: 'recharge', tab: 'lanceur', wave: 2, modes: ['carnage'], name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
     fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
-  { id: 'multi', tab: 'lanceur', wave: 12, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 3,
+  { id: 'multi', tab: 'lanceur', wave: 12, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 4,
+    costs: [1500, 10500, 73500, 20000000], // la 5e toupie est un luxe : 20 millions
     unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
     fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
 
@@ -751,7 +752,7 @@ function perkLevel(id) { return state.run.perks[id] || 0; }
 const isStory = () => state.run.mode === 'histoire';
 let S = computeStats(lv);
 function refreshStats() { S = computeStats(lv); }
-function costOf(u) { return Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
+function costOf(u) { return u.costs ? u.costs[Math.min(lv(u.id), u.costs.length - 1)] : Math.ceil(u.base * Math.pow(u.growth, lv(u.id))); }
 // L'infestation monte avec les points des insectes écrasés (petit cafard 1, gros cafard 5…)
 function infestLevel() {
   let l = 0;
@@ -3562,7 +3563,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.5';
+const VERSION = '2026-10-04.6';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
