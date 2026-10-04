@@ -12,6 +12,18 @@
           "t": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }
         }
+      },
+      "speedrun": {
+        ".read": true,
+        ".indexOn": ["time"],
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['pseudo', 'time', 't']) && (!data.exists() || newData.child('time').val() <= data.child('time').val())",
+          "pseudo": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+          "time": { ".validate": "newData.isNumber() && newData.val() >= 300 && newData.val() <= 360000" },
+          "t": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
       }
     }
   }
