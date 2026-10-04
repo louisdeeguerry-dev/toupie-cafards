@@ -241,7 +241,7 @@
   @keyframes comboPop { 0% { transform: translateX(-50%) scale(1.45); } 100% { transform: translateX(-50%) scale(1); } }
   @media (max-height: 500px) { #comboMeter { top: 40px; font-size: 18px; } }
   /* Défis de la Reine : une couche par-dessus tout, le jeu est figé dessous */
-  #qte { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 30; display: none; touch-action: none; }
+  #qte { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 40; display: none; touch-action: none; }
   #qte.on { display: block; }
   /* Combat du nid : vie de la Reine et cœurs du joueur */
   #nestHud { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); width: min(420px, 64vw); z-index: 4; display: none;
@@ -3522,15 +3522,16 @@ const qteCanvas = document.getElementById('qte'), qctx = qteCanvas.getContext('2
 let qte = null;
 // Les défis, de plus en plus nombreux selon la phase (hint = la consigne, toujours affichée)
 const QTE_PATTERNS = [
-  { id: 'patte', name: '🦵 Coup de patte !', hint: 'Touche le cercle avant que l’anneau se referme', phase: 1, w: 2 },
+  { id: 'patte', name: '🦵 Coup de patte !', hint: 'Touche le cercle avant la fin du chrono', phase: 1, w: 2 },
   { id: 'combo', name: '🔢 Enchaînement !', hint: 'Touche les cercles dans l’ordre', phase: 1, w: 3 },
   { id: 'glisse', name: '〰️ Glissade !', hint: 'Fais glisser la boule de A jusqu’à B sans lever le doigt', phase: 1, w: 2 },
   { id: 'ponte', name: '🥚 Ponte !', hint: 'Écrase tous les œufs (dans n’importe quel ordre)', phase: 1, w: 1.5 },
   { id: 'double', name: '🦵🦵 Double patte !', hint: 'Touche les deux cercles', phase: 2, w: 2 },
   { id: 'tourbillon', name: '🌀 Tourbillon !', hint: 'Fais tourner ton doigt autour du cercle', phase: 2, w: 2 },
-  { id: 'furie', name: '🌪️ Furie !', hint: 'Les cercles dans l’ordre… puis la glissade !', phase: 3, w: 2.5 },
+  { id: 'furie', name: '🌪️ Furie !', hint: 'Les cercles dans l’ordre… puis la glissade de A à B !', phase: 3, w: 2.5 },
 ];
 const QTE_LEAD = 0.75; // le temps de lire la consigne avant que ça commence
+const QTE_SPEED = 0.92; // tous les temps des défis (1 = un peu plus généreux)
 function qteSize() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
   if (qteCanvas.width !== Math.round(W * dpr) || qteCanvas.height !== Math.round(H * dpr)) { qteCanvas.width = Math.round(W * dpr); qteCanvas.height = Math.round(H * dpr); }
@@ -3547,12 +3548,17 @@ function qteChain(W, H, r, n, t0, gap, appr) {
   let p = qtePoint(W, H, r), ang = Math.random() * Math.PI * 2;
   for (let i = 0; i < n; i++) {
     if (i) {
-      for (let k = 0; k < 20; k++) {
-        const a = ang + (Math.random() - 0.5) * 2.2, d = r * (2.8 + Math.random() * 0.8);
+      const free = q => q.x > r * 1.5 && q.x < W - r * 1.5 && q.y > H * 0.28 && q.y < H - r * 1.5 && out.every(o => Math.hypot(o.x - q.x, o.y - q.y) > r * 2.3);
+      let found = null;
+      // D'abord un cercle pas loin du précédent (une petite trajectoire)…
+      for (let k = 0; k < 40 && !found; k++) {
+        const a = ang + (Math.random() - 0.5) * (k < 20 ? 2.2 : 6.3), d = r * (2.8 + Math.random() * 0.8);
         const q = { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d };
-        if (q.x > r * 1.5 && q.x < W - r * 1.5 && q.y > H * 0.28 && q.y < H - r * 1.5 && out.every(o => Math.hypot(o.x - q.x, o.y - q.y) > r * 2.3)) { p = q; ang = a; break; }
-        if (k === 19) { ang += Math.PI; }
+        if (free(q)) { found = q; ang = a; }
       }
+      // … sinon n'importe où, du moment qu'il ne chevauche pas les autres
+      for (let k = 0; k < 80 && !found; k++) { const q = qtePoint(W, H, r); if (free(q)) found = q; }
+      p = found || qtePoint(W, H, r);
     }
     out.push({ kind: 'circle', x: p.x, y: p.y, n: i + 1, appear: t0 + i * gap, hitAt: t0 + i * gap + appr });
   }
@@ -3570,24 +3576,35 @@ function qteSlider(W, H, r, t0, dur) {
   return { kind: 'slider', ax: W * 0.2, ay: H * 0.65, bx: W * 0.8, by: H * 0.65, appear: t0, hitAt: t0 + dur, prog: 0, hold: null };
 }
 function startQte(pt) {
-  const { W, H, r } = qteSize(), ph = nest.phase, f = [1, 1, 0.9, 0.8][ph], L = QTE_LEAD;
+  const { W, H, r } = qteSize(), ph = nest.phase, L = QTE_LEAD;
+  // Le temps accordé (en secondes), un peu plus court quand la Reine s'énerve
+  const f = [1, 1, 0.9, 0.8][ph] * QTE_SPEED;
+  const n = ph + 2;
+  const D = { patte: 1.15 * f, double: 1.35 * f, combo: (0.55 + 0.42 * n) * f, ponte: 1.9 * f, glisse: 2.3 * f,
+    tourbillon: 2.6 * QTE_SPEED, furie: 3.35 * QTE_SPEED }[pt.id];
   let items = [];
-  if (pt.id === 'patte') items = [{ kind: 'circle', ...qtePoint(W, H, r), appear: L, hitAt: L + 1.15 * f }];
+  if (pt.id === 'patte') items = [{ kind: 'circle', ...qtePoint(W, H, r) }];
   if (pt.id === 'double') {
     const a = qtePoint(W, H, r); let b;
     for (let k = 0; k < 30; k++) { b = qtePoint(W, H, r); if (Math.hypot(a.x - b.x, a.y - b.y) > r * 4) break; }
-    items = [a, b].map(q => ({ kind: 'circle', ...q, appear: L, hitAt: L + 1.35 * f }));
+    items = [a, b].map(q => ({ kind: 'circle', ...q }));
   }
-  if (pt.id === 'combo') items = qteChain(W, H, r, ph + 2, L, 0.42 * f, 1.0 * f);
-  if (pt.id === 'ponte') items = qteChain(W, H, r, 4, L, 0, 1.9 * f).map(c => ({ ...c, n: 0, egg: true }));
-  if (pt.id === 'glisse') items = [qteSlider(W, H, r, L, 2.3 * f)];
-  if (pt.id === 'tourbillon') items = [{ kind: 'spin', x: W / 2, y: H * 0.6, R: Math.min(W, H * 0.6) * 0.3, need: ph === 3 ? 3 : 2, turned: 0, last: null, appear: L, hitAt: L + 2.6 }];
+  if (pt.id === 'combo') items = qteChain(W, H, r, n, 0, 0, 0);
+  if (pt.id === 'ponte') items = qteChain(W, H, r, 4, 0, 0, 0).map(c => ({ ...c, n: 0, egg: true }));
+  if (pt.id === 'glisse') items = [qteSlider(W, H, r, 0, 0)];
+  if (pt.id === 'tourbillon') items = [{ kind: 'spin', x: W / 2, y: H * 0.6, R: Math.min(W, H * 0.6) * 0.3, need: ph === 3 ? 3 : 2, turned: 0, last: null }];
   if (pt.id === 'furie') {
-    items = qteChain(W, H, r, 3, L, 0.38, 0.95);
-    const sl = qteSlider(W, H, r, L + 1.35, 2.0);
-    items.push(sl);
+    // Les cercles ne doivent pas tomber sur le trait de la glissade
+    const segDist = (c, sl) => { const vx = sl.bx - sl.ax, vy = sl.by - sl.ay, k = Math.max(0, Math.min(1, ((c.x - sl.ax) * vx + (c.y - sl.ay) * vy) / (vx * vx + vy * vy))); return Math.hypot(c.x - sl.ax - vx * k, c.y - sl.ay - vy * k); };
+    for (let k = 0; k < 40; k++) {
+      const sl = qteSlider(W, H, r, 0, 0), ch = qteChain(W, H, r, 3, 0, 0, 0);
+      items = [...ch, sl];
+      if (ch.every(c => segDist(c, sl) > r * 2.2)) break;
+    }
   }
-  qte = { pt, t: 0, items, r, fx: [], endT: null, misses: 0, eggMiss: 0, last: performance.now() };
+  // Tout apparaît en même temps ; il faut tout réussir avant la fin du chrono
+  for (const it of items) { it.appear = L; it.hitAt = L + D; }
+  qte = { pt, t: 0, items, r, fx: [], endT: null, misses: 0, eggMiss: 0, last: performance.now(), D };
   nest.boss.group.position.y = 0.03; // elle se cabre
   paused = true;
   charging = false;
@@ -3634,6 +3651,8 @@ function drawQte() {
   qctx.fillStyle = '#ffd0c0';
   qctx.font = `900 ${Math.round(Math.min(34, W * 0.07))}px system-ui, sans-serif`;
   qctx.fillText(qte.pt.name, W / 2, H * 0.12);
+  drawChrono(Math.max(34, W / 2 - qctx.measureText(qte.pt.name).width / 2 - 38), H * 0.12 + 14, t);
+  qctx.textAlign = 'center'; qctx.textBaseline = 'middle';
   qctx.fillStyle = '#fff';
   qctx.font = `700 ${Math.round(Math.min(18, W * 0.04))}px system-ui, sans-serif`;
   qctx.fillText(qte.pt.hint, W / 2, H * 0.12 + 32);
@@ -3641,18 +3660,19 @@ function drawQte() {
   // Les cercles en attente sont dessinés du dernier au premier (le prochain à toucher passe devant)
   for (const it of [...qte.items].reverse()) {
     if (it.done || t < it.appear) continue;
-    const k = Math.min(1, (t - it.appear) / (it.hitAt - it.appear)); // 0 → 1 : le temps s'écoule
     if (it.kind === 'circle') {
       const active = !it.n || it === next;
-      qctx.globalAlpha = active ? 1 : 0.5;
+      qctx.globalAlpha = active ? 1 : 0.55;
+      // Le prochain cercle à toucher est entouré d'un halo qui pulse
+      if (active && it.n) qteRing(it.x, it.y, r * (1.22 + 0.06 * Math.sin(t * 12)), 'rgba(255,255,255,.75)', 3);
       qctx.fillStyle = it.egg ? '#f2d65a' : '#e8344a';
       qctx.beginPath(); qctx.arc(it.x, it.y, r, 0, Math.PI * 2); qctx.fill();
       qteRing(it.x, it.y, r, '#fff', 4);
       if (it.n) { qctx.fillStyle = '#fff'; qctx.font = `900 ${Math.round(r * 0.9)}px system-ui, sans-serif`; qctx.fillText(String(it.n), it.x, it.y + 1); }
       if (it.egg) { qctx.font = `${Math.round(r)}px system-ui, sans-serif`; qctx.fillText('🥚', it.x, it.y + 2); }
-      if (active) qteRing(it.x, it.y, r * (1 + 2 * (1 - k)), it.egg ? '#ffe680' : '#ffffff', 3);
       qctx.globalAlpha = 1;
     } else if (it.kind === 'slider') {
+      qctx.globalAlpha = next ? 0.4 : 1; // dans la Furie : la glissade vient après les cercles
       qctx.lineCap = 'round';
       qctx.strokeStyle = 'rgba(255,255,255,.28)'; qctx.lineWidth = r * 2;
       qctx.beginPath(); qctx.moveTo(it.ax, it.ay); qctx.lineTo(it.bx, it.by); qctx.stroke();
@@ -3665,9 +3685,7 @@ function drawQte() {
       qctx.fillStyle = it.hold !== null ? '#ff6a3a' : '#e8344a';
       qctx.beginPath(); qctx.arc(bx, by, r, 0, Math.PI * 2); qctx.fill();
       qteRing(bx, by, r, '#fff', 4);
-      // Barre de temps sous le titre
-      qctx.fillStyle = 'rgba(255,255,255,.2)'; qctx.fillRect(W * 0.3, H * 0.12 + 52, W * 0.4, 6);
-      qctx.fillStyle = '#ff6a3a'; qctx.fillRect(W * 0.3, H * 0.12 + 52, W * 0.4 * (1 - k), 6);
+      qctx.globalAlpha = 1;
     } else if (it.kind === 'spin') {
       qteRing(it.x, it.y, it.R, 'rgba(255,255,255,.35)', 10);
       const fr = Math.min(1, it.turned / (it.need * Math.PI * 2));
@@ -3677,8 +3695,6 @@ function drawQte() {
       qctx.fillText(`${Math.min(it.need, it.turned / (Math.PI * 2)).toFixed(1)} / ${it.need} tours`, it.x, it.y);
       qctx.font = `${Math.round(r * 1.2)}px system-ui, sans-serif`;
       qctx.fillText('🔄', it.x, it.y - it.R * 0.5);
-      qctx.fillStyle = 'rgba(255,255,255,.2)'; qctx.fillRect(W * 0.3, H * 0.12 + 52, W * 0.4, 6);
-      qctx.fillStyle = '#ffd45a'; qctx.fillRect(W * 0.3, H * 0.12 + 52, W * 0.4 * (1 - k), 6);
     }
   }
   // Effets : ✓ vert ou ✗ rouge qui s'envolent
@@ -3698,6 +3714,39 @@ function drawQte() {
     qctx.fillText('Prêt…', W / 2, H * 0.55);
   }
 }
+// Le chronomètre : le cadran se vide à mesure que le temps passe, les secondes restantes au milieu
+function drawChrono(x, y, t) {
+  const D = qte.D, left = Math.max(0, Math.min(D, D - (t - QTE_LEAD))), fr = left / D;
+  const urgent = left < 0.5 && t > QTE_LEAD;
+  const R = 26 * (urgent ? 1 + 0.08 * Math.sin(t * 25) : 1);
+  const col = fr > 0.5 ? '#7fe08a' : fr > 0.25 ? '#ffb13a' : '#ff3a3a';
+  qctx.save();
+  // Le bouton du haut et la couronne
+  qctx.fillStyle = '#ddd';
+  qctx.fillRect(x - 5, y - R - 9, 10, 7);
+  qctx.fillRect(x - 9, y - R - 12, 18, 4);
+  qctx.fillStyle = 'rgba(10,10,14,.85)';
+  qctx.beginPath(); qctx.arc(x, y, R, 0, Math.PI * 2); qctx.fill();
+  // Le temps restant, en part de cadran
+  qctx.fillStyle = col;
+  qctx.globalAlpha = 0.85;
+  qctx.beginPath(); qctx.moveTo(x, y); qctx.arc(x, y, R - 4, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); qctx.closePath(); qctx.fill();
+  qctx.globalAlpha = 1;
+  qteRing(x, y, R, '#fff', 3);
+  // L'aiguille
+  const a = -Math.PI / 2 + fr * Math.PI * 2;
+  qctx.strokeStyle = '#fff'; qctx.lineWidth = 2.5;
+  qctx.beginPath(); qctx.moveTo(x, y); qctx.lineTo(x + Math.cos(a) * (R - 5), y + Math.sin(a) * (R - 5)); qctx.stroke();
+  // Les secondes restantes
+  qctx.textAlign = 'center'; qctx.textBaseline = 'middle';
+  qctx.font = '900 15px system-ui, sans-serif';
+  qctx.lineWidth = 3; qctx.strokeStyle = 'rgba(0,0,0,.8)';
+  const txt = left.toFixed(1).replace('.', ',') + ' s';
+  qctx.strokeText(txt, x, y + R + 13);
+  qctx.fillStyle = urgent ? '#ff6a6a' : '#fff';
+  qctx.fillText(txt, x, y + R + 13);
+  qctx.restore();
+}
 function qtePos(e) { return { x: e.clientX, y: e.clientY }; }
 qteCanvas.addEventListener('pointerdown', e => {
   if (!qte) return;
@@ -3711,6 +3760,7 @@ qteCanvas.addEventListener('pointerdown', e => {
       if (it.n && it !== next) continue;               // dans l'ordre !
       if (Math.hypot(x - it.x, y - it.y) <= r * 1.35) { qteResolve(it, true); return; }
     } else if (it.kind === 'slider') {
+      if (next) continue;
       const bx = it.ax + (it.bx - it.ax) * it.prog, by = it.ay + (it.by - it.ay) * it.prog;
       if (Math.hypot(x - bx, y - by) <= r * 1.5) { it.hold = e.pointerId; return; }
     } else if (it.kind === 'spin') {
@@ -4653,7 +4703,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-04.22';
+const VERSION = '2026-10-04.23';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
