@@ -6102,7 +6102,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.4';
+const VERSION = '2026-10-05.5';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6427,6 +6427,7 @@ function renderPreview(dt) {
 // Une amélioration se débloque à une certaine vague de la partie (et parfois un niveau d'infestation)
 function upgradeLock(u) {
   if (u.modes && !u.modes.includes(state.run.mode)) return 'Mode Carnage uniquement';
+  if (TEST_MODE === 'riche') return null; // session de test : tout est débloqué dès la vague 1
   const need = Math.max(1, (u.wave || 1) - (metaLevel('catalogue') ? 2 : 0));
   if (state.run.wave < need) return `Débloqué à la vague ${need}`;
   if (u.unlock && !u.unlock()) return `Débloqué au ${u.lockText}`;
@@ -6531,7 +6532,7 @@ function renderShop() {
     }
     shopList.appendChild(card);
   }
-  for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)) && (u.stage || 0) <= stageSeen() + 1)) {
+  for (const u of UPGRADES.filter(u => u.tab === currentTab && (!u.modes || u.modes.includes(state.run.mode)) && (TEST_MODE === 'riche' || (u.stage || 0) <= stageSeen() + 1))) {
     const card = document.createElement('div');
     card.className = 'card';
     const lockReason = upgradeLock(u);
@@ -7020,9 +7021,16 @@ if (TEST_MODE === 'riche') {
   state.tutos = new Proxy({}, { get: () => true });
   run.cash = 9e11;
   run.toyboxApplied = true;
+  // Toupie et lanceur au niveau 1 : pas d'objets du Carton à Jouets
+  state.meta.items = {};
+  state.meta.spent = 0;
+  state.autoOn = false;
+  rebuildToyDecor();
+  updateSpeedBtn();
   refreshStats();
+  updateLauncherSkin();
   run.launchesLeft = waveLaunches();
-  document.querySelector('#menu .tag').textContent = '🧪 Session de test : partie neuve, 900 milliards en poche. Ta vraie sauvegarde n’est pas touchée.';
+  document.querySelector('#menu .tag').textContent = '🧪 Session de test : vague 1, toupie et lanceur au niveau 1, toutes les améliorations débloquées et 900 milliards en poche. Ta vraie sauvegarde n’est pas touchée.';
 }
 if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
   const run = state.savedRuns.histoire = newRun('histoire');
