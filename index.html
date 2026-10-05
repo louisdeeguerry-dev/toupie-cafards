@@ -2428,13 +2428,37 @@ function bodyMaterial() {
 //  et à certains paliers elle change d'allure, jusqu'à ressembler à une toupie de combat
 // =====================================================================
 function topPower() { return UPGRADES.filter(u => u.tab === 'toupie').reduce((a, u) => a + lv(u.id), 0); }
-const EVOLUTIONS = [
+// Les grandes étapes de la toupie (chacune apporte un nouvel élément visible)…
+const EVO_STAGES = [
   [0, 'Toupie du grenier'], [6, 'Toupie cloutée'], [12, 'Toupie à rivets'], [20, 'Toupie de course'],
   [28, 'Toupie argentée'], [35, 'Toupie à emblème'], [42, 'Toupie à gemmes'], [50, 'Anneau d’attaque'],
   [60, 'Lames tournoyantes'], [70, 'Disque de poids'], [80, 'Pointes d’or'], [90, 'Couche d’énergie'],
   [100, 'Tempête quadruple'], [115, 'Cristaux de foudre'], [130, 'Dragon d’acier'], [150, 'Double anneau'],
-  [175, 'Aura légendaire'], [200, 'Toupie légendaire'], [240, 'Toupie mythique'],
+  [175, 'Aura légendaire'], [200, 'Toupie légendaire'], [240, 'Toupie mythique'], [260, 'Toupie céleste'],
+  [280, 'Ruban de lumière'], [300, 'Toupie cosmique'], [320, 'Couronne de cristal'], [340, 'Toupie stellaire'],
+  [360, 'Couronne solaire'], [380, 'Toupie flamboyante'], [400, 'Ailes de phénix'], [420, 'Toupie galactique'],
+  [440, 'Dragons jumeaux'], [460, 'Toupie astrale'], [480, 'Toupie divine'], [496, 'Toupie infinie'],
 ];
+// … et entre deux étapes, une variante tous les 4-5 niveaux, avec la couleur d'une pierre
+const EVO_GEMS = [['rubis', 0xe0115f], ['saphir', 0x2a5bd7], ['émeraude', 0x18b06a], ['topaze', 0xf5b52a], ['améthyste', 0x9b59d0],
+  ['opale', 0x7fd8d4], ['jade', 0x3fae7a], ['corail', 0xff7a5a], ['ambre', 0xffa31a], ['perle', 0xeee6d6], ['cobalt', 0x1f6fd1],
+  ['cuivre', 0xc87533], ['onyx', 0x55556a], ['quartz rose', 0xf59cc8], ['turquoise', 0x1fc8c8], ['grenat', 0x9a1030]];
+const EVOLUTIONS = (() => {
+  const out = [];
+  let g = 0;
+  EVO_STAGES.forEach(([a, name], i) => {
+    out.push([a, name, null]);
+    const b = EVO_STAGES[i + 1]?.[0] ?? a;
+    const step = a < 120 ? 4 : 5;
+    for (let q = a + step; q <= b - 2; q += step) { const [gem, col] = EVO_GEMS[g++ % EVO_GEMS.length]; out.push([q, name + ' ' + gem, col]); }
+  });
+  return out;
+})();
+// La couleur d'accent de la toupie : celle de la pierre de sa forme actuelle
+function evoAccent(P) {
+  const e = EVOLUTIONS[evolutionIndex(P)];
+  return e[2] !== null ? new THREE.Color(e[2]) : new THREE.Color().setHSL(((e[0] * 11) % 360) / 360, 0.85, 0.55);
+}
 function evolutionIndex(P = topPower()) { let i = 0; EVOLUTIONS.forEach(([lvl], k) => { if (P >= lvl) i = k; }); return i; }
 const EMBLEMS = ['⭐', '🔥', '⚡', '🐉', '🦅', '👑', '💀', '🌪️', '☄️'];
 const emblemTex = new Map();
@@ -2494,8 +2518,8 @@ function holedDiskGeometry(holes) {
 // Ajoute à la toupie les pièces de son évolution
 function addEvolution(spinner, tilt, parts, P) {
   const add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; spinner.add(m); return m; };
-  const hue = (P * 11) % 360;
-  const accent = new THREE.Color().setHSL(hue / 360, 0.85, 0.55);
+  const accent = evoAccent(P);
+  const hue = Math.round(accent.getHSL({}).h * 360);
   // 1) Ornements du bord : à chaque niveau, un des 24 emplacements apparaît ou monte d'un cran
   //    (clou de cuivre → clou d'argent → gemme → pointe d'or → cristal lumineux)
   const kinds = [
@@ -2505,13 +2529,19 @@ function addEvolution(spinner, tilt, parts, P) {
     { geo: new THREE.OctahedronGeometry(0.065), mat: new THREE.MeshStandardMaterial({ color: accent, metalness: 0.3, roughness: 0.1, emissive: accent, emissiveIntensity: 0.25 }) },
     { geo: new THREE.ConeGeometry(0.045, 0.16, 6), mat: new THREE.MeshStandardMaterial({ color: 0xffc72c, metalness: 0.6, roughness: 0.25, emissive: 0x6a4800, emissiveIntensity: 0.4 }) },
     { geo: new THREE.OctahedronGeometry(0.06), mat: new THREE.MeshStandardMaterial({ color: 0xbff4ff, emissive: 0x3fd8ff, emissiveIntensity: 0.9, transparent: true, opacity: 0.9, roughness: 0.05 }) },
+    { geo: new THREE.SphereGeometry(0.058, 12, 8), mat: new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.8, roughness: 0.1 }) },
+    { geo: new THREE.OctahedronGeometry(0.075), mat: new THREE.MeshStandardMaterial({ color: 0xffc72c, metalness: 0.8, roughness: 0.15, emissive: 0x7a5200, emissiveIntensity: 0.6 }) },
+    { geo: new THREE.ConeGeometry(0.04, 0.2, 5), mat: new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 1, transparent: true, opacity: 0.9, roughness: 0.05 }) },
+    { geo: new THREE.DodecahedronGeometry(0.06), mat: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe6a0, emissiveIntensity: 1, roughness: 0.05 }) },
+    { geo: new THREE.OctahedronGeometry(0.085), mat: new THREE.MeshStandardMaterial({ color: 0xeaf6ff, emissive: accent, emissiveIntensity: 1.3, roughness: 0.02, metalness: 0.3 }) },
   ];
   for (let i = 0; i < 24; i++) {
-    const n = P > i ? Math.min(5, Math.floor((P - i - 1) / 24) + 1) : 0;
+    const n = P > i ? Math.min(10, Math.floor((P - i - 1) / 24) + 1) : 0;
     if (!n) continue;
     const a = (i / 24) * Math.PI * 2;
     const m = add(kinds[n].geo, kinds[n].mat, Math.cos(a) * 0.72, 0.6, Math.sin(a) * 0.72);
     if (n === 5) m.scale.set(1, 1.8, 1);
+    if (n === 8) m.rotation.x = Math.PI;
   }
   // 2) Bande de course peinte sur le dessus (sa couleur change à chaque niveau)
   if (P >= 20) {
@@ -2608,8 +2638,8 @@ const cometTex = (() => {
 })();
 function addTopFx(tilt, parts, P) {
   if (P < 12) return;
-  const hue = ((P * 11) % 360) / 360;
-  const col = new THREE.Color().setHSL(hue, 0.85, 0.6);
+  const col = evoAccent(P);
+  const hue = col.getHSL({}).h;
   const glowMat = (extra = {}) => new THREE.MeshBasicMaterial({ color: col.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...extra });
   const fx = { mats: [], comets: [], orbs: [], beads: [], risers: [], col, hue, myth: P >= 240 };
   // Halo du bord : plus la toupie tourne vite, plus il brille
@@ -2670,6 +2700,98 @@ function addTopFx(tilt, parts, P) {
       fx.mats.push(s.material);
     }
   }
+  // Couronne d'étoiles : au-delà du niveau 240, chaque niveau allume ou fait grandir une des 24 étoiles
+  if (P > 240) {
+    fx.stars = new THREE.Group();
+    fx.stars.position.y = 0.78;
+    tilt.add(fx.stars);
+    fx.starList = [];
+    for (let i = 0; i < 24; i++) {
+      const n = P - 240 > i ? Math.min(10, Math.floor((P - 240 - i - 1) / 24) + 1) : 0;
+      if (!n) continue;
+      const a = (i / 24) * Math.PI * 2;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color: n % 2 ? col.clone() : new THREE.Color(0xfff2c0), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      s.position.set(Math.cos(a) * 1.05, 0, Math.sin(a) * 1.05);
+      s.scale.setScalar(0.12 + 0.045 * n);
+      fx.stars.add(s);
+      fx.starList.push({ s, base: 0.12 + 0.045 * n, ph: i * 0.7 });
+    }
+  }
+  // Ruban de lumière qui ondule autour de la toupie
+  if (P >= 280) {
+    const pts = [];
+    for (let k = 0; k <= 96; k++) { const a = (k / 96) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * 1.62, 0.5 + 0.18 * Math.sin(a * 5), Math.sin(a) * 1.62)); }
+    const ribbon = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 160, 0.025, 6, true), glowMat({ opacity: 0.75 }));
+    tilt.add(ribbon); fx.ribbon = ribbon; fx.mats.push(ribbon.material);
+  }
+  // Couronne de cristal autour de la poignée
+  if (P >= 320) {
+    const cm = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, emissive: col.clone(), emissiveIntensity: 0.9, transparent: true, opacity: 0.85, roughness: 0.02 });
+    fx.mats.push(cm);
+    const crown = new THREE.Group();
+    crown.position.y = 0.95;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.07), cm);
+      c.scale.set(0.6, 2.4, 0.6);
+      c.position.set(Math.cos(a) * 0.28, 0.08, Math.sin(a) * 0.28);
+      c.rotation.z = Math.cos(a) * 0.35; c.rotation.x = -Math.sin(a) * 0.35;
+      crown.add(c);
+    }
+    tilt.add(crown); fx.crown = crown;
+  }
+  // Couronne solaire : des rayons de lumière qui tournent sous la toupie
+  if (P >= 360) {
+    const rays = new THREE.Group();
+    rays.position.y = 0.3;
+    for (let i = 0; i < 16; i++) {
+      const r = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.9), glowMat({ opacity: 0.5, color: new THREE.Color(0xffc24a) }));
+      const a = (i / 16) * Math.PI * 2;
+      r.rotation.set(-Math.PI / 2, 0, a);
+      r.position.set(Math.cos(a + Math.PI / 2) * 1.55, 0, Math.sin(a + Math.PI / 2) * 1.55);
+      r.rotation.z = -a;
+      rays.add(r);
+    }
+    tilt.add(rays); fx.rays = rays;
+  }
+  // Ailes de phénix, qui battent doucement
+  if (P >= 400) {
+    fx.wings = [];
+    for (const sd of [-1, 1]) {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0); sh.quadraticCurveTo(0.6, 0.9, 1.7, 0.75); sh.quadraticCurveTo(1.2, 0.45, 1.45, 0.2);
+      sh.quadraticCurveTo(1.0, 0.15, 1.15, -0.15); sh.quadraticCurveTo(0.6, -0.05, 0, -0.1);
+      const w = new THREE.Mesh(new THREE.ShapeGeometry(sh, 16), glowMat({ opacity: 0.55, color: new THREE.Color(0xff8a2a) }));
+      const piv = new THREE.Group();
+      piv.position.y = 0.6;
+      piv.scale.x = sd;
+      w.position.x = 0.55;
+      piv.add(w);
+      tilt.add(piv);
+      fx.wings.push(piv);
+    }
+  }
+  // Dragons jumeaux : une seconde chaîne d'écailles, de la couleur opposée, qui tourne dans l'autre sens
+  if (P >= 440) {
+    fx.col2 = col.clone().offsetHSL(0.5, 0, 0);
+    const m2 = new THREE.MeshStandardMaterial({ color: 0xffe9a8, metalness: 0.9, roughness: 0.2, emissive: fx.col2.clone(), emissiveIntensity: 0.7 });
+    fx.mat2 = m2;
+    fx.beads2 = [];
+    for (let i = 0; i < 18; i++) {
+      const b = new THREE.Mesh(new THREE.OctahedronGeometry(0.075 * (1 - i / 26)), m2);
+      b.scale.set(1, 0.55, 1.6);
+      tilt.add(b); fx.beads2.push(b);
+    }
+  }
+  // Toupie divine : un halo d'ange au-dessus et une colonne de lumière
+  if (P >= 480) {
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 8, 40), glowMat({ color: new THREE.Color(0xfff2b0), opacity: 0.9 }));
+    halo.rotation.x = Math.PI / 2; halo.position.y = 1.55;
+    tilt.add(halo); fx.halo = halo;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.5, 3.5, 24, 1, true), glowMat({ color: new THREE.Color(0xfff2b0), opacity: 0.18 }));
+    beam.position.y = 2.2;
+    tilt.add(beam); fx.beam = beam;
+  }
   parts.fx = fx;
 }
 // Anime les effets d'une toupie : `ratio` = vitesse de rotation actuelle / vitesse de départ (0 → 1)
@@ -2711,6 +2833,25 @@ function animateTopFx(fx, dt, ratio, t) {
       b.rotation.set(0, -a, 0.25 * Math.sin(a * 2.5));
     });
   }
+  if (fx.stars) {
+    fx.stars.rotation.y -= dt * (0.4 + 0.8 * k);
+    for (const st of fx.starList) st.s.scale.setScalar(st.base * (0.75 + 0.35 * Math.sin(t * 5 + st.ph)) * (0.6 + 0.4 * k));
+  }
+  if (fx.ribbon) { fx.ribbon.rotation.y += dt * (0.8 + 1.6 * k); fx.ribbon.material.opacity = 0.3 + 0.5 * k; }
+  if (fx.crown) fx.crown.rotation.y += dt * 0.7;
+  if (fx.rays) { fx.rays.rotation.y += dt * 0.5; fx.rays.children.forEach(r => { r.material.opacity = (0.2 + 0.35 * k) * (0.7 + 0.3 * Math.sin(t * 3)); }); }
+  if (fx.wings) fx.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.25 + 0.2 * Math.sin(t * 3.5)); w.children[0].material.opacity = 0.25 + 0.4 * k; });
+  if (fx.beads2) {
+    if (fx.myth) fx.col2.copy(fx.col).offsetHSL(0.5, 0, 0);
+    fx.mat2.emissive.copy(fx.col2);
+    fx.dragon2 = (fx.dragon2 || 0) + dt * (1.5 + 2 * k);
+    fx.beads2.forEach((b, i) => {
+      const a = -fx.dragon2 + i * 0.2 + Math.PI;
+      b.position.set(Math.cos(a) * 1.25, 0.7 + 0.2 * Math.sin(a * 2.5 + 1), Math.sin(a) * 1.25);
+      b.rotation.set(0, -a + Math.PI, 0.25 * Math.sin(a * 2.5));
+    });
+  }
+  if (fx.halo) { fx.halo.position.y = 1.55 + 0.06 * Math.sin(t * 2); fx.beam.material.opacity = 0.08 + 0.12 * k * (0.8 + 0.2 * Math.sin(t * 4)); }
   for (const r of fx.risers) {
     r.t += dt * (0.5 + 0.6 * k);
     if (r.t > 1) { r.t -= 1; r.a = Math.random() * Math.PI * 2; }
@@ -5961,7 +6102,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.3';
+const VERSION = '2026-10-05.4';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6870,7 +7011,20 @@ rebuildToyDecor();
 updateCookies();
 updateHud();
 // Session de test « fin de partie » : vague 44, araignées, toupie très améliorée et 1,2 milliard pour Détruire le nid
-if (TEST_MODE === 'nid' || TEST_MODE === 'boss' || TEST_MODE === 'riche') {
+if (TEST_MODE === 'riche') {
+  // Une partie neuve, vague 1, avec 900 milliards pour tout acheter et voir chaque évolution
+  const run = state.savedRuns.histoire = newRun('histoire');
+  state.mode = 'histoire';
+  state.run = run;
+  state.introSeen = true;
+  state.tutos = new Proxy({}, { get: () => true });
+  run.cash = 9e11;
+  run.toyboxApplied = true;
+  refreshStats();
+  run.launchesLeft = waveLaunches();
+  document.querySelector('#menu .tag').textContent = '🧪 Session de test : partie neuve, 900 milliards en poche. Ta vraie sauvegarde n’est pas touchée.';
+}
+if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
   const run = state.savedRuns.histoire = newRun('histoire');
   state.mode = 'histoire';
   state.run = run;
@@ -6886,11 +7040,11 @@ if (TEST_MODE === 'nid' || TEST_MODE === 'boss' || TEST_MODE === 'riche') {
   run.infest = INFEST_THRESHOLDS[spider + 2] + 100;
   run.stageSeen = 2;
   run.wave = 45;
-  run.cash = TEST_MODE === 'riche' ? 9e11 : 1.2e9; // ?test=riche : 900 milliards pour tout essayer
+  run.cash = 1.2e9;
   run.toyboxApplied = true;
   refreshStats();
   run.launchesLeft = waveLaunches();
-  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, ' + (TEST_MODE === 'riche' ? '900 milliards' : '1,2 milliard') + ' en poche. Ta vraie sauvegarde n’est pas touchée.';
+  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, 1,2 milliard en poche. Ta vraie sauvegarde n’est pas touchée.';
 }
 openMenu();
 requestAnimationFrame(frame);
