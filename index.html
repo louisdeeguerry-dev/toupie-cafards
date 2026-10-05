@@ -5961,7 +5961,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.2';
+const VERSION = '2026-10-05.3';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6870,7 +6870,7 @@ rebuildToyDecor();
 updateCookies();
 updateHud();
 // Session de test « fin de partie » : vague 44, araignées, toupie très améliorée et 1,2 milliard pour Détruire le nid
-if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
+if (TEST_MODE === 'nid' || TEST_MODE === 'boss' || TEST_MODE === 'riche') {
   const run = state.savedRuns.histoire = newRun('histoire');
   state.mode = 'histoire';
   state.run = run;
@@ -6886,11 +6886,11 @@ if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
   run.infest = INFEST_THRESHOLDS[spider + 2] + 100;
   run.stageSeen = 2;
   run.wave = 45;
-  run.cash = 1.2e9;
+  run.cash = TEST_MODE === 'riche' ? 9e11 : 1.2e9; // ?test=riche : 900 milliards pour tout essayer
   run.toyboxApplied = true;
   refreshStats();
   run.launchesLeft = waveLaunches();
-  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, 1,2 milliard en poche. Ta vraie sauvegarde n’est pas touchée.';
+  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, ' + (TEST_MODE === 'riche' ? '900 milliards' : '1,2 milliard') + ' en poche. Ta vraie sauvegarde n’est pas touchée.';
 }
 openMenu();
 requestAnimationFrame(frame);
