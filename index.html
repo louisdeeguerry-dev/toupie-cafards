@@ -1814,21 +1814,6 @@ launcher.position.set(LAUNCH.x, 0, LAUNCH.y + 0.03);
 scene.add(launcher);
 const LZ = -0.03; // le plot de départ de la toupie, dans le repère du lanceur
 let lBody = new THREE.Group(), lRing = new THREE.Group(), LV = null;
-// Couleurs de chaque forme : coque, accent, lumière
-const LAUNCHER_LOOKS = [
-  { body: 0xff8c2a, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0xffd36a },
-  { body: 0xf2701e, metal: 0.1, rough: 0.4, accent: 0x2b2f36, light: 0xffd36a },
-  { body: 0x9aa4ad, metal: 0.85, rough: 0.28, accent: 0xe84a3a, light: 0xff6a4a },
-  { body: 0x7d8a96, metal: 0.8, rough: 0.3, accent: 0x37c6ff, light: 0x37c6ff },
-  { body: 0xe8322a, metal: 0.35, rough: 0.22, accent: 0xffffff, light: 0xffffff },
-  { body: 0x1c222c, metal: 0.6, rough: 0.3, accent: 0x35e8ff, light: 0x35e8ff },
-  { body: 0x24304a, metal: 0.7, rough: 0.28, accent: 0x58a6ff, light: 0x58a6ff },
-  { body: 0xf2f2f2, metal: 0.3, rough: 0.25, accent: 0xe8322a, light: 0xff8a2a },
-  { body: 0xffc94a, metal: 1, rough: 0.18, accent: 0xfff2b0, light: 0xfff2b0 },
-  { body: 0x2a1a44, metal: 0.6, rough: 0.25, accent: 0xc05aff, light: 0xd07aff },
-  { body: 0x101018, metal: 0.9, rough: 0.15, accent: 0xff3a6a, light: 0xff3a6a },
-  { body: 0xf4f6ff, metal: 0.55, rough: 0.12, accent: 0x7af0ff, light: 0x7af0ff },
-];
 // Traits de lumière qui défilent (une texture partagée, qu'on fait glisser)
 const streakTex = (() => {
   const c = document.createElement('canvas');
@@ -1854,7 +1839,7 @@ const streakTex = (() => {
 const launcherFaceCache = new Map();
 function launcherFace(tier) {
   if (launcherFaceCache.has(tier)) return launcherFaceCache.get(tier);
-  const look = LAUNCHER_LOOKS[tier];
+  const look = SKINS.puissance[tier];
   const hex = c => '#' + new THREE.Color(c).getHexString();
   const mk = () => { const c = document.createElement('canvas'); c.width = c.height = 256; return [c, c.getContext('2d')]; };
   const [mc, m] = mk(), [gc, g] = mk();
@@ -1885,7 +1870,7 @@ function launcherFace(tier) {
   spiral(m, hex(look.accent), 9);
   m.fillStyle = hex(look.accent); m.beginPath(); m.arc(C, C, 12, 0, Math.PI * 2); m.fill();
   // Les premières formes : autocollants et vis de jouet
-  if (tier <= 1) {
+  if (look.stickers) {
     m.fillStyle = '#ffffff';
     for (const [x, y, r] of [[C + 58, C - 58, 9], [C - 62, C + 54, 7]]) {
       m.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; m.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } m.closePath(); m.fill();
@@ -1893,11 +1878,11 @@ function launcherFace(tier) {
   }
   for (let i = 0; i < 4; i++) {          // 4 vis
     const a = Math.PI / 4 + i * Math.PI / 2, x = C + Math.cos(a) * 96, y = C + Math.sin(a) * 96;
-    m.fillStyle = tier >= 2 ? '#d9dee3' : '#f2f2f2'; m.beginPath(); m.arc(x, y, 6, 0, Math.PI * 2); m.fill();
+    m.fillStyle = look.metalParts ? '#d9dee3' : '#f2f2f2'; m.beginPath(); m.arc(x, y, 6, 0, Math.PI * 2); m.fill();
     m.strokeStyle = '#555'; m.lineWidth = 2; m.beginPath(); m.moveTo(x - 4, y); m.lineTo(x + 4, y); m.stroke();
   }
-  // À partir du lanceur néon : des circuits lumineux
-  if (tier >= 5) {
+  // À partir de la coque néon : des circuits lumineux
+  if (look.neon) {
     const lc = hex(look.light);
     for (const ctx of [m, g]) {
       ctx.strokeStyle = ctx === g ? '#ffffff' : lc; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
@@ -1920,33 +1905,33 @@ function launcherFace(tier) {
   launcherFaceCache.set(tier, out);
   return out;
 }
-// Le lanceur, pièce par pièce : la Puissance change la coque (12 finitions, une dent de plus sur la couronne
-// à chaque niveau), l'Élan la propulsion, la Précision le viseur, le Multi-lancer les plots, la Recharge les piles
+// Le lanceur, pièce par pièce : la Puissance change la coque (20 skins, une dent de plus sur la couronne
+// à chaque niveau), l'Élan la propulsion (16 skins), la Précision le viseur (12 skins),
+// le Multi-lancer les plots et la Recharge les piles
 function buildLauncher(o) {
   launcher.traverse(m => { if (m.isMesh) { m.geometry.dispose(); [].concat(m.material).forEach(x => x.dispose()); } });
   launcher.clear();
-  const tier = Math.min(11, Math.floor(o.p / 5));
-  const look = LAUNCHER_LOOKS[tier];
+  const look = skinOf('puissance', o.p), Ek = skinOf('elan', o.e), PRk = skinOf('precision', o.pr);
   const M = (color, metal = 0.3, rough = 0.4, extra = {}) => new THREE.MeshStandardMaterial({ color, metalness: metal, roughness: rough, ...extra });
   const bodyMat = M(look.body, look.metal, look.rough);
-  const dark = M(0x23262c, 0.6, 0.4);
-  const steel = M(0xc9d1d8, 0.9, 0.25);
-  const accent = M(look.accent, tier >= 2 ? 0.5 : 0.1, 0.35);
+  const dark = M(0x23262c, 0.5, 0.4);
+  const steel = M(0xc9d1d8, 0.6, 0.25);
+  const accent = M(look.accent, look.metalParts ? 0.5 : 0.1, 0.35);
   const lightCol = new THREE.Color(look.light);
   const glow = (extra = {}) => new THREE.MeshBasicMaterial({ color: lightCol.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, ...extra });
+  const fixedGlow = (c, extra = {}) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, ...extra });
   const add = (parent, geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
-  const P = { lights: [], streaks: [], fans: [], flames: [], halos: [], wings: [] };
+  const P = { lights: [], streaks: [], fans: [], flames: [], flameMats: [], halos: [], wings: [] };
   const HY = 0.05;
   const NZ0 = LZ + 0.026, NZ1 = 0.072;
-  const E = tierAt('elan', o.e), PR = tierAt('precision', o.pr);
 
   // Le plot de départ, et ses graduations (2 de plus à chaque niveau de Précision)
-  const padMat = M(tier >= 4 ? 0xe9edf2 : 0x3a3f47, tier >= 4 ? 0.9 : 0.3, 0.3, { emissive: lightCol, emissiveIntensity: 0 });
+  const padMat = M(look.padChrome ? 0xe9edf2 : 0x3a3f47, look.padChrome ? 0.6 : 0.3, 0.3, { emissive: lightCol, emissiveIntensity: 0 });
   const pad = add(launcher, new THREE.RingGeometry(0.03, 0.04, 48), padMat, 0, 0.0015, LZ);
   pad.rotation.x = -Math.PI / 2; pad.castShadow = false;
   P.pad = padMat;
   const nTicks = 8 + 2 * o.pr;
-  const tickMat = tier >= 5 || PR.t >= 3 ? glow() : accent;
+  const tickMat = look.neon || PRk.sight >= 3 ? glow() : accent;
   if (tickMat.isMeshBasicMaterial) P.lights.push(tickMat);
   for (let i = 0; i < nTicks; i++) {
     const a = (i / nTicks) * Math.PI * 2, big = i % 4 === 0;
@@ -1955,7 +1940,7 @@ function buildLauncher(o) {
   }
   // Le pied
   add(launcher, new THREE.CylinderGeometry(0.017, 0.02, 0.006, 24), dark, 0, 0.003, 0.05);
-  add(launcher, new THREE.CylinderGeometry(0.006, 0.007, HY, 12), tier >= 2 ? steel : dark, 0, HY / 2, 0.05);
+  add(launcher, new THREE.CylinderGeometry(0.006, 0.007, HY, 12), look.metalParts ? steel : dark, 0, HY / 2, 0.05);
   // Recharge (mode Carnage) : une pile de plus autour du pied à chaque niveau
   for (let i = 0; i < o.rc; i++) {
     const a = (i / 20) * Math.PI * 2;
@@ -1967,27 +1952,26 @@ function buildLauncher(o) {
     const x = sd * (0.062 + row * 0.03), z = LZ + 0.012 + row * 0.012;
     const mp = add(launcher, new THREE.RingGeometry(0.009, 0.014, 24), padMat, x, 0.0015, z);
     mp.rotation.x = -Math.PI / 2; mp.castShadow = false;
-    const mr = add(launcher, new THREE.TorusGeometry(0.012, 0.0018, 6, 24), tier >= 2 ? M(0xffc94a, 0.9, 0.25) : accent, x, 0.012, z);
-    mr.rotation.x = Math.PI / 2;
+    add(launcher, new THREE.TorusGeometry(0.012, 0.0018, 6, 24), look.metalParts ? M(0xffc94a, 0.6, 0.25) : accent, x, 0.012, z).rotation.x = Math.PI / 2;
     add(launcher, new THREE.CylinderGeometry(0.0025, 0.0025, 0.012, 8), dark, x, 0.006, z);
   }
 
   // Tout le haut recule à chaque lancer
   lBody = new THREE.Group();
   launcher.add(lBody);
-  const face = launcherFace(tier);
-  const topMat = M(0xffffff, look.metal * 0.6, look.rough, { map: face.map, emissive: tier >= 5 ? 0xffffff : 0x000000, emissiveMap: tier >= 5 ? face.glow : null, emissiveIntensity: tier >= 5 ? 0.9 : 0 });
-  if (tier >= 5) P.faceMat = topMat;
+  const face = launcherFace(look.idx);
+  const topMat = M(0xffffff, look.metal * 0.6, look.rough, { map: face.map, emissive: look.neon ? 0xffffff : 0x000000, emissiveMap: look.neon ? face.glow : null, emissiveIntensity: look.neon ? 0.9 : 0 });
+  if (look.neon) P.faceMat = topMat;
   add(lBody, new THREE.CylinderGeometry(0.032, 0.034, 0.016, 48), [bodyMat, topMat, dark], 0, HY, LZ);
-  const rimRing = add(lBody, new THREE.TorusGeometry(0.0325, 0.0022, 8, 48), tier >= 5 ? glow() : accent, 0, HY + 0.008, LZ);
+  const rimRing = add(lBody, new THREE.TorusGeometry(0.0325, 0.0022, 8, 48), look.neon ? glow() : accent, 0, HY + 0.008, LZ);
   rimRing.rotation.x = Math.PI / 2;
-  if (tier >= 5) P.lights.push(rimRing.material);
-  add(lBody, new THREE.CylinderGeometry(0.011, 0.014, 0.022, 20), tier >= 2 ? steel : dark, 0, HY - 0.019, LZ);
+  if (look.neon) P.lights.push(rimRing.material);
+  add(lBody, new THREE.CylinderGeometry(0.011, 0.014, 0.022, 20), look.metalParts ? steel : dark, 0, HY - 0.019, LZ);
   // La couronne crantée : une dent de plus à chaque niveau de Puissance
   lRing = new THREE.Group();
   lRing.position.set(0, HY - 0.007, LZ);
   lBody.add(lRing);
-  const ringMat = tier >= 2 ? M(0xffc94a, 0.9, 0.25) : M(0x3a3f47, 0.3, 0.4);
+  const ringMat = look.metalParts ? M(0xffc94a, 0.6, 0.25) : M(0x3a3f47, 0.3, 0.4);
   add(lRing, new THREE.TorusGeometry(0.034, 0.0028, 8, 48), ringMat).rotation.x = Math.PI / 2;
   const nTeeth = 12 + o.p;
   const toothW = Math.min(0.006, (Math.PI * 2 * 0.0375) / nTeeth * 0.6);
@@ -2012,51 +1996,47 @@ function buildLauncher(o) {
   handle.position.set(0, HY, NZ1);
   lBody.add(handle);
   add(handle, new THREE.CylinderGeometry(0.0016, 0.0016, 0.018, 6), dark, 0, 0, 0.009).rotation.x = Math.PI / 2;
-  add(handle, new THREE.BoxGeometry(0.05, 0.007, 0.008), tier >= 2 ? steel : accent, 0, 0, 0.02);
+  add(handle, new THREE.BoxGeometry(0.05, 0.007, 0.008), look.metalParts ? steel : accent, 0, 0, 0.02);
   for (const s of [-1, 1]) add(handle, new THREE.CylinderGeometry(0.0062, 0.0062, 0.018, 12), dark, s * 0.02, 0, 0.02).rotation.z = Math.PI / 2;
   P.handle = handle;
-  if (tier >= 1) for (const s of [-1, 1]) for (const z of [NZ0 + 0.006, NZ1 - 0.006]) add(lBody, new THREE.CylinderGeometry(0.0017, 0.0017, 0.0012, 8), steel, s * 0.0075, HY + 0.0066, z);
-  // Coque à ressorts
-  if (tier >= 3) for (const s of [-1, 1]) {
+  if (look.bolts) for (const s of [-1, 1]) for (const z of [NZ0 + 0.006, NZ1 - 0.006]) add(lBody, new THREE.CylinderGeometry(0.0017, 0.0017, 0.0012, 8), steel, s * 0.0075, HY + 0.0066, z);
+  if (look.springs) for (const s of [-1, 1]) {
     const pts = [];
     for (let k = 0; k <= 70; k++) { const a = k * 0.6; pts.push(new THREE.Vector3(s * 0.0145 + Math.cos(a) * 0.0034, HY + Math.sin(a) * 0.0034, NZ0 + 0.004 + k * (neckLen - 0.008) / 70)); }
     add(lBody, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 150, 0.0009, 5), steel);
   }
-  // Coque néon : traits de lumière le long du manche
-  if (tier >= 5) for (const s of [-1, 1]) {
+  if (look.neon) for (const s of [-1, 1]) {
     const strip = add(lBody, new THREE.BoxGeometry(0.002, 0.0025, neckLen), glow({ map: streakTex }), s * 0.0118, HY + 0.003, NZ);
     strip.castShadow = false;
     P.streaks.push(strip.material);
   }
 
   // ----- ÉLAN : la propulsion -----
-  // Chevrons de vitesse : un de plus à chaque niveau (le compte repart à chaque nouvelle propulsion)
-  for (let i = 0; i < E.step; i++) for (const s of [-1, 1]) {
+  for (let i = 0; i < (o.e ? chevronsAt(o.e) : 0); i++) for (const s of [-1, 1]) {
     const ch = add(lBody, new THREE.ConeGeometry(0.0032, 0.007, 3), glow({ color: new THREE.Color(0xffffff) }), s * 0.0125, HY - 0.0035, NZ0 + 0.005 + i * 0.0055);
     ch.rotation.x = Math.PI / 2; ch.castShadow = false;
     P.streaks.push(ch.material);
   }
-  // Ailerons (dès le 1er niveau), qui grandissent
-  if (E.t >= 1) {
+  if (Ek.fins) {   // ailerons, qui grandissent à chaque niveau
     const sc = 0.75 + 0.012 * o.e;
+    const finMat = Ek.fins === 'accent' ? accent : M(Ek.fins, 0.4, 0.3);
     for (const s of [-1, 1]) {
-      const fin = add(lBody, new THREE.BoxGeometry(0.026 * sc, 0.003, 0.03 * sc), accent, s * (0.024 + 0.004 * sc), HY + 0.002, NZ1 - 0.012);
+      const fin = add(lBody, new THREE.BoxGeometry(0.026 * sc, 0.003, 0.03 * sc), finMat, s * (0.024 + 0.004 * sc), HY + 0.002, NZ1 - 0.012);
       fin.rotation.set(0, s * 0.45, s * 0.25);
-      if (E.t >= 2) {
+      if (Ek.finGlow) {
         const edge = add(lBody, new THREE.BoxGeometry(0.027 * sc, 0.0024, 0.003), glow({ map: streakTex }), s * (0.026 + 0.004 * sc), HY + 0.0045, NZ1 - 0.012 - 0.015 * sc);
         edge.rotation.set(0, s * 0.45, s * 0.25); edge.castShadow = false;
         P.streaks.push(edge.material);
       }
     }
   }
-  // Turbines
-  if (E.t >= 3) for (const s of [-1, 1]) {
+  if (Ek.turbines) for (const s of [-1, 1]) {
     const tg = new THREE.Group();
     tg.position.set(s * 0.044, HY - 0.002, LZ + 0.006);
     lBody.add(tg);
-    add(tg, new THREE.CylinderGeometry(0.0115, 0.0105, 0.036, 22, 1, true), M(look.body, 0.8, 0.25, { side: THREE.DoubleSide })).rotation.x = Math.PI / 2;
-    const lip = add(tg, new THREE.TorusGeometry(0.0115, 0.0018, 8, 24), glow(), 0, 0, -0.018);
-    P.lights.push(lip.material);
+    add(tg, new THREE.CylinderGeometry(0.0115, 0.0105, 0.036, 22, 1, true), M(look.body, 0.5, 0.25, { side: THREE.DoubleSide })).rotation.x = Math.PI / 2;
+    const lip = add(tg, new THREE.TorusGeometry(0.0115, 0.0018, 8, 24), Ek.turbines === 'light' ? glow() : fixedGlow(Ek.turbines), 0, 0, -0.018);
+    if (Ek.turbines === 'light') P.lights.push(lip.material);
     const fan = new THREE.Group();
     fan.position.z = -0.013;
     tg.add(fan);
@@ -2069,63 +2049,65 @@ function buildLauncher(o) {
     P.fans.push(fan);
     add(tg, new THREE.BoxGeometry(0.008, 0.003, 0.014), dark, -s * 0.011, 0, 0);
   }
-  // Propulseurs (flammes), puis réacteurs à plasma (flammes bleues), puis hyper-propulsion (plus gros)
-  if (E.t >= 4) {
-    const big = E.t >= 6 ? 1.35 : 1;
-    const plasma = E.t >= 5;
+  if (Ek.flames) {
+    const big = Ek.big || 1;
+    const rb = Ek.flames === 'rainbow';
     for (const s of [-1, 1]) {
-      const nz = add(lBody, new THREE.CylinderGeometry(0.0068 * big, 0.0048 * big, 0.014, 16, 1, true), M(0x3a3f47, 0.8, 0.3, { side: THREE.DoubleSide }), s * 0.017, HY - 0.001, NZ1 - 0.006);
+      const nz = add(lBody, new THREE.CylinderGeometry(0.0068 * big, 0.0048 * big, 0.014, 16, 1, true), M(0x3a3f47, 0.5, 0.3, { side: THREE.DoubleSide }), s * 0.017, HY - 0.001, NZ1 - 0.006);
       nz.rotation.x = Math.PI / 2;
       const flame = new THREE.Group();
       flame.position.set(s * 0.017, HY - 0.001, NZ1 + 0.001);
       flame.scale.setScalar(big);
       lBody.add(flame);
-      const outer = add(flame, new THREE.ConeGeometry(0.006, 0.032, 12), glow({ color: new THREE.Color(plasma ? 0x4ab8ff : 0xff7a1a), opacity: 0.85 }));
+      const outerMat = fixedGlow(rb ? 0xff7a1a : Ek.flames[0], { opacity: 0.85 }), innerMat = fixedGlow(rb ? 0xffffff : Ek.flames[1]);
+      const outer = add(flame, new THREE.ConeGeometry(0.006, 0.032, 12), outerMat);
       outer.rotation.x = Math.PI / 2; outer.position.z = 0.016; outer.castShadow = false;
-      const inner = add(flame, new THREE.ConeGeometry(0.0032, 0.02, 10), glow({ color: new THREE.Color(plasma ? 0xdff6ff : 0xfff2a0) }));
+      const inner = add(flame, new THREE.ConeGeometry(0.0032, 0.02, 10), innerMat);
       inner.rotation.x = Math.PI / 2; inner.position.z = 0.01; inner.castShadow = false;
       P.flames.push(flame);
+      if (rb) P.flameMats.push(outerMat);
     }
   }
 
   // ----- PRÉCISION : le viseur -----
-  if (PR.t >= 1) {   // guidon à l'avant du boîtier
-    add(lBody, new THREE.BoxGeometry(0.0025, 0.012, 0.0025), steel, 0, HY + 0.014, LZ - 0.03);
-    add(lBody, new THREE.TorusGeometry(0.004, 0.0009, 6, 16), accent, 0, HY + 0.022, LZ - 0.03);
+  const sightMat = PRk.gold ? M(0xffc94a, 0.6, 0.2) : steel;
+  if (PRk.sight >= 1) {   // guidon à l'avant du boîtier
+    add(lBody, new THREE.BoxGeometry(0.0025, 0.012, 0.0025), sightMat, 0, HY + 0.014, LZ - 0.03);
+    add(lBody, new THREE.TorusGeometry(0.004, 0.0009, 6, 16), PRk.gold ? sightMat : accent, 0, HY + 0.022, LZ - 0.03);
   }
-  if (PR.t >= 2) {   // lunette sur le côté du manche, avec ses bagues (une de plus à chaque niveau)
-    const sc = add(lBody, new THREE.CylinderGeometry(0.0045, 0.0045, 0.04, 14), dark, 0.0175, HY + 0.012, NZ0 + 0.012);
-    sc.rotation.x = Math.PI / 2;
-    const lens = add(lBody, new THREE.CircleGeometry(0.0042, 16), glow({ color: new THREE.Color(0x7fd8ff) }), 0.0175, HY + 0.012, NZ0 - 0.0085);
-    lens.rotation.y = Math.PI; lens.castShadow = false;
-    P.lights.push(lens.material);
-    for (let i = 0; i < PR.step; i++) add(lBody, new THREE.TorusGeometry(0.0048, 0.0008, 6, 14), accent, 0.0175, HY + 0.012, NZ0 + 0.0 + i * 0.006);
+  if (PRk.sight >= 2) {   // lunette(s) sur le côté du manche, avec leurs bagues
+    for (const sx of PRk.double ? [0.0175, -0.0175] : [0.0175]) {
+      const sc = add(lBody, new THREE.CylinderGeometry(0.0045, 0.0045, 0.04, 14), PRk.gold ? sightMat : dark, sx, HY + 0.012, NZ0 + 0.012);
+      sc.rotation.x = Math.PI / 2;
+      const lens = add(lBody, new THREE.CircleGeometry(0.0042, 16), fixedGlow(0x7fd8ff), sx, HY + 0.012, NZ0 - 0.0085);
+      lens.rotation.y = Math.PI; lens.castShadow = false;
+      for (let i = 0; i <= PRk.step; i++) add(lBody, new THREE.TorusGeometry(0.0048, 0.0008, 6, 14), accent, sx, HY + 0.012, NZ0 + i * 0.006);
+    }
   }
-  if (PR.t >= 3) {   // rayon laser vers l'avant, de plus en plus long
+  if (PRk.laser) {   // rayon laser vers l'avant, de plus en plus long
     const len = 0.05 + 0.004 * o.pr;
-    const laser = add(lBody, new THREE.BoxGeometry(0.0012, 0.0012, len), glow({ color: new THREE.Color(0xff2a3a), opacity: 0.9 }), 0, HY + 0.022, LZ - 0.03 - len / 2);
+    const laser = add(lBody, new THREE.BoxGeometry(0.0012, 0.0012, len), fixedGlow(PRk.laser, { opacity: 0.9 }), 0, HY + 0.022, LZ - 0.03 - len / 2);
     laser.castShadow = false;
     P.laser = laser;
   }
-  if (PR.t >= 4) {   // réticule holographique au-dessus du plot
+  if (PRk.holo) {   // réticule holographique au-dessus du plot
     const holo = new THREE.Group();
     holo.position.set(0, 0.016, LZ);
     launcher.add(holo);
-    const hm = glow({ color: new THREE.Color(0x7fffd4), opacity: 0.8 });
+    const hm = fixedGlow(PRk.holo, { opacity: 0.8 });
     add(holo, new THREE.TorusGeometry(0.02, 0.0009, 6, 40), hm).rotation.x = Math.PI / 2;
     for (const r of [0, Math.PI / 2]) { const bar = add(holo, new THREE.BoxGeometry(0.044, 0.0009, 0.0009), hm); bar.rotation.y = r; bar.castShadow = false; }
+    if (PRk.double) add(holo, new THREE.TorusGeometry(0.026, 0.0007, 6, 40), hm).rotation.x = Math.PI / 2;
     P.holo = holo;
   }
-  if (PR.t >= 5) {   // œil de lynx : une lentille dorée qui brille
-    add(lBody, new THREE.SphereGeometry(0.0055, 16, 12), M(0xffc94a, 0.9, 0.15, { emissive: 0xffa020, emissiveIntensity: 0.8 }), 0, HY + 0.003, LZ - 0.035);
-  }
+  if (PRk.eye) add(lBody, new THREE.SphereGeometry(0.0055, 16, 12), M(PRk.eye, 0.6, 0.15, { emissive: PRk.eye, emissiveIntensity: 0.8 }), 0, HY + 0.003, LZ - 0.035);
 
-  // ----- PUISSANCE (formes avancées de la coque) -----
-  if (tier >= 8) for (let i = 0; i < 6; i++) {
+  // ----- PUISSANCE : les coques les plus impressionnantes -----
+  if (look.gems) for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + Math.PI / 6, c = [0xff2050, 0x30e080, 0x3a7dff][i % 3];
     add(lBody, new THREE.OctahedronGeometry(0.0042), M(c, 0.3, 0.1, { emissive: c, emissiveIntensity: 0.4 }), Math.cos(a) * 0.0325, HY + 0.0095, LZ + Math.sin(a) * 0.0325);
   }
-  if (tier >= 9) {
+  if (look.core) {
     const core = add(lBody, new THREE.SphereGeometry(0.0085, 18, 12), glow(), 0, HY + 0.01, LZ);
     core.castShadow = false;
     add(lBody, new THREE.SphereGeometry(0.0145, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xcfe9ff, transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.2, depthWrite: false }), 0, HY + 0.008, LZ);
@@ -2134,13 +2116,13 @@ function buildLauncher(o) {
     P.core = core; P.orbit = orbit;
     P.lights.push(core.material, orbit.material);
   }
-  if (tier >= 10) for (const [r, y] of [[0.042, HY + 0.02], [0.034, HY + 0.03]]) {
+  if (look.halos) for (const [r, y] of [[0.042, HY + 0.02], [0.034, HY + 0.03]]) {
     const h = add(launcher, new THREE.TorusGeometry(r, 0.0016, 8, 56), glow(), 0, y, LZ);
     h.rotation.x = Math.PI / 2; h.castShadow = false;
     P.halos.push(h);
     P.lights.push(h.material);
   }
-  if (tier >= 11) for (const s of [-1, 1]) {
+  if (look.wings) for (const s of [-1, 1]) {
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(0.055, 0.016); shape.lineTo(0.05, -0.004); shape.lineTo(0.032, -0.008); shape.lineTo(0, -0.01);
     const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.0025, bevelEnabled: false });
@@ -2148,13 +2130,16 @@ function buildLauncher(o) {
     wg.position.set(s * 0.03, HY + 0.002, LZ + 0.02);
     wg.scale.x = s;
     lBody.add(wg);
-    add(wg, geo, M(0xf4f6ff, 0.7, 0.15)).rotation.x = -Math.PI / 2;
+    add(wg, geo, M(0xf4f6ff, 0.5, 0.15)).rotation.x = -Math.PI / 2;
     const edge = add(wg, new THREE.BoxGeometry(0.055, 0.003, 0.0015), glow({ map: streakTex }), 0.0275, 0.003, -0.008);
     edge.rotation.y = -0.28; edge.castShadow = false;
     P.streaks.push(edge.material);
     P.wings.push({ wg, s });
   }
-  P.tier = tier;
+  P.idx = look.idx;
+  P.hue = !!look.hue;
+  P.neon = !!look.neon;
+  P.metalParts = !!look.metalParts;
   P.lightCol = lightCol;
   LV = P;
 }
@@ -2174,7 +2159,8 @@ function animateLauncher(dt) {
   lRing.rotation.y += (charging ? 25 : 2) * dt;
   LV.handle.position.z = 0.072 + g * 0.03;
   // Couleur de la lumière (elle change en continu sur les deux dernières formes)
-  if (LV.tier >= 10) LV.lightCol.setHSL((t * 0.08) % 1, 0.9, 0.62);
+  if (LV.hue) LV.lightCol.setHSL((t * 0.08) % 1, 0.9, 0.62);
+  for (const m of LV.flameMats) m.color.setHSL((t * 0.3) % 1, 0.95, 0.55);
   for (const m of LV.lights) m.color.copy(LV.lightCol);
   for (const m of LV.streaks) m.color.copy(LV.lightCol);
   streakTex.offset.x -= dt * (0.5 + 3.5 * g + 6 * kick);
@@ -2182,9 +2168,9 @@ function animateLauncher(dt) {
   const n = LV.leds.length, lit = charging ? Math.ceil(g * n) : -1, run = Math.floor(t * 4) % (n + 3);
   LV.leds.forEach((m, i) => {
     m.emissive.copy(LV.lightCol);
-    m.emissiveIntensity = charging ? (n - 1 - i < lit ? 1.6 : 0.05) : (LV.tier >= 2 && n - 1 - i === run ? 0.9 : 0.12);
+    m.emissiveIntensity = charging ? (n - 1 - i < lit ? 1.6 : 0.05) : (LV.metalParts && n - 1 - i === run ? 0.9 : 0.12);
   });
-  LV.pad.emissiveIntensity = (LV.tier >= 5 ? 0.45 + 0.25 * Math.sin(t * 3) : 0) + g * 1.2 + kick * 2;
+  LV.pad.emissiveIntensity = (LV.neon ? 0.45 + 0.25 * Math.sin(t * 3) : 0) + g * 1.2 + kick * 2;
   if (LV.faceMat) { LV.faceMat.emissive.copy(LV.lightCol); LV.faceMat.emissiveIntensity = 0.7 + 0.3 * Math.sin(t * 3) + g * 1.5 + kick * 2; }
   for (const f of LV.fans) f.rotation.z += dt * (8 + 70 * g + 40 * kick);
   for (const f of LV.flames) { const k = 0.35 + 1.2 * g + 2.2 * kick + 0.15 * Math.sin(t * 40 + f.position.x * 900); f.scale.set(1, 1, k); f.visible = k > 0.3; }
@@ -2196,7 +2182,7 @@ function animateLauncher(dt) {
 }
 // Un éclair au moment du lancer (à partir du lanceur néon)
 function launcherFlash() {
-  if (LV && LV.tier >= 5) addShock(LAUNCH.x, LAUNCH.y, 0.05 + 0.006 * LV.tier, LV.lightCol.getHex());
+  if (LV && LV.neon) addShock(LAUNCH.x, LAUNCH.y, 0.05 + 0.004 * LV.idx, LV.lightCol.getHex());
 }
 
 // Bords trampolines : une toile élastique tendue sur des ressorts, à la place des rebords en bois
@@ -2524,10 +2510,292 @@ const cometTex = (() => {
   return t;
 })();
 // =====================================================================
+//  LE CATALOGUE DES SKINS : chaque pièce de la toupie et du lanceur a sa longue liste de skins,
+//  rangés du plus simple au plus impressionnant (un nouveau tous les 2 ou 3 niveaux), et entre deux
+//  skins, chaque niveau ajoute quand même un petit quelque chose (une dent, un boulon, une perle…).
+// =====================================================================
+const SKINS = {
+  poids: [
+    { at: 0, name: 'Roue en plastique rouge', body: ['hsl(8,80%,55%)', '#f4f1ea', 'hsl(42,90%,55%)', '#222'], wheel: 0xd8402e, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#f4f1ea' },
+    { at: 3, name: 'Roue en plastique bleu', body: ['#2f6fd8', '#f4f1ea', '#7fc3ff', '#1a2a4a'], wheel: 0x2f6fd8, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#ffffff' },
+    { at: 6, name: 'Roue en bois', body: ['#8a5a2b', '#b07a44', '#6e4420', '#c18d55'], wheel: 0x7a4a22, metal: 0, rough: 0.8, mark: 'dash', markCol: '#f2d8a8' },
+    { at: 9, name: 'Roue en bois verni', body: ['#5a3518', '#8a5a2b', '#3e240f', '#a8743f'], wheel: 0x5a3518, metal: 0.1, rough: 0.3, mark: 'dash', markCol: '#ffd67a' },
+    { at: 12, name: 'Roue en cuivre', body: ['#c87533', '#e09a5a', '#9a5420', '#f0b880'], wheel: 0xc87533, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#4a2008' },
+    { at: 15, name: 'Anneau chromé', body: ['#a8763a', '#c8964a', '#8a5a2a', '#e0b070'], wheel: 0xb08040, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#3a2008', trim: 0xdfe6ec },
+    { at: 18, name: 'Double anneau', body: ['#7a7f86', '#5a5f66', '#9aa0a8', '#4a4e54'], wheel: 0x8a9098, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#1a1e24', trim: 0xdfe6ec },
+    { at: 21, name: 'Roue en acier', body: ['#c9d1d8', '#7d8790', '#e6ebef', '#5d666e'], wheel: 0xc7d0d8, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xdfe6ec },
+    { at: 24, name: 'Couronne crénelée', body: ['#b8c2cb', '#6d7780', '#d6dce2', '#4d565e'], wheel: 0xb8c2cb, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xeef2f5 },
+    { at: 27, name: 'Disque de poids', body: ['#5a5f68', '#3d4148', '#7a7f86', '#2b2f36'], wheel: 0x5a5f68, metal: 0.6, rough: 0.35, mark: 'roman', markCol: '#c9d1d8', trim: 0xc9d1d8 },
+    { at: 30, name: 'Roue en or massif', body: ['#ffd65a', '#c99a1c', '#fff0a8', '#a87a10'], wheel: 0xffc94a, metal: 0.65, rough: 0.22, mark: 'roman', markCol: '#6a4a08', trim: 0xffe9a8 },
+    { at: 33, name: 'Roue en or rose', body: ['#e8a08a', '#c87a6a', '#f8c8b8', '#a85a4a'], wheel: 0xe8a08a, metal: 0.6, rough: 0.22, mark: 'roman', markCol: '#6a2a1a', trim: 0xffd6c8 },
+    { at: 36, name: 'Roue en platine', body: ['#e8ecf0', '#c0c8d0', '#ffffff', '#a0a8b0'], wheel: 0xe0e6ec, metal: 0.6, rough: 0.2, mark: 'star', markCol: '#5a6a7a', trim: 0xffffff },
+    { at: 39, name: 'Roue de jade', body: ['#3fae7a', '#7fd8a8', '#2a7a50', '#a8f0c8'], wheel: 0x3fae7a, metal: 0.2, rough: 0.15, mark: 'rune', markCol: '#e8fff0', emissive: 0x0a3a20, trim: 0xffd67a },
+    { at: 42, name: 'Roue en obsidienne', body: ['#1a0f24', '#3b1d5c', '#120a1a', '#5b2a8c'], wheel: 0x3a2450, metal: 0.5, rough: 0.2, mark: 'rune', markCol: '#c9a2ff', emissive: 0x2a0d4a, trim: 0xc9a2ff },
+    { at: 45, name: 'Roue de cristal', body: ['#bff4ff', '#e8fbff', '#8fd8f0', '#ffffff'], wheel: 0xbff4ff, metal: 0.1, rough: 0.05, mark: 'star', markCol: '#ffffff', emissive: 0x3fb8d8, glass: true, trim: 0xffffff },
+    { at: 48, name: 'Roue de lave', body: ['#3a1a10', '#ff5a1a', '#2a1008', '#ff8a2a'], wheel: 0x4a2010, metal: 0.3, rough: 0.5, mark: 'crack', markCol: '#ff8a3a', emissive: 0xff3a00, trim: 0xff8a3a },
+    { at: 50, name: 'Roue de météorite', body: ['#2b2420', '#4a3a30', '#1e1814', '#5a4030'], wheel: 0x4a3a30, metal: 0.4, rough: 0.6, mark: 'crack', markCol: '#ff8a3a', emissive: 0x5a1a00, trim: 0xffb070, sparkle: true },
+  ],
+  lames: [
+    { at: 0, name: 'Sans lame', n: 0 },
+    { at: 1, name: '2 lames droites', n: 2, style: 'droite', col: 0xdfe6ec, metal: 0.5 },
+    { at: 4, name: '2 lames larges', n: 2, style: 'large', col: 0xbfc8d4, metal: 0.5 },
+    { at: 7, name: '3 lames courbes', n: 3, style: 'courbe', col: 0xa9c4ef, metal: 0.5 },
+    { at: 10, name: '3 faucilles', n: 3, style: 'faucille', col: 0x8fd0b0, metal: 0.45 },
+    { at: 13, name: '4 faux', n: 4, style: 'faux', col: 0x7d8a99, metal: 0.55 },
+    { at: 16, name: '4 lames dentées', n: 4, style: 'dentee', col: 0xc0c8d0, metal: 0.5 },
+    { at: 19, name: 'Dents de scie', n: 8, style: 'scie', col: 0xcfd6dd, metal: 0.5 },
+    { at: 22, name: '5 crocs', n: 5, style: 'croc', col: 0xf2ead0, metal: 0.1 },
+    { at: 25, name: 'Anneau d’attaque', n: 3, style: 'aile', col: 0xe2483d, metal: 0.3 },
+    { at: 28, name: 'Lames tournoyantes', n: 4, style: 'aileVive', col: 0x4a8af0, metal: 0.3, em: 0x1a3a8a },
+    { at: 31, name: '6 lames de dragon', n: 6, style: 'dragon', col: 0x3ac27f, metal: 0.45, em: 0x0a4a22, dragon: 0x2fa36b },
+    { at: 34, name: '6 lames de cristal', n: 6, style: 'cristal', col: 0xbff4ff, metal: 0.1, em: 0x3fb8d8, glass: true },
+    { at: 37, name: '6 lames d’or', n: 6, style: 'courbe', col: 0xffc72c, metal: 0.6, em: 0x6a4800, dragon: 0xffc72c },
+    { at: 40, name: 'Double anneau de lames', n: 6, style: 'aileVive', col: 0xcfd6dd, metal: 0.55, double: 0xffc72c },
+    { at: 43, name: '8 lames de lave', n: 8, style: 'lave', col: 0xff5a1f, metal: 0.2, em: 0xff3a00, emI: 1.1, dragon: 0xff6a1a },
+    { at: 46, name: '8 lames de glace', n: 8, style: 'glace', col: 0xd8f4ff, metal: 0.1, em: 0x7fd8ff, emI: 0.8, glass: true, dragon: 0x9fe8ff },
+    { at: 49, name: '8 lames d’ombre', n: 8, style: 'ombre', col: 0x2a1a3a, metal: 0.4, em: 0x6a2aaa, emI: 0.9, dragon: 0x8a3aff },
+    { at: 52, name: 'Dragons jumeaux', n: 8, style: 'dragon', col: 0xdfe6ec, metal: 0.55, em: 0x6a4800, dragon: 0x3ac27f, twin: 0xff4a1a },
+    { at: 55, name: 'Lames solaires', n: 8, style: 'soleil', col: 0xffd23a, metal: 0.4, em: 0xffa020, emI: 1, dragon: 0xffd23a, twin: 0xffffff, double: 0xffe9a8 },
+    { at: 58, name: 'Lames du chaos', n: 8, style: 'chaos', col: 0x4a1a5a, metal: 0.5, em: 0xff2a9a, emI: 1.1, dragon: 0xff2a9a, twin: 0x2affd8, hue: true },
+    { at: 60, name: 'Chaos absolu', n: 8, style: 'chaos', col: 0x1a0a20, metal: 0.5, em: 0xff2a9a, emI: 1.3, dragon: 0xff2a9a, twin: 0x2affd8, double: 0xffffff, hue: true },
+  ],
+  endurance: [
+    { at: 0, name: 'Poignée bâton', knob: 'stick' },
+    { at: 1, name: 'Anneau émeraude', ring: 0x3ad35a, knob: 'ball', knobCol: 0x3ad35a },
+    { at: 4, name: 'Poignée boule', ring: 0xff9f43, knob: 'ball', knobCol: 0xff9f43 },
+    { at: 7, name: 'Anneau saphir', ring: 0x3a8dff, knob: 'ball', knobCol: 0x3a8dff, gloss: true },
+    { at: 10, name: 'Gemme violette', ring: 0xa25cff, knob: 'gem', knobCol: 0xa25cff },
+    { at: 13, name: 'Gemme rouge', ring: 0xff3a3a, knob: 'gem', knobCol: 0xff3a3a },
+    { at: 16, name: 'Étoile topaze', ring: 0xffc23a, knob: 'star', knobCol: 0xffc23a },
+    { at: 19, name: 'Flamme éternelle', ring: 0xff7a1a, knob: 'flame', knobCol: 0xff7a1a },
+    { at: 22, name: 'Couche d’énergie', ring: 0x3fd8ff, knob: 'crystal', knobCol: 0xbff4ff, dome: 0x3fd8ff },
+    { at: 25, name: 'Dôme de jade', ring: 0x3fae7a, knob: 'crystal', knobCol: 0x9ff0c8, dome: 0x3fae7a },
+    { at: 28, name: 'Couronne d’ambre', ring: 0xffa31a, knob: 'crown', knobCol: 0xffa31a, core: true },
+    { at: 31, name: 'Toupie à emblème', ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, emblems: true, core: true },
+    { at: 34, name: 'Cœur turquoise', ring: 0x1fc8c8, knob: 'crown', knobCol: 0xffc72c, core: true, dome: 0x1fc8c8, emblems: true },
+    { at: 37, name: 'Flamme de grenat', ring: 0x9a1030, knob: 'flame', knobCol: 0xff3a3a, core: true, dome: 0xff3a3a, emblems: true },
+    { at: 40, name: 'Couronne de cristal', ring: 0xeaf6ff, knob: 'crown', knobCol: 0xeaf6ff, core: true, crystals: true, emblems: true },
+    { at: 43, name: 'Anneau doré', ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, core: true, crystals: true, emblems: true, dome: 0xffd45a },
+    { at: 46, name: 'Anneau céleste', ring: 0x2a3aff, knob: 'crown', knobCol: 0xbfd0ff, core: true, crystals: true, stars: true, emblems: true },
+    { at: 49, name: 'Anneau divin', ring: 0xfff2b0, knob: 'crown', knobCol: 0xffe9a8, core: true, crystals: true, halo: true, emblems: true },
+    { at: 52, name: 'Anneau arc-en-ciel', ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, emblems: true, stars: true },
+    { at: 55, name: 'Anneau éternel', ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, beam: true, emblems: true, stars: true, dome: 'rainbow' },
+  ],
+  pointe: [
+    { at: 0, name: 'Pointe plastique', shape: 'cone', col: 0xf2efe8 },
+    { at: 3, name: 'Pointe en bois', shape: 'cone', col: 0x9a6a3a, rough: 0.8 },
+    { at: 6, name: 'Pointe acier', shape: 'sharp', col: 0xc9d1d8, metal: 0.6 },
+    { at: 9, name: 'Pointe à bille', shape: 'ball', col: 0xdfe6ec, metal: 0.6, ring: 0xffc94a },
+    { at: 12, name: 'Pointe en cuivre', shape: 'sharp', col: 0xc87533, metal: 0.6 },
+    { at: 15, name: 'Pointe rubis', shape: 'facet6', col: 0xe0115f, em: 0x7a0020 },
+    { at: 18, name: 'Pointe émeraude', shape: 'facet6', col: 0x18b06a, em: 0x0a5a30 },
+    { at: 21, name: 'Pointe saphir', shape: 'facet6', col: 0x2a5bd7, em: 0x102a7a },
+    { at: 24, name: 'Pointe diamant', shape: 'facet5', col: 0xbff4ff, em: 0x3fb8d8, glass: true },
+    { at: 27, name: 'Pointes d’or', shape: 'sharp', col: 0xffc72c, metal: 0.6, em: 0x6a4800 },
+    { at: 30, name: 'Pointe de jade', shape: 'ball', col: 0x3fae7a, em: 0x0a3a20, ring: 0xffd67a },
+    { at: 33, name: 'Pointe de lave', shape: 'facet6', col: 0xff5a1a, em: 0xff3a00, emI: 1 },
+    { at: 36, name: 'Pointe de cristal', shape: 'facet5', col: 0xffffff, em: 0xbfefff, glass: true, sparkle: 0xffffff },
+    { at: 39, name: 'Pointe étoile', shape: 'star', col: 0xffd45a, em: 0xffb020, sparkle: 0xfff0a0 },
+    { at: 40, name: 'Pointe comète', shape: 'star', col: 0xeaf6ff, em: 0x7fd8ff, sparkle: 0xbfe8ff, big: true },
+  ],
+  inertie: [
+    { at: 0, name: 'Sans volant' },
+    { at: 1, name: 'Volant léger', col: 0xc9d1d8 },
+    { at: 4, name: 'Bande de course', col: 0xc9d1d8, band: 0xe2483d },
+    { at: 7, name: 'Volant d’acier', col: 0x9aa4ad, band: 0xe2483d },
+    { at: 10, name: 'Volant bleu', col: 0x3a7ad8, band: 0xffffff },
+    { at: 13, name: 'Volant de cuivre', col: 0xc87533, band: 0x2b2f36 },
+    { at: 16, name: 'Volant lourd', col: 0x5a5f68, band: 0xffc72c },
+    { at: 19, name: 'Volant de laiton', col: 0xd9b25a, lip: 0xc9a24a },
+    { at: 22, name: 'Toupie argentée', col: 0xe6ebef, lip: 0xffffff, band: 0x5ab8ff },
+    { at: 25, name: 'Double volant', col: 0x9aa4ad, lip: 0xc9a24a, double: true },
+    { at: 28, name: 'Volant de bronze', col: 0xa8763a, lip: 0xffd67a, double: true },
+    { at: 31, name: 'Volant de tungstène', col: 0x5a6a80, lip: 0x9fe8ff, double: true, band: 0x9fe8ff },
+    { at: 34, name: 'Volant noir', col: 0x23262c, lip: 0xe2483d, double: true, band: 0xe2483d },
+    { at: 37, name: 'Volant doré', col: 0xffc94a, lip: 0xffffff, double: true },
+    { at: 40, name: 'Volant de jade', col: 0x3fae7a, em: 0x0a3a20, lip: 0xffd67a, double: true },
+    { at: 43, name: 'Volant de cristal', col: 0xbff4ff, em: 0x3fb8d8, glass: true, lip: 0xffffff, double: true },
+    { at: 45, name: 'Volant éternel', col: 0xfff2c0, em: 0xffc23a, lip: 0xffffff, double: true, band: 'rainbow' },
+  ],
+  equilibre: [
+    { at: 0, name: 'Sans gyroscope', n: 0 },
+    { at: 1, name: 'Gyroscope', n: 1, col: 0x5fd3c8 },
+    { at: 4, name: 'Gyroscope rouge', n: 1, col: 0xe2483d },
+    { at: 7, name: 'Gyroscope doré', n: 1, col: 0xffc72c },
+    { at: 10, name: 'Double gyroscope', n: 2, col: 0x5fd3c8 },
+    { at: 13, name: 'Double gyroscope bleu', n: 2, col: 0x3a7ad8 },
+    { at: 16, name: 'Double gyroscope de cuivre', n: 2, col: 0xc87533 },
+    { at: 19, name: 'Triple gyroscope', n: 3, col: 0x5fd3c8 },
+    { at: 22, name: 'Triple gyroscope violet', n: 3, col: 0x9b59d0 },
+    { at: 25, name: 'Gyroscope de cristal', n: 3, col: 0xbff4ff, glow: true, glass: true },
+    { at: 28, name: 'Gyroscope de rubis', n: 3, col: 0xe0115f, glow: true },
+    { at: 31, name: 'Gyroscope d’émeraude', n: 3, col: 0x18b06a, glow: true },
+    { at: 34, name: 'Gyroscope stellaire', n: 3, col: 0xffd45a, glow: true, stars: true },
+    { at: 37, name: 'Gyroscope galactique', n: 3, col: 0x9b59d0, glow: true, stars: true },
+    { at: 40, name: 'Gyroscope infini', n: 3, col: 0xffffff, glow: true, stars: true, rainbow: true },
+  ],
+  rebond: [
+    { at: 0, name: 'Sans pare-chocs' },
+    { at: 1, name: 'Pare-chocs caoutchouc', col: 0x1d1d1d },
+    { at: 3, name: 'Pare-chocs rouges', col: 0xb02a2a },
+    { at: 5, name: 'Pare-chocs bleus', col: 0x2a5bd7 },
+    { at: 7, name: 'Pare-chocs renforcés', col: 0x2b2f36, studs: true },
+    { at: 9, name: 'Pare-chocs fluo', col: 0x39ff6a, em: 0x0f7a35 },
+    { at: 11, name: 'Pare-chocs fluo rose', col: 0xff5ac8, em: 0x7a1a5a, studs: true },
+    { at: 12, name: 'Pare-chocs néon', col: 0xffffff, em: 0xffffff, rainbow: true, studs: true },
+  ],
+  agressivite: [
+    { at: 0, name: 'Gentille' },
+    { at: 1, name: 'Petites dents', len: 0.1, col: 0x2b2b2b },
+    { at: 4, name: 'Dents noires', len: 0.12, col: 0x111111 },
+    { at: 7, name: 'Épines', len: 0.15, col: 0x2b2b2b },
+    { at: 10, name: 'Épines rouges', len: 0.16, col: 0xb02a2a },
+    { at: 13, name: 'Crocs', len: 0.2, col: 0xf2ead0 },
+    { at: 16, name: 'Crocs d’acier', len: 0.21, col: 0xdfe6ec, metal: 0.6 },
+    { at: 19, name: 'Crocs dorés', len: 0.22, col: 0xffc72c, metal: 0.6 },
+    { at: 22, name: 'Épines et yeux rouges', len: 0.22, col: 0x2b2b2b, eyes: true },
+    { at: 25, name: 'Crocs de démon', len: 0.26, col: 0x6a0a0a, em: 0xff1a1a, eyes: true },
+  ],
+  critique: [
+    { at: 0, name: 'Sans gemme' },
+    { at: 1, name: 'Étincelles', gem: 'stud', col: 0xb87333, aura: 0xffe066 },
+    { at: 4, name: 'Clous d’argent', gem: 'stud', col: 0xdfe6ec, aura: 0xffe066 },
+    { at: 7, name: 'Gemmes topaze', gem: 'octa', col: 0xffc72c, aura: 0xffe066 },
+    { at: 10, name: 'Aura rouge', gem: 'octa', col: 0xe0115f, aura: 0xff3b3b, auraW: 0.08 },
+    { at: 13, name: 'Pointes d’or', gem: 'cone', col: 0xffc72c, aura: 0xff3b3b, auraW: 0.08 },
+    { at: 16, name: 'Cristaux lumineux', gem: 'crystal', col: 0xbff4ff, aura: 0x8fd3ff },
+    { at: 19, name: 'Aura de foudre', gem: 'octa', col: 0x2a5bd7, aura: 0x8fd3ff, auraW: 0.08 },
+    { at: 22, name: 'Orbes lumineux', gem: 'orb', col: 0x9b59d0, aura: 0xc9a2ff },
+    { at: 25, name: 'Étoiles dorées', gem: 'gold', col: 0xffc72c, aura: 0xffd45a },
+    { at: 28, name: 'Flèches de cristal', gem: 'arrow', col: 0x7fd8ff, aura: 0x7fd8ff },
+    { at: 31, name: 'Gemmes émeraude', gem: 'octa', col: 0x18b06a, aura: 0x3ad35a },
+    { at: 34, name: 'Diamants blancs', gem: 'dodeca', col: 0xffffff, aura: 0xffffff },
+    { at: 37, name: 'Joyaux étincelants', gem: 'jewel', col: 0xeaf6ff, aura: 0xffe9a8, sparkle: true },
+    { at: 40, name: 'Aura légendaire', gem: 'jewel', col: 0xffd45a, aura: 0xffd45a, legend: 0xffd45a },
+    { at: 43, name: 'Aura mythique', gem: 'jewel', col: 0xff4a1a, aura: 0xff4a1a, legend: 0xff4a1a },
+    { at: 45, name: 'Diamants éternels', gem: 'dodeca', col: 0xffffff, aura: 'rainbow', legend: 'rainbow', sparkle: true },
+  ],
+  feu: [
+    { at: 0, name: 'Sans feu' },
+    { at: 1, name: 'Braises', col: 0xff8a20 },
+    { at: 4, name: 'Flammes', col: 0xffa030 },
+    { at: 7, name: 'Flammes jaunes', col: 0xffd23a },
+    { at: 10, name: 'Feu d’enfer', col: 0xff4a1a },
+    { at: 13, name: 'Flammes vertes', col: 0x3aff6a },
+    { at: 16, name: 'Flammes violettes', col: 0xb05aff },
+    { at: 19, name: 'Flammes bleues', col: 0x4ab8ff },
+    { at: 22, name: 'Flammes blanches', col: 0xeaf6ff },
+    { at: 25, name: 'Couronne solaire', col: 0xffc24a, rays: 0xffc24a },
+    { at: 28, name: 'Flammes dorées', col: 0xffd23a, rays: 0xffe9a8 },
+    { at: 31, name: 'Feu sacré', col: 0xfff2c0, rays: 0xffffff },
+    { at: 34, name: 'Toupie flamboyante', col: 0xff6a1a, rays: 0xffc24a, rainbow: true },
+    { at: 35, name: 'Phénix', col: 0xffd23a, rays: 0xffc24a, phoenix: true },
+  ],
+  souffle: [
+    { at: 0, name: 'Sans souffle' },
+    { at: 1, name: 'Ailettes', col: 0xe6f6ff },
+    { at: 3, name: 'Ailettes bleues', col: 0x7fc3ff },
+    { at: 5, name: 'Brise', col: 0xbfeaff, glow: true },
+    { at: 7, name: 'Vent doré', col: 0xffe9a8, glow: true },
+    { at: 9, name: 'Grand souffle', col: 0xdff6ff, glow: true },
+    { at: 11, name: 'Souffle glacé', col: 0x9fe8ff, glow: true },
+    { at: 13, name: 'Tourbillons d’air', col: 0xeaf6ff, glow: true },
+    { at: 15, name: 'Tempête de vent', col: 0xc9f0ff, glow: true },
+    { at: 17, name: 'Souffle céleste', col: 0xffffff, glow: true, rainbow: true },
+  ],
+  eclair: [
+    { at: 0, name: 'Sans éclairs' },
+    { at: 1, name: 'Étincelles bleues', col: 0x9fe8ff, em: 0x3fb8ff },
+    { at: 3, name: 'Cristaux de foudre', col: 0xbff4ff, em: 0x3fd8ff },
+    { at: 5, name: 'Éclairs violets', col: 0xd0a0ff, em: 0x8a3aff, orbs: true },
+    { at: 7, name: 'Orbes électriques', col: 0x9fe8ff, em: 0x3fb8ff, orbs: true },
+    { at: 9, name: 'Couronne d’orage', col: 0xbff4ff, em: 0x3fd8ff, orbs: true, arcs: true },
+    { at: 11, name: 'Tempête quadruple', col: 0x9fe8ff, em: 0x3fb8ff, orbs: true, arcs: true },
+    { at: 13, name: 'Foudre dorée', col: 0xffe9a8, em: 0xffc23a, orbs: true, arcs: true },
+    { at: 15, name: 'Foudre rouge', col: 0xffa0a0, em: 0xff3a3a, orbs: true, arcs: true },
+    { at: 17, name: 'Tempête électrique', col: 0xeaf6ff, em: 0x7fd8ff, orbs: true, arcs: true, big: true },
+    { at: 18, name: 'Colère céleste', col: 0xffffff, em: 0xffffff, orbs: true, arcs: true, big: true, rainbow: true },
+  ],
+  tornade: [
+    { at: 0, name: 'Sans tourbillon' },
+    { at: 1, name: 'Courant d’air', col: 0xd8f4ff },
+    { at: 3, name: 'Rafale', col: 0xbfeaff },
+    { at: 5, name: 'Tornade', col: 0xd8f4ff },
+    { at: 7, name: 'Ruban de lumière', col: 0xd8f4ff, ribbons: 1 },
+    { at: 9, name: 'Ouragan', col: 0xa8d8ff, ribbons: 1 },
+    { at: 11, name: 'Tourbillon doré', col: 0xffe9a8, ribbons: 1 },
+    { at: 13, name: 'Cyclone', col: 0xd8f4ff, ribbons: 2 },
+    { at: 15, name: 'Double ruban', col: 0xeaf6ff, ribbons: 2 },
+    { at: 17, name: 'Œil du cyclone', col: 0xffffff, ribbons: 2, eye: true },
+    { at: 18, name: 'Tempête infinie', col: 0xffffff, ribbons: 2, eye: true, rainbow: true },
+  ],
+  // ----- Le lanceur -----
+  puissance: [
+    { at: 0, name: 'Coque en plastique', body: 0xff8c2a, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0xffd36a, stickers: true },
+    { at: 3, name: 'Coque en plastique bleu', body: 0x2f6fd8, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0x9fd0ff, stickers: true },
+    { at: 6, name: 'Coque renforcée', body: 0xf2701e, metal: 0.1, rough: 0.4, accent: 0x2b2f36, light: 0xffd36a, bolts: true, stickers: true },
+    { at: 9, name: 'Coque en métal', body: 0x9aa4ad, metal: 0.55, rough: 0.28, accent: 0xe84a3a, light: 0xff6a4a, bolts: true, metalParts: true },
+    { at: 12, name: 'Coque en cuivre', body: 0xc87533, metal: 0.55, rough: 0.3, accent: 0x2b2f36, light: 0xffb070, bolts: true, metalParts: true },
+    { at: 15, name: 'Coque à ressorts', body: 0x7d8a96, metal: 0.55, rough: 0.3, accent: 0x37c6ff, light: 0x37c6ff, bolts: true, metalParts: true, springs: true },
+    { at: 18, name: 'Coque de course', body: 0xe8322a, metal: 0.35, rough: 0.22, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true },
+    { at: 21, name: 'Coque carbone', body: 0x2b2b30, metal: 0.3, rough: 0.35, accent: 0xff3a3a, light: 0xff3a3a, bolts: true, metalParts: true, springs: true, padChrome: true },
+    { at: 24, name: 'Coque néon', body: 0x1c222c, metal: 0.6, rough: 0.3, accent: 0x35e8ff, light: 0x35e8ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 27, name: 'Coque néon rose', body: 0x221c2c, metal: 0.6, rough: 0.3, accent: 0xff5ac8, light: 0xff5ac8, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 30, name: 'Coque bleu nuit', body: 0x24304a, metal: 0.6, rough: 0.28, accent: 0x58a6ff, light: 0x58a6ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 33, name: 'Coque blanche', body: 0xf2f2f2, metal: 0.3, rough: 0.25, accent: 0xe8322a, light: 0xff8a2a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 36, name: 'Coque rubis', body: 0x9a1030, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0xff4a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 39, name: 'Coque émeraude', body: 0x0f7a45, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0x3aff8a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 42, name: 'Coque dorée', body: 0xffc94a, metal: 0.65, rough: 0.18, accent: 0xfff2b0, light: 0xfff2b0, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 45, name: 'Coque à plasma', body: 0x2a1a44, metal: 0.6, rough: 0.25, accent: 0xc05aff, light: 0xd07aff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true },
+    { at: 48, name: 'Coque légendaire', body: 0x101018, metal: 0.65, rough: 0.15, accent: 0xff3a6a, light: 0xff3a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
+    { at: 51, name: 'Coque cosmique', body: 0x1a1040, metal: 0.6, rough: 0.2, accent: 0x9fd0ff, light: 0x9fd0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true },
+    { at: 54, name: 'Coque arc-en-ciel', body: 0xf4f6ff, metal: 0.4, rough: 0.15, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
+    { at: 57, name: 'Coque mythique', body: 0xf4f6ff, metal: 0.55, rough: 0.12, accent: 0x7af0ff, light: 0x7af0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, wings: true, hue: true },
+  ],
+  elan: [
+    { at: 0, name: 'Sans propulsion' },
+    { at: 1, name: 'Ailerons', fins: 'accent' },
+    { at: 4, name: 'Ailerons rouges', fins: 0xe2483d },
+    { at: 7, name: 'Ailerons bleus', fins: 0x3a7ad8 },
+    { at: 10, name: 'Ailerons lumineux', fins: 'accent', finGlow: true },
+    { at: 13, name: 'Turbines', fins: 'accent', finGlow: true, turbines: 'light' },
+    { at: 16, name: 'Turbines rouges', fins: 0xe2483d, finGlow: true, turbines: 0xff3a3a },
+    { at: 19, name: 'Turbines dorées', fins: 0xffc72c, finGlow: true, turbines: 0xffc72c },
+    { at: 22, name: 'Propulseurs', fins: 'accent', finGlow: true, turbines: 'light', flames: [0xff7a1a, 0xfff2a0] },
+    { at: 25, name: 'Propulseurs verts', fins: 0x18b06a, finGlow: true, turbines: 0x3aff6a, flames: [0x3aff6a, 0xe8ffe8] },
+    { at: 28, name: 'Réacteurs à plasma', fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xdff6ff] },
+    { at: 31, name: 'Réacteurs violets', fins: 0x9b59d0, finGlow: true, turbines: 0xb05aff, flames: [0xb05aff, 0xf0e0ff] },
+    { at: 34, name: 'Réacteurs blancs', fins: 0xf2f2f2, finGlow: true, turbines: 0xffffff, flames: [0xeaf6ff, 0xffffff] },
+    { at: 37, name: 'Hyper-propulsion', fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xffffff], big: 1.35 },
+    { at: 40, name: 'Propulsion comète', fins: 0xffc72c, finGlow: true, turbines: 0xffc72c, flames: [0xffc23a, 0xffffff], big: 1.45 },
+    { at: 43, name: 'Propulsion nova', fins: 'accent', finGlow: true, turbines: 'light', flames: 'rainbow', big: 1.55 },
+  ],
+  precision: [
+    { at: 0, name: 'Sans viseur', sight: 0 },
+    { at: 1, name: 'Guidon', sight: 1 },
+    { at: 3, name: 'Guidon doré', sight: 1, gold: true },
+    { at: 5, name: 'Lunette', sight: 2 },
+    { at: 7, name: 'Lunette double', sight: 2, double: true },
+    { at: 9, name: 'Viseur laser', sight: 3, laser: 0xff2a3a },
+    { at: 11, name: 'Laser vert', sight: 3, laser: 0x3aff6a },
+    { at: 13, name: 'Laser bleu', sight: 3, laser: 0x3a8dff },
+    { at: 15, name: 'Réticule holographique', sight: 4, laser: 0xff2a3a, holo: 0x7fffd4 },
+    { at: 17, name: 'Réticule doré', sight: 4, laser: 0xffc23a, holo: 0xffd45a, gold: true },
+    { at: 19, name: 'Œil de lynx', sight: 5, laser: 0xff2a3a, holo: 0x7fffd4, eye: 0xffc94a },
+    { at: 20, name: 'Œil d’aigle', sight: 5, laser: 0xffffff, holo: 0xffd45a, eye: 0xffffff, double: true, gold: true },
+  ],
+};
+// Les cartes de l'atelier lisent les noms des skins directement dans ce catalogue
+for (const u of UPGRADES) if (SKINS[u.id]) u.skins = SKINS[u.id].map(s => [s.at, s.name]);
+// Le skin actuel d'une pièce (et son numéro dans la liste)
+function skinOf(id, L = lv(id)) { const list = SKINS[id]; let i = 0; list.forEach((s, k) => { if (L >= s.at) i = k; }); return { ...list[i], idx: i, L, step: L - list[i].at }; }
+
+// =====================================================================
 //  LA TOUPIE, PIÈCE PAR PIÈCE
-//  Chaque amélioration de l'atelier transforme SA partie de la toupie, presque à chaque niveau
-//  (le Diamètre, lui, ne change que la taille). Construction inspirée des toupies de combat :
-//  pointe et axe, roue de métal crantée, lames d'attaque, volant, anneau d'énergie, emblème au centre.
+//  Chaque amélioration de l'atelier habille SA partie de la toupie avec sa longue liste de skins
+//  (voir SKINS), et chaque niveau ajoute un petit détail. Le Diamètre, lui, ne change que la taille.
+//  Construction inspirée des toupies de combat : pointe et axe, roue de métal crantée, lames
+//  d'attaque, volant, anneau d'énergie, emblème au centre.
 // =====================================================================
 function topPower() { return UPGRADES.filter(u => u.tab === 'toupie').reduce((a, u) => a + lv(u.id), 0); }
 // Le palier (skin) d'une amélioration à un niveau donné, et le nombre de niveaux depuis le début du palier
@@ -2537,23 +2805,27 @@ function tierAt(id, L = lv(id)) {
   (u?.skins || []).forEach(([l], i) => { if (L >= l) t = i; });
   return { L, t, step: L - (u?.skins ? u.skins[t][0] : 0) };
 }
+const gemsAt = L => L ? ((L - 1) % 15) + 1 : 0;
+const segsAt = L => L ? ((L - 1) % 11) + 1 : 0;
+const axeRingsAt = L => Math.min(7, Math.ceil(L / 6));
+const chevronsAt = L => Math.min(8, Math.ceil(L / 5));
 // Ce que change chaque niveau (affiché sur les cartes de l'atelier)
 const UPGRADE_DETAIL = {
-  endurance: L => { if (!L) return ''; const { t, step } = tierAt('endurance', L); return `${t === 6 ? 11 : step + 1} / 11 segments d’énergie`; },
+  endurance: L => L ? `${segsAt(L)} / 11 segments d’énergie` : '',
   poids: L => `${8 + L} dents sur la roue`,
-  pointe: L => { const s = tierAt('pointe', L).step; return s ? `${s} anneau${s > 1 ? 'x' : ''} sur l’axe` : 'axe nu'; },
-  lames: L => { if (!L) return ''; const s = tierAt('lames', L).step; return s ? `${s} dent${s > 1 ? 's' : ''} de scie, lames +${s * 4} %` : 'lames lisses'; },
+  pointe: L => `${axeRingsAt(L)} anneau${axeRingsAt(L) > 1 ? 'x' : ''} sur l’axe, pointe +${L * 2} %`,
+  lames: L => { if (!L) return ''; const s = tierAt('lames', L).step; return `lames +${s * 4} %` + (s ? `, ${s} dent${s > 1 ? 's' : ''} de scie` : ''); },
   inertie: L => L ? `${2 + L} boulons` : '',
   equilibre: L => L ? `${L} perle${L > 1 ? 's' : ''} sur le gyroscope` : '',
   rebond: L => L ? `${L} / 12 tampons` : '',
   agressivite: L => L ? `${L} pointe${L > 1 ? 's' : ''}` : '',
-  critique: L => { if (!L) return ''; const { t, step } = tierAt('critique', L); const n = t === 4 ? 15 : step + 1; return `${n} gemme${n > 1 ? 's' : ''}`; },
+  critique: L => L ? `${gemsAt(L)} gemme${gemsAt(L) > 1 ? 's' : ''}` : '',
   feu: L => L ? `${Math.min(18, L)} flamme${L > 1 ? 's' : ''}` + (L > 18 ? `, plus hautes (+${L - 18})` : '') : '',
   souffle: L => L ? `${L} ailette${L > 1 ? 's' : ''}` : '',
   eclair: L => L ? `${L} cristal${L > 1 ? 'x' : ''}` : '',
   tornade: L => L ? `${1 + Math.floor((L - 1) / 3)} bras de vent, ${[45, 60, 75][(L - 1) % 3]} % de tour` : '',
   puissance: L => `${12 + L} dents sur la couronne`,
-  elan: L => { if (!L) return ''; const s = tierAt('elan', L).step; return `${s} chevron${s > 1 ? 's' : ''} de vitesse` + (L >= 9 ? ` · ${Math.floor(L / 9)} comète${L >= 18 ? 's' : ''} autour de la toupie` : ''); },
+  elan: L => L ? `${chevronsAt(L)} chevron${chevronsAt(L) > 1 ? 's' : ''}, ailerons +${Math.round(L * 1.2)} %` + (L >= 9 ? ` · ${Math.floor(L / 9)} comète${L >= 18 ? 's' : ''} autour de la toupie` : '') : '',
   precision: L => `${8 + 2 * L} graduations sur le plot`,
   multi: L => `${1 + L} plot${L ? 's' : ''} de lancement`,
   recharge: L => L ? `${L} pile${L > 1 ? 's' : ''}` : '',
@@ -2570,6 +2842,11 @@ function cGeo(key, make) {
 const SM = (color, metal = 0.3, rough = 0.4, extra = {}) => new THREE.MeshStandardMaterial({ color, metalness: metal, roughness: rough, ...extra });
 const GLOW = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...extra });
 const glowSprite = (color, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); s.scale.setScalar(size); return s; };
+// Une matière à partir d'un skin : couleur, métal, émission, verre
+const skinMat = (k, base = {}) => SM(k.col ?? base.col ?? 0xcccccc, k.metal ?? base.metal ?? 0.3, k.rough ?? base.rough ?? 0.35, {
+  emissive: k.em ?? 0x000000, emissiveIntensity: k.em ? (k.emI ?? 0.5) : 0, ...(k.glass ? { transparent: true, opacity: 0.8 } : {}) });
+// Une couleur qui défile en arc-en-ciel
+const rainbow = (t, s = 0.12, l = 0.6) => new THREE.Color().setHSL((t * s) % 1, 0.9, l);
 // n pièces posées sur les emplacements offset..offset+n-1 d'un cercle de `total` emplacements
 function instRing(parent, geo, mat, n, total, r, y, fn, offset = 0) {
   if (n <= 0) return null;
@@ -2589,64 +2866,63 @@ function instRing(parent, geo, mat, n, total, r, y, fn, offset = 0) {
   return im;
 }
 
-// --- Poids : la matière du corps et de la roue de métal ---
-const WHEEL_LOOKS = [
-  { body: ['hsl(8,80%,55%)', '#f4f1ea', 'hsl(42,90%,55%)', '#222'], wheel: 0xd8402e, metal: 0.1, rough: 0.45, mark: '#f4f1ea' },
-  { body: ['#8a5a2b', '#b07a44', '#6e4420', '#c18d55'], wheel: 0x7a4a22, metal: 0, rough: 0.8, mark: '#f2d8a8' },
-  { body: ['#c9d1d8', '#7d8790', '#e6ebef', '#5d666e'], wheel: 0xc7d0d8, metal: 0.6, rough: 0.3, mark: '#2b3036' },
-  { body: ['#ffd65a', '#c99a1c', '#fff0a8', '#a87a10'], wheel: 0xffc94a, metal: 0.65, rough: 0.22, mark: '#6a4a08' },
-  { body: ['#1a0f24', '#3b1d5c', '#120a1a', '#5b2a8c'], wheel: 0x3a2450, metal: 0.5, rough: 0.2, mark: '#c9a2ff', emissive: 0x2a0d4a },
-  { body: ['#2b2420', '#4a3a30', '#1e1814', '#5a4030'], wheel: 0x4a3a30, metal: 0.4, rough: 0.6, mark: '#ff8a3a', emissive: 0x5a1a00 },
-];
+// --- Poids : la matière du corps et le dessus gravé de la roue ---
 function bodyMaterial() {
-  const t = tierAt('poids').t, w = WHEEL_LOOKS[t];
-  return new THREE.MeshStandardMaterial({ map: stripeTexture(w.body, 'corps' + t), metalness: w.metal * 0.9, roughness: w.rough,
-    emissive: w.emissive || 0x000000, emissiveIntensity: w.emissive ? 0.6 : 0 });
+  const k = skinOf('poids');
+  return new THREE.MeshStandardMaterial({ map: stripeTexture(k.body, 'corps' + k.idx), metalness: k.metal * 0.9, roughness: k.rough,
+    emissive: k.emissive || 0x000000, emissiveIntensity: k.emissive ? 0.6 : 0, ...(k.glass ? { transparent: true, opacity: 0.85 } : {}) });
 }
-// Le dessus de la roue : des repères gravés (des chiffres romains à partir de l'acier)
 const wheelFaceCache = new Map();
-function wheelFaceTexture(t) {
-  if (wheelFaceCache.has(t)) return wheelFaceCache.get(t);
-  const w = WHEEL_LOOKS[t];
+function wheelFaceTexture(k) {
+  if (wheelFaceCache.has(k.idx)) return wheelFaceCache.get(k.idx);
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d');
-  g.fillStyle = '#' + new THREE.Color(w.wheel).getHexString();
+  g.fillStyle = '#' + new THREE.Color(k.wheel).getHexString();
   g.fillRect(0, 0, 256, 256);
   for (let r = 100; r < 128; r += 2) { g.strokeStyle = `rgba(255,255,255,${(0.05 + 0.05 * Math.sin(r * 1.7)).toFixed(3)})`; g.lineWidth = 1; g.beginPath(); g.arc(128, 128, r, 0, Math.PI * 2); g.stroke(); }
   const ROM = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
-  g.fillStyle = w.mark; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const RUNES = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚨ', 'ᚱ', 'ᚲ', 'ᚷ', 'ᚹ', 'ᚺ', 'ᚾ', 'ᛁ', 'ᛃ'];
+  g.fillStyle = k.markCol; g.strokeStyle = k.markCol; g.textAlign = 'center'; g.textBaseline = 'middle';
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
     g.save();
     g.translate(128 + Math.cos(a) * 114, 128 + Math.sin(a) * 114);
     g.rotate(a + Math.PI / 2);
-    if (t >= 2) { g.font = 'bold 12px Georgia, serif'; g.fillText(ROM[i], 0, 1); } else g.fillRect(-2, -6, 4, 12);
+    if (k.mark === 'roman') { g.font = 'bold 12px Georgia, serif'; g.fillText(ROM[i], 0, 1); }
+    else if (k.mark === 'rune') { g.font = 'bold 14px serif'; g.fillText(RUNES[i], 0, 1); }
+    else if (k.mark === 'star') { g.beginPath(); for (let p = 0; p < 8; p++) { const aa = (p / 8) * Math.PI * 2, rr = p % 2 ? 2.5 : 7; g.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); } g.closePath(); g.fill(); }
+    else g.fillRect(-2, -6, 4, 12);
     g.restore();
   }
-  if (t === 5) {   // météorite : des fissures qui rougeoient
-    g.strokeStyle = '#ff7a2a'; g.lineWidth = 2;
-    for (let i = 0; i < 9; i++) { const a = i * 0.7; g.beginPath(); g.moveTo(128 + Math.cos(a) * 102, 128 + Math.sin(a) * 102); g.lineTo(128 + Math.cos(a + 0.12) * 112, 128 + Math.sin(a + 0.12) * 112); g.lineTo(128 + Math.cos(a + 0.05) * 125, 128 + Math.sin(a + 0.05) * 125); g.stroke(); }
+  if (k.mark === 'crack') {   // des fissures qui rougeoient
+    g.lineWidth = 2;
+    for (let i = 0; i < 14; i++) { const a = i * 0.45; g.beginPath(); g.moveTo(128 + Math.cos(a) * 102, 128 + Math.sin(a) * 102); g.lineTo(128 + Math.cos(a + 0.12) * 112, 128 + Math.sin(a + 0.12) * 112); g.lineTo(128 + Math.cos(a + 0.05) * 125, 128 + Math.sin(a + 0.05) * 125); g.stroke(); }
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  wheelFaceCache.set(t, tex);
+  wheelFaceCache.set(k.idx, tex);
   return tex;
 }
-// --- Lames : une lame courbe d'attaque, avec ses dents de scie ---
-function bladeGeo(t, s) {
-  return cGeo('lame' + t + '_' + s, () => {
-    const R0 = 0.8, len = (0.4 + 0.05 * t) * (1 + 0.04 * s);
-    const curve = [0, 0, 0.1, 0.26, 0.04, 0.2, 0.16, 0.12][t];
-    const w0 = [0, 0.14, 0.16, 0.17, 0.25, 0.19, 0.24, 0.21][t];
+// --- Lames : une lame d'attaque (sa forme dépend du skin), avec ses dents de scie ---
+const BLADE_STYLES = {
+  droite: { curve: 0, w0: 0.14 }, large: { curve: 0, w0: 0.22 }, courbe: { curve: 0.12, w0: 0.16 }, faucille: { curve: 0.22, w0: 0.15, hook: true },
+  faux: { curve: 0.3, w0: 0.17 }, dentee: { curve: 0.1, w0: 0.18, teeth: 3 }, croc: { curve: 0.04, w0: 0.25 }, dragon: { curve: 0.2, w0: 0.19, teeth: 2 },
+  cristal: { curve: 0.05, w0: 0.16 }, lave: { curve: 0.16, w0: 0.24 }, glace: { curve: 0.08, w0: 0.2, teeth: 2 }, ombre: { curve: 0.25, w0: 0.2, hook: true },
+  soleil: { curve: 0.1, w0: 0.22 }, chaos: { curve: 0.12, w0: 0.21, hook: true, teeth: 2 },
+};
+function bladeGeo(style, idx, s) {
+  return cGeo('lame' + style + idx + '_' + s, () => {
+    const st = BLADE_STYLES[style];
+    const R0 = 0.8, len = (0.4 + 0.012 * idx) * (1 + 0.04 * s);
     const N = 16, lead = [], trail = [];
     for (let i = 0; i <= N; i++) {
-      const u = i / N, x = R0 + len * u, bend = curve * u * u;
-      lead.push([x, w0 * Math.pow(1 - u, 0.7) + bend]);
-      trail.push([x, -w0 * 0.75 * (1 - u) + bend * 0.8]);
+      const u = i / N, x = R0 + len * u, bend = st.curve * u * u;
+      lead.push([x, st.w0 * Math.pow(1 - u, 0.7) + bend]);
+      trail.push([x, -st.w0 * 0.75 * (1 - u) + bend * 0.8]);
     }
-    const teeth = new Set();
-    for (let k = 1; k <= s; k++) teeth.add(Math.round(2 + (N - 5) * (k / (s + 1))));
+    const nT = s + (st.teeth || 0), teeth = new Set();
+    for (let k = 1; k <= nT; k++) teeth.add(Math.round(2 + (N - 5) * (k / (nT + 1))));
     const sh = new THREE.Shape();
     sh.moveTo(lead[0][0], lead[0][1]);
     for (let i = 1; i <= N; i++) sh.lineTo(lead[i][0], lead[i][1]);
@@ -2654,17 +2930,45 @@ function bladeGeo(t, s) {
       sh.lineTo(trail[i][0], trail[i][1]);
       if (teeth.has(i) && i > 0) sh.lineTo((trail[i][0] + trail[i - 1][0]) / 2 - 0.012, (trail[i][1] + trail[i - 1][1]) / 2 - 0.05);
     }
-    // Lames du chaos : un second crochet sur le devant
-    if (t === 7) { sh.lineTo(R0 + len * 0.45, w0 * 0.9 + 0.08); sh.lineTo(R0 + len * 0.3, w0 * 0.7); }
+    if (st.hook) { sh.lineTo(R0 + len * 0.45, st.w0 * 0.9 + 0.08); sh.lineTo(R0 + len * 0.3, st.w0 * 0.7); }
     const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 1 });
     geo.rotateX(Math.PI / 2);
     geo.translate(0, 0.025, 0);
     return geo;
   });
 }
+// Les anciennes lames en aile (anneau d'attaque)
+function wingGeometry(sharp) {
+  return cGeo('aile' + (sharp ? 's' : 'n'), () => {
+    const sh = new THREE.Shape();
+    const pt = (r, a) => [Math.cos(a) * r, Math.sin(a) * r];
+    const steps = 10, a1 = sharp ? 0.95 : 0.8, rIn = 0.78, rOut = sharp ? 1.38 : 1.22;
+    sh.moveTo(...pt(rIn, 0));
+    for (let i = 1; i <= steps; i++) { const f = i / steps; sh.lineTo(...pt(rIn + (rOut - rIn) * Math.pow(f, sharp ? 2.2 : 1.4), f * a1)); }
+    for (let i = steps; i >= 0; i--) { const f = i / steps; sh.lineTo(...pt(rIn + 0.04 + (rOut - rIn) * 0.35 * f * f, f * a1 * 0.92)); }
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: true, bevelSize: 0.015, bevelThickness: 0.015, bevelSegments: 1 });
+    geo.rotateX(-Math.PI / 2);
+    return geo;
+  });
+}
+// Le disque de poids percé
+function holedDiskGeometry(holes) {
+  return cGeo('disque' + holes, () => {
+    const sh = new THREE.Shape();
+    sh.absarc(0, 0, 1.12, 0, Math.PI * 2, false);
+    for (let i = 0; i < holes; i++) {
+      const a = (i / holes) * Math.PI * 2, hp = new THREE.Path();
+      hp.absarc(Math.cos(a) * 0.95, Math.sin(a) * 0.95, 0.07, 0, Math.PI * 2, true);
+      sh.holes.push(hp);
+    }
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.05, bevelEnabled: false, curveSegments: 24 });
+    geo.rotateX(-Math.PI / 2);
+    return geo;
+  });
+}
 // Une chaîne d'écailles qui serpente autour de la toupie (le dragon des lames)
-function addDragon(tilt, anims, color, dir, r) {
-  const mat = SM(0xdfe6ec, 0.9, 0.2, { emissive: color, emissiveIntensity: 0.6 });
+function addDragon(tilt, anims, color, dir, r, hue) {
+  const mat = SM(0xdfe6ec, 0.6, 0.2, { emissive: color, emissiveIntensity: 0.6 });
   const beads = [];
   for (let i = 0; i < 18; i++) {
     const b = new THREE.Mesh(cGeo('ecaille' + i, () => new THREE.OctahedronGeometry(0.12 * (1 - i / 26))), mat);
@@ -2675,6 +2979,7 @@ function addDragon(tilt, anims, color, dir, r) {
   let ph = Math.random() * 6;
   anims.push((t, dt, k) => {
     ph += dt * (1.5 + 2 * k) * dir;
+    if (hue) mat.emissive.copy(rainbow(t + (dir < 0 ? 4 : 0), 0.15, 0.5));
     beads.forEach((b, i) => {
       const a = ph - i * 0.2 * dir;
       b.position.set(Math.cos(a) * r, 0.55 + 0.22 * Math.sin(a * 2.5), Math.sin(a) * r);
@@ -2683,12 +2988,27 @@ function addDragon(tilt, anims, color, dir, r) {
   });
 }
 // Un ruban de lumière qui ondule autour de la toupie
-function addRibbon(tilt, anims, color, r, y, waves, dir) {
+function addRibbon(tilt, anims, color, r, y, waves, dir, hue) {
   const pts = [];
   for (let k = 0; k <= 96; k++) { const a = (k / 96) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * r, y + 0.16 * Math.sin(a * waves), Math.sin(a) * r)); }
   const m = new THREE.Mesh(cGeo('ruban' + r + '_' + waves, () => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 160, 0.022, 6, true)), GLOW(color, { opacity: 0.7 }));
   tilt.add(m);
-  anims.push((t, dt, k) => { m.rotation.y += dir * dt * (0.8 + 1.6 * k); m.material.opacity = 0.25 + 0.5 * k; });
+  anims.push((t, dt, k) => { m.rotation.y += dir * dt * (0.8 + 1.6 * k); m.material.opacity = 0.25 + 0.5 * k; if (hue) m.material.color.copy(rainbow(t)); });
+}
+// Une couronne d'étoiles qui scintillent
+function addStars(tilt, anims, y, r, cols) {
+  const stars = new THREE.Group();
+  stars.position.y = y;
+  tilt.add(stars);
+  const list = [];
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const s = glowSprite(cols[i % cols.length], 0.2);
+    s.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    stars.add(s);
+    list.push(s);
+  }
+  anims.push((t, dt, k) => { stars.rotation.y -= dt * (0.4 + 0.8 * k); list.forEach((s, i) => s.scale.setScalar(0.2 * (0.75 + 0.35 * Math.sin(t * 5 + i * 0.7)))); });
 }
 
 function makeTopMesh(target = scene) {
@@ -2699,152 +3019,246 @@ function makeTopMesh(target = scene) {
   const anims = [];                   // petites animations : (temps, dt, vitesse de rotation 0→1)
   const add = (geo, mat, x = 0, y = 0, z = 0, parent = spinner) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
 
-  // ---------- POIDS : le corps et la lourde roue de métal crantée ----------
-  const P = tierAt('poids'), W = WHEEL_LOOKS[P.t];
+  // ---------- POIDS : le corps et la lourde roue crantée (les décorations s'ajoutent de skin en skin) ----------
+  const P = skinOf('poids');
   add(bodyGeo, bodyMaterial());
-  const wheelMat = SM(W.wheel, W.metal, W.rough, W.emissive ? { emissive: W.emissive, emissiveIntensity: 0.5 } : {});
+  const wheelMat = SM(P.wheel, P.metal, P.rough, { emissive: P.emissive || 0x000000, emissiveIntensity: P.emissive ? 0.5 : 0, ...(P.glass ? { transparent: true, opacity: 0.8 } : {}) });
   const bandBottom = 0.42 - 0.0014 * P.L, bandH = 0.585 - bandBottom;
   add(cGeo('bande' + P.L, () => new THREE.CylinderGeometry(1.03, 1.0, bandH, 64, 1, true)), wheelMat, 0, bandBottom + bandH / 2, 0);
-  const face = add(cGeo('roue', () => new THREE.RingGeometry(0.82, 1.03, 64)), SM(0xffffff, W.metal, W.rough, { map: wheelFaceTexture(P.t), emissive: W.emissive ? 0x3a1000 : 0x000000 }), 0, 0.586, 0);
-  face.rotation.x = -Math.PI / 2;
+  add(cGeo('roue', () => new THREE.RingGeometry(0.82, 1.03, 64)), SM(0xffffff, P.metal, P.rough, { map: wheelFaceTexture(P), emissive: P.emissive ? 0x3a1000 : 0x000000 }), 0, 0.586, 0).rotation.x = -Math.PI / 2;
   instRing(spinner, cGeo('dent', () => new THREE.BoxGeometry(0.045, 1, 0.055)), wheelMat, 8 + P.L, 8 + P.L, 1.04, bandBottom + bandH / 2, o => { o.scale.y = bandH * 0.86; });
+  const trim = SM(P.trim ?? 0xdfe6ec, 0.6, 0.2);
+  if (P.idx >= 5) add(cGeo('chrome', () => new THREE.TorusGeometry(1.045, 0.03, 8, 64)), trim, 0, bandBottom + bandH * 0.75, 0).rotation.x = Math.PI / 2;
+  if (P.idx >= 6) {
+    add(cGeo('chrome2', () => new THREE.TorusGeometry(1.045, 0.025, 8, 64)), trim, 0, bandBottom + bandH * 0.3, 0).rotation.x = Math.PI / 2;
+    add(cGeo('chromeInt', () => new THREE.TorusGeometry(0.8, 0.022, 8, 64)), trim, 0, 0.6, 0).rotation.x = Math.PI / 2;
+  }
+  if (P.idx >= 8) instRing(spinner, cGeo('creneau', () => new THREE.BoxGeometry(0.09, 0.07, 0.09)), trim, 12, 12, 0.98, 0.62);
+  if (P.idx >= 9) add(holedDiskGeometry(Math.min(16, 6 + Math.floor((P.L - 27) / 2))), SM(P.wheel, P.metal, P.rough + 0.1), 0, bandBottom - 0.06, 0);
+  if (P.sparkle) {
+    const sp = [];
+    for (let i = 0; i < 5; i++) { const s = glowSprite(0xffb070, 0.22); tilt.add(s); sp.push({ s, a: i * 1.26 }); }
+    anims.push(t => sp.forEach(({ s, a }) => { s.position.set(Math.cos(a + t) * 1.1, 0.6, Math.sin(a + t) * 1.1); s.material.opacity = 0.4 + 0.4 * Math.sin(t * 6 + a * 3); }));
+  }
 
-  // ---------- POINTE : la pointe et l'axe (un anneau de plus à chaque niveau) ----------
-  const T = tierAt('pointe');
+  // ---------- POINTE : la pointe et l'axe ----------
+  const T = skinOf('pointe');
   add(cGeo('axe', () => new THREE.CylinderGeometry(0.2, 0.17, 0.2, 24)), SM(0x2b2f36, 0.5, 0.4), 0, 0.22, 0);
-  const tipCol = [0xf2efe8, 0xc9d1d8, 0xc9d1d8, 0xe0115f, 0xbff4ff, 0xffd45a][T.t];
-  const ringA = SM(tipCol, 0.6, 0.3, T.t >= 3 ? { emissive: tipCol, emissiveIntensity: 0.4 } : {}), ringB = SM(0xf4f1ea, 0.2, 0.4);
-  for (let i = 0; i < T.step; i++) add(cGeo('anneauAxe', () => new THREE.TorusGeometry(0.195, 0.02, 6, 24)), i % 2 ? ringB : ringA, 0, 0.14 + i * 0.022, 0).rotation.x = Math.PI / 2;
-  if (T.t === 2) {
-    add(cGeo('bille', () => new THREE.SphereGeometry(0.12, 16, 12)), SM(0xdfe6ec, 0.95, 0.15), 0, 0.1, 0);
-    add(cGeo('roulement', () => new THREE.TorusGeometry(0.13, 0.025, 8, 20)), SM(0xffc94a, 0.9, 0.25), 0, 0.13, 0).rotation.x = Math.PI / 2;
-  } else if (T.t === 5) {
-    const st = add(cGeo('pointeEtoile', () => new THREE.OctahedronGeometry(0.13)), SM(0xffd45a, 0.8, 0.15, { emissive: 0xffb020, emissiveIntensity: 0.8 }), 0, 0.12, 0);
-    st.scale.set(1, 1.3, 1);
-    const sp = glowSprite(0xfff0a0, 0.45);
+  const tipMat = skinMat(T, { rough: 0.3 });
+  const ringB = SM(0xf4f1ea, 0.2, 0.4);
+  for (let i = 0; i < axeRingsAt(T.L); i++) add(cGeo('anneauAxe', () => new THREE.TorusGeometry(0.195, 0.02, 6, 24)), i % 2 ? ringB : tipMat, 0, 0.14 + i * 0.022, 0).rotation.x = Math.PI / 2;
+  const tipLen = 0.17 + 0.004 * T.L;
+  if (T.shape === 'ball') {
+    add(cGeo('bille', () => new THREE.SphereGeometry(0.12, 16, 12)), tipMat, 0, 0.1, 0);
+    add(cGeo('roulement', () => new THREE.TorusGeometry(0.13, 0.025, 8, 20)), SM(T.ring || 0xffc94a, 0.6, 0.25), 0, 0.13, 0).rotation.x = Math.PI / 2;
+  } else if (T.shape === 'star') {
+    add(cGeo('pointeEtoile', () => new THREE.OctahedronGeometry(0.13)), tipMat, 0, 0.12, 0).scale.set(1, 1.3, 1);
+  } else {
+    const [r, seg] = { cone: [0.3, 12], sharp: [0.2, 12], facet6: [0.22, 6], facet5: [0.2, 5] }[T.shape];
+    add(cGeo('pointe' + T.shape + T.L, () => new THREE.ConeGeometry(r, tipLen, seg)), tipMat, 0, tipLen / 2, 0).rotation.x = Math.PI;
+  }
+  if (T.sparkle) {
+    const sp = glowSprite(T.sparkle, T.big ? 0.7 : 0.45);
     sp.position.y = 0.05;
     tilt.add(sp);
     anims.push(t => { sp.material.opacity = 0.6 + 0.4 * Math.sin(t * 9); });
-  } else {
-    const look = [[0.3, 12, SM(0xf2efe8, 0, 0.5)], [0.2, 12, SM(0xc9d1d8, 0.95, 0.2)], null,
-      [0.22, 6, SM(0xe0115f, 0.1, 0.15, { emissive: 0x7a0020, emissiveIntensity: 0.6 })],
-      [0.2, 5, SM(0xbff4ff, 0.1, 0.05, { emissive: 0x3fb8d8, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 })]][T.t];
-    const len = 0.17 + 0.006 * T.step;
-    add(cGeo('pointe' + T.t + '_' + T.step, () => new THREE.ConeGeometry(look[0], len, look[1])), look[2], 0, len / 2, 0).rotation.x = Math.PI;
   }
 
-  // ---------- LAMES : les lames d'attaque (plus longues et plus dentées à chaque niveau) ----------
-  const B = tierAt('lames');
-  const nB = [0, 2, 3, 4, 5, 6, 8, 8][B.t];
-  if (nB) {
-    const bl = [null, [0xdfe6ec, 0.5, 0.3], [0xa9c4ef, 0.5, 0.3], [0x7d8a99, 0.55, 0.3], [0xf2ead0, 0.1, 0.35],
-      [0x3ac27f, 0.45, 0.3, 0x0a4a22], [0xff5a1f, 0.2, 0.3, 0xff3a00], [0x4a1a5a, 0.5, 0.25, 0xff2a9a]][B.t];
-    const bm = SM(bl[0], bl[1], bl[2], bl[3] ? { emissive: bl[3], emissiveIntensity: B.t >= 6 ? 1.1 : 0.5 } : {});
-    const g = bladeGeo(B.t, B.step);
-    for (let i = 0; i < nB; i++) add(g, bm, 0, 0.605, 0).rotation.y = (i / nB) * Math.PI * 2; // posées sur la roue, comme un anneau d'attaque
-    if (B.t === 7) anims.push(t => bm.emissive.setHSL((t * 0.15) % 1, 0.9, 0.5));
-    if (B.t >= 5) addDragon(tilt, anims, B.t === 5 ? 0x2fa36b : 0xff6a1a, 1, 1.42);
-    if (B.t === 7) addDragon(tilt, anims, 0xff2a9a, -1, 1.28);
+  // ---------- LAMES : l'anneau d'attaque ----------
+  const B = skinOf('lames');
+  if (B.n) {
+    const bm = skinMat(B);
+    const placeY = 0.605;
+    if (B.style === 'scie') {
+      const len = 0.35 * (1 + 0.04 * B.step);
+      for (let i = 0; i < B.n; i++) {
+        const a = (i / B.n) * Math.PI * 2;
+        const c = add(cGeo('scie' + B.step, () => new THREE.ConeGeometry(0.1, len, 4)), bm, Math.cos(a) * (1.04 + len / 2), placeY - 0.05, Math.sin(a) * (1.04 + len / 2));
+        c.rotation.set(0, -a, -Math.PI / 2);
+      }
+    } else if (B.style === 'aile' || B.style === 'aileVive') {
+      for (let i = 0; i < B.n; i++) { const w = add(wingGeometry(B.style === 'aileVive'), bm, 0, placeY - 0.06, 0); w.rotation.y = (i / B.n) * Math.PI * 2; w.scale.setScalar(1 + 0.04 * B.step); }
+    } else {
+      const g = bladeGeo(B.style, B.idx, B.step);
+      for (let i = 0; i < B.n; i++) add(g, bm, 0, placeY, 0).rotation.y = (i / B.n) * Math.PI * 2;
+    }
+    if (B.double) {   // second anneau de lames, décalé et plus haut
+      const m2 = SM(B.double, 0.6, 0.2, { emissive: B.double, emissiveIntensity: 0.25 });
+      for (let i = 0; i < B.n; i++) { const w = add(wingGeometry(true), m2, 0, placeY + 0.06, 0); w.scale.setScalar(0.82); w.rotation.y = ((i + 0.5) / B.n) * Math.PI * 2; }
+    }
+    if (B.hue) anims.push(t => bm.emissive.copy(rainbow(t, 0.15, 0.5)));
+    if (B.dragon) addDragon(tilt, anims, B.dragon, 1, 1.42, B.hue);
+    if (B.twin) addDragon(tilt, anims, B.twin, -1, 1.28, B.hue);
   }
 
   // ---------- INERTIE : le volant d'inertie (un boulon de plus à chaque niveau) ----------
-  const I = tierAt('inertie');
+  const I = skinOf('inertie');
   if (I.L) {
-    const fl = [null, [0xc9d1d8, 0.5, 0.3], [0x9aa4ad, 0.6, 0.3], [0x5a5f68, 0.6, 0.35], [0xd9b25a, 0.6, 0.25], [0x5a6a80, 0.6, 0.2], [0xfff2c0, 0.4, 0.15, 0xffc23a]][I.t];
-    const fm = SM(fl[0], fl[1], fl[2], fl[3] ? { emissive: fl[3], emissiveIntensity: 0.5 } : {});
+    const fm = skinMat(I, { metal: 0.5, rough: 0.3 });
     add(cGeo('volantBande', () => new THREE.CylinderGeometry(0.62, 0.62, 0.045, 48, 1, true)), fm, 0, 0.622, 0);
     add(cGeo('volant', () => new THREE.RingGeometry(0.47, 0.62, 48)), fm, 0, 0.645, 0).rotation.x = -Math.PI / 2;
-    instRing(spinner, cGeo('boulon', () => new THREE.CylinderGeometry(0.022, 0.022, 0.025, 8)), SM(I.t >= 4 ? 0xffe9a8 : 0x2b2f36, 0.5, 0.3), 2 + I.L, 2 + I.L, 0.545, 0.655);
-    if (I.t >= 4) add(cGeo('volantLevre', () => new THREE.TorusGeometry(0.625, 0.02, 6, 48)), SM(0xc9a24a, 0.9, 0.25), 0, 0.65, 0).rotation.x = Math.PI / 2;
+    instRing(spinner, cGeo('boulon', () => new THREE.CylinderGeometry(0.022, 0.022, 0.025, 8)), SM(I.lip ?? 0x2b2f36, 0.5, 0.3), 2 + I.L, 2 + I.L, 0.545, 0.655);
+    if (I.band) {
+      const bm2 = SM(I.band === 'rainbow' ? 0xffffff : I.band, 0.3, 0.35, { emissive: I.band === 'rainbow' ? 0xffffff : 0x000000, emissiveIntensity: 0.5 });
+      add(cGeo('bandeCourse', () => new THREE.TorusGeometry(0.5, 0.022, 6, 48)), bm2, 0, 0.652, 0).rotation.x = Math.PI / 2;
+      if (I.band === 'rainbow') anims.push(t => { const c = rainbow(t); bm2.color.copy(c); bm2.emissive.copy(c); });
+    }
+    if (I.lip) add(cGeo('volantLevre', () => new THREE.TorusGeometry(0.625, 0.02, 6, 48)), SM(I.lip, 0.6, 0.25), 0, 0.65, 0).rotation.x = Math.PI / 2;
+    if (I.double) add(cGeo('volantDouble', () => new THREE.TorusGeometry(0.47, 0.02, 6, 48)), SM(I.lip ?? 0xc9a24a, 0.6, 0.25), 0, 0.655, 0).rotation.x = Math.PI / 2;
   }
 
   // ---------- COUP CRITIQUE : des gemmes serties (une de plus à chaque niveau) et une aura ----------
-  const C = tierAt('critique');
+  const C = skinOf('critique');
   if (C.L) {
-    const gc = [0, 0xffc72c, 0xe0115f, 0x2a5bd7, 0xeaf6ff][C.t];
-    const n = C.t === 4 ? 15 : C.step + 1;
-    instRing(spinner, cGeo('gemmeCrit', () => { const g = new THREE.OctahedronGeometry(0.05); g.scale(1, 1.4, 1); return g; }), SM(gc, 0.3, 0.08, { emissive: gc, emissiveIntensity: C.t === 4 ? 0.9 : 0.35 }), n, 15, 0.72, 0.63);
-    const aura = new THREE.Mesh(cGeo('aura', () => new THREE.TorusGeometry(1.25, 0.04, 6, 48)), GLOW(gc, { opacity: 0.5 }));
+    const n = gemsAt(C.L);
+    const gm = SM(C.col, C.gem === 'stud' ? 0.6 : 0.3, 0.1, { emissive: C.col, emissiveIntensity: C.gem === 'stud' ? 0.05 : 0.4 });
+    const geo = {
+      stud: () => new THREE.SphereGeometry(0.045, 8, 6),
+      octa: () => { const g = new THREE.OctahedronGeometry(0.05); g.scale(1, 1.4, 1); return g; },
+      cone: () => { const g = new THREE.ConeGeometry(0.045, 0.16, 6); g.translate(0, 0.05, 0); return g; },
+      crystal: () => { const g = new THREE.OctahedronGeometry(0.06); g.scale(1, 1.8, 1); return g; },
+      orb: () => new THREE.SphereGeometry(0.058, 12, 8),
+      gold: () => new THREE.OctahedronGeometry(0.075),
+      arrow: () => { const g = new THREE.ConeGeometry(0.04, 0.2, 5); g.translate(0, 0.06, 0); return g; },
+      dodeca: () => new THREE.DodecahedronGeometry(0.06),
+      jewel: () => new THREE.OctahedronGeometry(0.085),
+    }[C.gem];
+    instRing(spinner, cGeo('gemme' + C.gem, geo), gm, n, 15, 0.72, 0.63);
+    const auraCol = C.aura === 'rainbow' ? 0xffffff : C.aura;
+    const aura = new THREE.Mesh(cGeo('aura' + (C.auraW || 0.04), () => new THREE.TorusGeometry(1.25, C.auraW || 0.04, 6, 48)), GLOW(auraCol, { opacity: 0.5 }));
     aura.rotation.x = Math.PI / 2;
     aura.position.y = 0.62;
     tilt.add(aura);
     const op = 0.15 + 0.012 * C.L;
-    anims.push((t, dt, k) => { aura.rotation.z += dt * 3; aura.material.opacity = op * (0.6 + 0.4 * Math.sin(t * 8)) * (0.3 + 0.7 * k); });
+    anims.push((t, dt, k) => { aura.rotation.z += dt * 3; aura.material.opacity = op * (0.6 + 0.4 * Math.sin(t * 8)) * (0.3 + 0.7 * k); if (C.aura === 'rainbow') aura.material.color.copy(rainbow(t)); });
+    if (C.legend) {   // l'aura légendaire, large, qui palpite
+      const lg = new THREE.Mesh(cGeo('legende', () => new THREE.TorusGeometry(1.45, 0.05, 6, 48)), GLOW(C.legend === 'rainbow' ? 0xffffff : C.legend, { opacity: 0.6 }));
+      lg.rotation.x = Math.PI / 2;
+      lg.position.y = 0.55;
+      tilt.add(lg);
+      anims.push((t, dt) => { lg.rotation.z += dt * 2; lg.scale.setScalar(1 + 0.05 * Math.sin(t * 6)); if (C.legend === 'rainbow') lg.material.color.copy(rainbow(t + 2)); });
+    }
+    if (C.sparkle) {
+      const sp = [];
+      for (let i = 0; i < 4; i++) { const s = glowSprite(0xffffff, 0.25); tilt.add(s); sp.push({ s, a: i * 1.57 }); }
+      anims.push(t => sp.forEach(({ s, a }) => { s.position.set(Math.cos(a + t * 0.7) * 0.72, 0.7, Math.sin(a + t * 0.7) * 0.72); s.material.opacity = Math.max(0, Math.sin(t * 4 + a * 2)); }));
+    }
   }
 
   // ---------- AGRESSIVITÉ : des pointes sur la roue (une de plus à chaque niveau) ----------
-  const A = tierAt('agressivite');
+  const A = skinOf('agressivite');
   if (A.L) {
-    const len = [0, 0.1, 0.15, 0.2, 0.24][A.t];
-    instRing(spinner, cGeo('epine' + A.t, () => { const g = new THREE.ConeGeometry(0.035, len, 6); g.translate(0, len / 2, 0); return g; }),
-      SM(A.t >= 3 ? 0xf2ead0 : 0x2b2b2b, A.t >= 3 ? 0.1 : 0.5, 0.4), A.L, 25, 0.93, 0.585, o => { o.rotation.z = -0.7; });
-    if (A.t >= 4) {
-      const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a });
+    instRing(spinner, cGeo('epine' + A.len, () => { const g = new THREE.ConeGeometry(0.035, A.len, 6); g.translate(0, A.len / 2, 0); return g; }),
+      skinMat(A, { rough: 0.4 }), A.L, 25, 0.93, 0.585, o => { o.rotation.z = -0.7; });
+    if (A.eyes) {
+      const em = A.em ? GLOW(0xff2a1a, { opacity: 1 }) : new THREE.MeshBasicMaterial({ color: 0xff1a1a });
       for (const s of [-1, 1]) add(cGeo('oeil', () => new THREE.SphereGeometry(0.06, 10, 8)), em, 0.9, 0.63, s * 0.11);
+      if (A.em) anims.push(t => { em.opacity = 0.6 + 0.4 * Math.sin(t * 7); });
     }
   }
 
   // ---------- REBOND : des tampons en caoutchouc autour (un de plus à chaque niveau) ----------
-  const R = tierAt('rebond');
+  const R = skinOf('rebond');
   if (R.L) {
-    const rc = [0, 0x1d1d1d, 0x7a1a1a, 0x39ff6a][R.t];
-    instRing(spinner, cGeo('tampon', () => { const g = new THREE.CapsuleGeometry(0.035, 0.12, 4, 8); g.rotateX(Math.PI / 2); return g; }),
-      SM(rc, 0.1, 0.85, R.t === 3 ? { emissive: 0x0f7a35, emissiveIntensity: 0.7 } : {}), R.L, 12, 1.075, bandBottom + 0.03);
+    const pm = skinMat(R, { metal: 0.1, rough: 0.85 });
+    instRing(spinner, cGeo('tampon', () => { const g = new THREE.CapsuleGeometry(0.035, 0.12, 4, 8); g.rotateX(Math.PI / 2); return g; }), pm, R.L, 12, 1.075, bandBottom + 0.03);
+    if (R.studs) instRing(spinner, cGeo('rivet', () => new THREE.SphereGeometry(0.018, 8, 6)), SM(0xdfe6ec, 0.6, 0.2), R.L, 12, 1.115, bandBottom + 0.03);
+    if (R.rainbow) anims.push(t => { const c = rainbow(t); pm.color.copy(c); pm.emissive.copy(c); });
   }
 
   // ---------- ENDURANCE : l'anneau d'énergie (un segment s'allume à chaque niveau), l'emblème et la poignée ----------
-  const E = tierAt('endurance');
-  const ECOL = [0x888888, 0x3ad35a, 0x3a8dff, 0xa25cff, 0xff3a3a, 0xffc23a, 0xffffff][E.t];
-  if (E.t >= 1) {
+  const E = skinOf('endurance');
+  const ECOL = E.ring === 'rainbow' ? 0xffffff : (E.ring ?? 0x888888);
+  const rainbowMats = [];
+  if (E.ring) {
     const ringMat = SM(ECOL, 0.2, 0.1, { transparent: true, opacity: 0.55, emissive: ECOL, emissiveIntensity: 0.25 });
     add(cGeo('anneauEnergie', () => new THREE.CylinderGeometry(0.44, 0.44, 0.045, 48)), ringMat, 0, 0.645, 0);
-    const lit = E.t === 6 ? 11 : E.step + 1;
+    const lit = segsAt(E.L);
     const segOn = SM(ECOL, 0, 0.3, { emissive: ECOL, emissiveIntensity: 1.2 });
     const segGeo = cGeo('segment', () => new THREE.BoxGeometry(0.11, 0.012, 0.04));
     instRing(spinner, segGeo, segOn, lit, 11, 0.31, 0.672);
     instRing(spinner, segGeo, SM(0x222428, 0.3, 0.5), 11 - lit, 11, 0.31, 0.672, null, lit);
-    if (E.t === 6) anims.push(t => { const c = new THREE.Color().setHSL((t * 0.12) % 1, 0.9, 0.6); segOn.color.copy(c); segOn.emissive.copy(c); ringMat.color.copy(c); ringMat.emissive.copy(c); });
+    if (E.ring === 'rainbow') rainbowMats.push(ringMat, segOn);
   }
-  const emIcon = E.t >= 1 ? EMBLEMS[(E.t - 1) % EMBLEMS.length] : null;
-  const faceSide = SM(E.t >= 1 ? ECOL : 0x3a3a3a, 0.6, 0.3);
-  const faceTop = emIcon ? SM(0xffffff, 0.3, 0.4, { map: emblemTexture(emIcon, Math.round(new THREE.Color(ECOL).getHSL({}).h * 360)) }) : SM(0x3a3a3a, 0.3, 0.4);
+  const emIcon = E.ring ? EMBLEMS[E.idx % EMBLEMS.length] : null;
+  const emHue = Math.round(new THREE.Color(ECOL).getHSL({}).h * 360);
+  const faceSide = SM(E.ring ? ECOL : 0x3a3a3a, 0.5, 0.3);
+  const faceTop = emIcon ? SM(0xffffff, 0.3, 0.4, { map: emblemTexture(emIcon, emHue) }) : SM(0x3a3a3a, 0.3, 0.4);
   add(cGeo('embleme', () => new THREE.CylinderGeometry(0.17, 0.18, 0.05, 32)), [faceSide, faceTop, faceSide], 0, 0.69, 0);
+  if (E.emblems) {   // trois médaillons à emblème au-dessus de l'anneau
+    const md = SM(0xffffff, 0.3, 0.4, { map: emblemTexture(EMBLEMS[(E.idx + 3) % EMBLEMS.length], (emHue + 120) % 360), side: THREE.DoubleSide });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.5;
+      add(cGeo('medaillon', () => new THREE.CircleGeometry(0.1, 24)), md, Math.cos(a) * 0.31, 0.74, Math.sin(a) * 0.31).rotation.set(-Math.PI / 2, 0, -a);
+    }
+  }
   add(cGeo('poignee', () => new THREE.CylinderGeometry(0.07, 0.09, 0.26, 12)), SM(0x3a3a3a, 0.3, 0.4), 0, 0.84, 0);
-  if (E.t === 1 || E.t === 2) add(cGeo('pommeau', () => new THREE.SphereGeometry(0.15, 16, 12)), SM(ECOL, E.t === 2 ? 0.5 : 0.2, E.t === 2 ? 0.15 : 0.3), 0, 1.0, 0);
-  if (E.t === 3) add(cGeo('gemmePoignee', () => new THREE.OctahedronGeometry(0.2)), SM(0xa25cff, 0.2, 0.1, { emissive: 0x5a1fb0, emissiveIntensity: 0.9 }), 0, 1.05, 0);
-  if (E.t === 4) {
-    const fl = add(cGeo('flammePoignee', () => new THREE.ConeGeometry(0.15, 0.42, 10)), GLOW(0xff7a1a, { opacity: 0.85 }), 0, 1.13, 0);
+  const kc = E.knobCol ?? 0x3a3a3a;
+  if (E.knob === 'ball') add(cGeo('pommeau', () => new THREE.SphereGeometry(0.15, 16, 12)), SM(kc, E.gloss ? 0.5 : 0.2, E.gloss ? 0.15 : 0.3), 0, 1.0, 0);
+  if (E.knob === 'gem') add(cGeo('gemmePoignee', () => new THREE.OctahedronGeometry(0.2)), SM(kc, 0.2, 0.1, { emissive: kc, emissiveIntensity: 0.6 }), 0, 1.05, 0);
+  if (E.knob === 'star') add(cGeo('etoilePoignee', () => new THREE.OctahedronGeometry(0.18)), SM(kc, 0.6, 0.15, { emissive: kc, emissiveIntensity: 0.7 }), 0, 1.05, 0).scale.set(1.3, 0.8, 1.3);
+  if (E.knob === 'crystal') add(cGeo('cristalPoignee', () => { const g = new THREE.OctahedronGeometry(0.14); g.scale(0.8, 2, 0.8); return g; }), SM(kc, 0.1, 0.05, { emissive: kc, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 }), 0, 1.12, 0);
+  if (E.knob === 'flame') {
+    const fl = add(cGeo('flammePoignee', () => new THREE.ConeGeometry(0.15, 0.42, 10)), GLOW(kc, { opacity: 0.85 }), 0, 1.13, 0);
     anims.push(() => fl.scale.set(1, 0.8 + Math.random() * 0.5, 1));
   }
-  if (E.t >= 5) {
-    const gold = SM(0xffc72c, 0.9, 0.2, { emissive: 0x6a4800, emissiveIntensity: 0.4 });
+  if (E.knob === 'crown') {
+    const gold = SM(kc, 0.6, 0.2, { emissive: kc, emissiveIntensity: 0.3 });
     add(cGeo('couronneBase', () => new THREE.TorusGeometry(0.13, 0.03, 8, 24)), gold, 0, 0.98, 0).rotation.x = Math.PI / 2;
     instRing(spinner, cGeo('couronnePic', () => new THREE.ConeGeometry(0.03, 0.12, 6)), gold, 6, 6, 0.13, 1.04);
+    if (E.ring === 'rainbow') rainbowMats.push(gold);
   }
-  if (E.t >= 3) {
+  if (E.dome) {   // dôme d'énergie translucide
+    const dc = E.dome === 'rainbow' ? 0xffffff : E.dome;
+    const dm = SM(dc, 0.1, 0.05, { transparent: true, opacity: 0.32, emissive: dc, emissiveIntensity: 0.35, depthWrite: false });
+    const dome = add(cGeo('dome', () => new THREE.SphereGeometry(0.6, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2)), dm, 0, 0.62, 0);
+    dome.scale.y = 0.45; dome.castShadow = false;
+    if (E.dome === 'rainbow') rainbowMats.push(dm);
+  }
+  if (E.core) {
     const core = glowSprite(ECOL, 0.5);
-    core.position.y = 1.12;
+    core.position.y = 1.15;
     tilt.add(core);
-    anims.push((t, dt, k) => { core.scale.setScalar(0.4 + 0.12 * Math.sin(t * 6) + 0.2 * k); if (E.t === 6) core.material.color.setHSL((t * 0.12) % 1, 0.9, 0.65); });
+    anims.push((t, dt, k) => { core.scale.setScalar(0.4 + 0.12 * Math.sin(t * 6) + 0.2 * k); if (E.ring === 'rainbow') core.material.color.copy(rainbow(t)); });
   }
-  if (E.t === 6) {   // anneau éternel : un halo et une colonne de lumière
+  if (E.crystals) {   // couronne de cristal autour de la poignée
+    const cm = SM(0xeaf6ff, 0.1, 0.02, { emissive: ECOL, emissiveIntensity: 0.9, transparent: true, opacity: 0.85 });
+    const crown = new THREE.Group();
+    crown.position.y = 0.95;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const c = new THREE.Mesh(cGeo('cristalCouronne', () => { const g = new THREE.OctahedronGeometry(0.07); g.scale(0.6, 2.4, 0.6); return g; }), cm);
+      c.position.set(Math.cos(a) * 0.28, 0.08, Math.sin(a) * 0.28);
+      c.rotation.z = Math.cos(a) * 0.35; c.rotation.x = -Math.sin(a) * 0.35;
+      crown.add(c);
+    }
+    tilt.add(crown);
+    anims.push((t, dt) => { crown.rotation.y += dt * 0.7; if (E.ring === 'rainbow') cm.emissive.copy(rainbow(t)); });
+  }
+  if (E.stars) addStars(tilt, anims, 1.0, 0.55, [ECOL === 0xffffff ? 0xfff2c0 : ECOL, 0xffffff]);
+  if (E.halo) {
     const halo = new THREE.Mesh(cGeo('halo', () => new THREE.TorusGeometry(0.42, 0.035, 8, 40)), GLOW(0xfff2b0, { opacity: 0.9 }));
     halo.rotation.x = Math.PI / 2;
     tilt.add(halo);
+    anims.push(t => { halo.position.y = 1.55 + 0.06 * Math.sin(t * 2); });
+  }
+  if (E.beam) {
     const beam = new THREE.Mesh(cGeo('rayonDivin', () => new THREE.CylinderGeometry(0.22, 0.5, 3.5, 24, 1, true)), GLOW(0xfff2b0, { opacity: 0.15 }));
     beam.position.y = 2.2;
     tilt.add(beam);
-    anims.push((t, dt, k) => { halo.position.y = 1.55 + 0.06 * Math.sin(t * 2); beam.material.opacity = 0.06 + 0.12 * k * (0.8 + 0.2 * Math.sin(t * 4)); });
+    anims.push((t, dt, k) => { beam.material.opacity = 0.06 + 0.12 * k * (0.8 + 0.2 * Math.sin(t * 4)); });
   }
+  if (rainbowMats.length) anims.push(t => { const c = rainbow(t); for (const m of rainbowMats) { m.color.copy(c); m.emissive.copy(c); } });
 
   // ---------- SECOND SOUFFLE : des ailettes (une de plus à chaque niveau) et de l'air qui s'élève ----------
-  const O = tierAt('souffle');
+  const O = skinOf('souffle');
   if (O.L) {
-    instRing(spinner, cGeo('ailette', () => new THREE.BoxGeometry(0.1, 0.075, 0.012)),
-      SM(0xe6f6ff, 0.3, 0.2, { transparent: true, opacity: 0.85, emissive: O.t >= 3 ? 0x7fd8ff : 0x000000, emissiveIntensity: 0.5 }), O.L, 18, 0.405, 0.705, o => { o.rotation.y += 0.6; });
+    const vm = SM(O.col, 0.3, 0.2, { transparent: true, opacity: 0.85, emissive: O.glow ? O.col : 0x000000, emissiveIntensity: 0.5 });
+    instRing(spinner, cGeo('ailette', () => new THREE.BoxGeometry(0.1, 0.075, 0.012)), vm, O.L, 18, 0.405, 0.705, o => { o.rotation.y += 0.6; });
+    if (O.rainbow) anims.push(t => { const c = rainbow(t); vm.color.copy(c); vm.emissive.copy(c); });
     const nP = Math.floor(O.L / 2);
     const risers = [];
-    for (let i = 0; i < nP; i++) { const s = glowSprite(0xdff6ff, 0.16); tilt.add(s); risers.push({ s, a: Math.random() * 6.28, t: Math.random() }); }
+    for (let i = 0; i < nP; i++) { const s = glowSprite(O.col, 0.16); tilt.add(s); risers.push({ s, a: Math.random() * 6.28, t: Math.random() }); }
     if (risers.length) anims.push((t, dt, k) => {
       for (const r of risers) {
         r.t += dt * (0.5 + 0.6 * k);
@@ -2857,27 +3271,28 @@ function makeTopMesh(target = scene) {
   }
 
   // ---------- ÉCLAIRS : des cristaux (un de plus à chaque niveau), des orbes et des arcs électriques ----------
-  const Z = tierAt('eclair');
+  const Z = skinOf('eclair');
   if (Z.L) {
-    instRing(spinner, cGeo('cristal', () => { const g = new THREE.OctahedronGeometry(0.045); g.scale(0.6, 1.8, 0.6); return g; }),
-      SM(0x9fe8ff, 0.1, 0.1, { emissive: 0x3fb8ff, emissiveIntensity: 1 }), Z.L, 18, 0.235, 0.75, (o, i) => { o.position.y += (i % 2) * 0.04; });
-    if (Z.t >= 2) {
-      const nO = 1 + Math.floor((Z.L - 7) / 2) + (Z.t === 4 ? 2 : 0);
+    const zm = SM(Z.col, 0.1, 0.1, { emissive: Z.em, emissiveIntensity: 1 });
+    instRing(spinner, cGeo('cristal', () => { const g = new THREE.OctahedronGeometry(0.045); g.scale(0.6, 1.8, 0.6); return g; }), zm, Z.L, 18, 0.235, 0.75, (o, i) => { o.position.y += (i % 2) * 0.04; });
+    if (Z.rainbow) anims.push(t => zm.emissive.copy(rainbow(t)));
+    if (Z.orbs) {
+      const nO = 1 + Math.floor((Z.L - 5) / 2) + (Z.big ? 2 : 0);
       const orbs = [];
-      for (let i = 0; i < nO; i++) { const s = glowSprite(0x9fe8ff, Z.t === 4 ? 0.42 : 0.32); tilt.add(s); orbs.push({ s, a: (i / nO) * Math.PI * 2, r: 1.3 + 0.12 * (i % 2), y: 0.55 + 0.25 * (i % 3) }); }
-      anims.push((t, dt, k) => { for (const o of orbs) { o.a += dt * (1.2 + 2.5 * k); o.s.position.set(Math.cos(o.a) * o.r, o.y + 0.08 * Math.sin(o.a * 3), Math.sin(o.a) * o.r); o.s.material.opacity = 0.4 + 0.6 * k; } });
+      for (let i = 0; i < nO; i++) { const s = glowSprite(Z.col, Z.big ? 0.42 : 0.32); tilt.add(s); orbs.push({ s, a: (i / nO) * Math.PI * 2, r: 1.3 + 0.12 * (i % 2), y: 0.55 + 0.25 * (i % 3) }); }
+      anims.push((t, dt, k) => { for (const o of orbs) { o.a += dt * (1.2 + 2.5 * k); o.s.position.set(Math.cos(o.a) * o.r, o.y + 0.08 * Math.sin(o.a * 3), Math.sin(o.a) * o.r); o.s.material.opacity = 0.4 + 0.6 * k; if (Z.rainbow) o.s.material.color.copy(rainbow(t + o.a)); } });
     }
-    if (Z.t >= 3) {
+    if (Z.arcs) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3 * 8 * 2), 3));
-      const arcs = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const arcs = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: Z.col, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
       arcs.frustumCulled = false;
       tilt.add(arcs);
       let arcT = 0;
       anims.push((t, dt, k) => {
         arcT -= dt;
         if (arcT > 0) return;
-        arcT = (Z.t === 4 ? 0.04 : 0.07) + Math.random() * 0.08;
+        arcT = (Z.big ? 0.04 : 0.07) + Math.random() * 0.08;
         const p = arcs.geometry.attributes.position, a0 = Math.random() * Math.PI * 2;
         let px = Math.cos(a0) * 0.25, pz = Math.sin(a0) * 0.25, py = 0.75;
         for (let i = 0; i < 8; i++) {
@@ -2888,26 +3303,28 @@ function makeTopMesh(target = scene) {
         }
         p.needsUpdate = true;
         arcs.visible = Math.random() < 0.35 + 0.6 * k;
+        if (Z.rainbow) arcs.material.color.copy(rainbow(t));
       });
     }
   }
 
   // ---------- FEU : un anneau de braises et des flammes (une de plus à chaque niveau, puis plus hautes) ----------
-  const F = tierAt('feu');
+  const F = skinOf('feu');
   if (F.L) {
-    const fc = [0, 0xff8a20, 0xffa030, 0xff4a1a, 0x4ab8ff, 0xffd23a][F.t];
-    add(cGeo('braises', () => new THREE.TorusGeometry(0.99, 0.04, 6, 48)), SM(fc, 0.2, 0.4, { emissive: fc, emissiveIntensity: 0.9 }), 0, bandBottom - 0.01, 0).rotation.x = Math.PI / 2;
-    const nF = Math.min(18, F.L), h = Math.round((0.2 + 0.03 * F.t + 0.012 * Math.max(0, F.L - 18)) * 1000) / 1000;
+    const fc = F.col;
+    const em = SM(fc, 0.2, 0.4, { emissive: fc, emissiveIntensity: 0.9 });
+    add(cGeo('braises', () => new THREE.TorusGeometry(0.99, 0.04, 6, 48)), em, 0, bandBottom - 0.01, 0).rotation.x = Math.PI / 2;
+    const nF = Math.min(18, F.L), h = Math.round((0.2 + 0.006 * F.idx + 0.012 * Math.max(0, F.L - 18)) * 1000) / 1000;
     const fm = GLOW(fc, { opacity: 0.85 });
     const fg = new THREE.Group();
     fg.position.y = bandBottom;
     spinner.add(fg);
     instRing(fg, cGeo('flamme' + h, () => { const g = new THREE.ConeGeometry(0.065, h, 6); g.translate(0, h / 2, 0); return g; }), fm, nF, nF, 1.02, 0, o => { o.rotation.z = -0.45; });
-    anims.push(t => { fm.opacity = 0.7 + 0.25 * Math.sin(t * 20); fg.scale.y = 0.85 + 0.3 * Math.random(); });
-    if (F.L >= 30) {   // couronne solaire : des rayons de lumière qui tournent
+    anims.push(t => { fm.opacity = 0.7 + 0.25 * Math.sin(t * 20); fg.scale.y = 0.85 + 0.3 * Math.random(); if (F.rainbow) { const c = rainbow(t, 0.3); fm.color.copy(c); em.emissive.copy(c); } });
+    if (F.rays) {   // couronne solaire : des rayons de lumière qui tournent
       const rays = new THREE.Group();
       rays.position.y = 0.3;
-      const rm = GLOW(F.t === 4 ? 0x7fd8ff : 0xffc24a, { opacity: 0.4 });
+      const rm = GLOW(F.rays, { opacity: 0.4 });
       for (let i = 0; i < 16; i++) {
         const r = new THREE.Mesh(cGeo('rayon', () => new THREE.PlaneGeometry(0.09, 0.9)), rm);
         const a = (i / 16) * Math.PI * 2;
@@ -2918,7 +3335,7 @@ function makeTopMesh(target = scene) {
       tilt.add(rays);
       anims.push((t, dt, k) => { rays.rotation.y += dt * 0.5; rm.opacity = (0.2 + 0.35 * k) * (0.7 + 0.3 * Math.sin(t * 3)); });
     }
-    if (F.t === 5) {   // phénix : des ailes de feu qui battent
+    if (F.phoenix) {   // phénix : des ailes de feu qui battent
       const wings = [];
       const wm = GLOW(0xff8a2a, { opacity: 0.55 });
       for (const sd of [-1, 1]) {
@@ -2941,13 +3358,13 @@ function makeTopMesh(target = scene) {
   }
 
   // ---------- TOURBILLON : des bras de vent (plus longs à chaque niveau, un de plus tous les 3) ----------
-  const V = tierAt('tornade');
+  const V = skinOf('tornade');
   if (V.L) {
     const arms = 1 + Math.floor((V.L - 1) / 3), arc = [0.45, 0.6, 0.75][(V.L - 1) % 3];
     const swirl = new THREE.Group();
     swirl.position.y = 0.35;
     tilt.add(swirl);
-    const wmat = new THREE.MeshBasicMaterial({ color: 0xd8f4ff, transparent: true, opacity: 0.35, depthWrite: false });
+    const wmat = new THREE.MeshBasicMaterial({ color: V.col, transparent: true, opacity: 0.35, depthWrite: false });
     for (let i = 0; i < arms; i++) {
       const m = new THREE.Mesh(cGeo('brasVent' + arc, () => new THREE.TorusGeometry(1.6, 0.035, 6, 40, arc * Math.PI)), wmat);
       m.rotation.x = Math.PI / 2;
@@ -2955,20 +3372,25 @@ function makeTopMesh(target = scene) {
       m.scale.setScalar(1 + 0.05 * i);
       swirl.add(m);
     }
-    anims.push((t, dt, k) => { swirl.rotation.y -= dt * (3 + 4 * k); swirl.scale.setScalar(1 + 0.06 * Math.sin(t * 7)); });
-    if (V.t >= 3) addRibbon(tilt, anims, 0xbfeaff, 1.72, 0.5, 5, 1);
-    if (V.t >= 4) addRibbon(tilt, anims, 0xeaf6ff, 1.86, 0.4, 7, -1);
+    anims.push((t, dt, k) => { swirl.rotation.y -= dt * (3 + 4 * k); swirl.scale.setScalar(1 + 0.06 * Math.sin(t * 7)); if (V.rainbow) wmat.color.copy(rainbow(t)); });
+    if (V.ribbons >= 1) addRibbon(tilt, anims, V.col, 1.72, 0.5, 5, 1, V.rainbow);
+    if (V.ribbons >= 2) addRibbon(tilt, anims, 0xeaf6ff, 1.86, 0.4, 7, -1, V.rainbow);
+    if (V.eye) {   // l'œil du cyclone : un tourbillon lumineux au-dessus
+      const eye = new THREE.Mesh(cGeo('oeilCyclone', () => new THREE.RingGeometry(0.2, 0.6, 48)), GLOW(V.col, { map: cometTex, opacity: 0.6 }));
+      eye.rotation.x = -Math.PI / 2;
+      eye.position.y = 1.3;
+      tilt.add(eye);
+      anims.push((t, dt, k) => { eye.rotation.z -= dt * (4 + 6 * k); if (V.rainbow) eye.material.color.copy(rainbow(t + 1)); });
+    }
   }
 
   // ---------- ÉQUILIBRE : le gyroscope au-dessus (une perle de plus à chaque niveau) ----------
-  const Q = tierAt('equilibre');
-  if (Q.L) {
-    const nR = [0, 1, 2, 3, 3, 3][Q.t];
-    const gcol = [0, 0x5fd3c8, 0x5fd3c8, 0x5fd3c8, 0xbff4ff, 0xffd45a][Q.t];
-    const gm = SM(gcol, Q.t >= 4 ? 0.2 : 0.7, 0.3, Q.t >= 4 ? { emissive: gcol, emissiveIntensity: 0.6, transparent: Q.t === 4, opacity: 0.8 } : {});
-    const beadMat = SM(Q.t === 5 ? 0xfff2c0 : 0xffffff, 0.5, 0.2, { emissive: Q.t >= 4 ? gcol : 0x000000, emissiveIntensity: 0.6 });
+  const Q = skinOf('equilibre');
+  if (Q.L && Q.n) {
+    const gm = SM(Q.col, Q.glow ? 0.2 : 0.6, 0.3, { emissive: Q.glow ? Q.col : 0x000000, emissiveIntensity: 0.6, ...(Q.glass ? { transparent: true, opacity: 0.8 } : {}) });
+    const beadMat = SM(Q.stars ? 0xfff2c0 : 0xffffff, 0.5, 0.2, { emissive: Q.glow ? Q.col : 0x000000, emissiveIntensity: 0.6 });
     const rings = [];
-    for (let k = 0; k < nR; k++) {
+    for (let k = 0; k < Q.n; k++) {
       const piv = new THREE.Group();
       piv.position.y = 0.95;
       gyro.add(piv);
@@ -2976,7 +3398,7 @@ function makeTopMesh(target = scene) {
       ring.rotation.set([Math.PI / 2 - 0.25, 0, Math.PI / 2][k], [0, 0, Math.PI / 2][k], 0);
       piv.add(ring);
       rings.push(piv);
-      const nb = Q.L > k ? Math.floor((Q.L - 1 - k) / nR) + 1 : 0;
+      const nb = Q.L > k ? Math.floor((Q.L - 1 - k) / Q.n) + 1 : 0;
       for (let i = 0; i < nb; i++) {
         const a = (i / nb) * Math.PI * 2;
         const b = new THREE.Mesh(cGeo('perle', () => new THREE.SphereGeometry(0.035, 10, 8)), beadMat);
@@ -2984,21 +3406,8 @@ function makeTopMesh(target = scene) {
         ring.add(b);
       }
     }
-    anims.push((t, dt) => rings.forEach((r, k) => { r.rotation.y += dt * (0.4 + 0.3 * k) * (k % 2 ? -1 : 1); }));
-    if (Q.t === 5) {   // gyroscope stellaire : une couronne d'étoiles qui scintillent
-      const stars = new THREE.Group();
-      stars.position.y = 0.78;
-      tilt.add(stars);
-      const list = [];
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2;
-        const s = glowSprite(i % 2 ? 0xffd45a : 0xfff2c0, 0.2);
-        s.position.set(Math.cos(a) * 1.05, 0, Math.sin(a) * 1.05);
-        stars.add(s);
-        list.push(s);
-      }
-      anims.push((t, dt, k) => { stars.rotation.y -= dt * (0.4 + 0.8 * k); list.forEach((s, i) => s.scale.setScalar(0.2 * (0.75 + 0.35 * Math.sin(t * 5 + i * 0.7)))); });
-    }
+    anims.push((t, dt) => { rings.forEach((r, k) => { r.rotation.y += dt * (0.4 + 0.3 * k) * (k % 2 ? -1 : 1); }); if (Q.rainbow) { const c = rainbow(t); gm.color.copy(c); gm.emissive.copy(c); } });
+    if (Q.stars) addStars(tilt, anims, 0.78, 1.05, [Q.col, 0xfff2c0]);
   }
 
   // ---------- ÉLAN : des comètes de vitesse autour de la toupie (une tous les 9 niveaux) ----------
@@ -6107,7 +6516,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.6';
+const VERSION = '2026-10-05.7';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
