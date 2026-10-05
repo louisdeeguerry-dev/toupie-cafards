@@ -459,7 +459,7 @@
     </button>
     <button class="modeBtn" id="quitBtn">
       <div class="mt">🚪 Quitter la partie</div>
-      <div class="md">Retour au menu principal. Ta partie est sauvegardée, et tes vagues repoussées sont déjà dans le Carton à Jouets.</div>
+      <div class="md">Termine la partie et retourne au menu : tu gardes tes 🌊 gagnées, la prochaine partie recommencera à la vague 1.</div>
     </button>
     <div class="settingsRow">
       <button class="linkBtn" id="soundBtn"></button>
@@ -803,7 +803,7 @@ const BUG_TYPES = [
     tip: 'Ses toiles ralentissent la toupie.' },
   { id: 'mygale',   pts: 12, name: 'Mygale',              r: 0.070, hp: 3600, speed: 0.06, reward: 4200, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
     tip: 'Une montagne de poils… et de points de vie.' },
-  { id: 'mere',     pts: 20, name: 'Mère araignée',       r: 0.090, hp: 7000, speed: 0.04, reward: 9000, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
+  { id: 'mere',     pts: 20, name: 'Mère araignée',       r: 0.090, hp: 6510, speed: 0.04, reward: 9000, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
     tip: 'Elle tisse des toiles et lâche ses bébés !' },
 ];
 // Les « petits » de chaque stade : ils meurent toujours en un coup et évitent que le bureau se bouche
@@ -1812,9 +1812,9 @@ scene.add(launcher);
 const LZ = -0.03; // le plot de départ de la toupie, dans le repère du lanceur
 let lBody = new THREE.Group(), lRing = new THREE.Group(), LV = null;
 const LAUNCHER_EVOS = [
-  [0, 'Lanceur en plastique'], [4, 'Lanceur renforcé'], [10, 'Lanceur en métal'], [18, 'Lanceur à ressort'],
-  [28, 'Lanceur de course'], [40, 'Lanceur néon'], [54, 'Lanceur turbo'], [70, 'Lanceur fusée'],
-  [88, 'Lanceur doré'], [108, 'Lanceur à plasma'], [128, 'Lanceur légendaire'], [145, 'Lanceur mythique'],
+  [0, 'Lanceur en plastique'], [4, 'Lanceur renforcé'], [9, 'Lanceur en métal'], [16, 'Lanceur à ressort'],
+  [25, 'Lanceur de course'], [35, 'Lanceur néon'], [47, 'Lanceur turbo'], [61, 'Lanceur fusée'],
+  [77, 'Lanceur doré'], [94, 'Lanceur à plasma'], [112, 'Lanceur légendaire'], [130, 'Lanceur mythique'],
 ];
 // Couleurs de chaque forme : coque, accent, lumière
 const LAUNCHER_LOOKS = [
@@ -2573,6 +2573,152 @@ function addEvolution(spinner, tilt, parts, P) {
   }
 }
 
+// =====================================================================
+//  EFFETS ANIMÉS DE LA TOUPIE : ils vivent autour d'elle (pas collés au corps qui tourne trop vite
+//  pour qu'on les voie) et réagissent à sa vitesse de rotation. Ils s'ajoutent au fil des évolutions.
+// =====================================================================
+// Une comète de lumière dessinée sur un anneau (dégradé « en éventail »)
+const cometTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  if (!g.createConicGradient) {
+    for (let k = 0; k < 120; k++) {
+      const f = k / 120, a = f * Math.PI * 2, al = Math.max(0, 1 - (f % 0.5) / 0.3);
+      g.fillStyle = 'rgba(255,255,255,' + al.toFixed(3) + ')';
+      g.beginPath(); g.moveTo(128, 128); g.arc(128, 128, 128, a, a + Math.PI * 2 / 120 + 0.01); g.fill();
+    }
+    const t0 = new THREE.CanvasTexture(c);
+    t0.colorSpace = THREE.SRGBColorSpace;
+    return t0;
+  }
+  const grad = g.createConicGradient(0, 128, 128);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.02, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.3, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.52, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.8, 'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+function addTopFx(tilt, parts, P) {
+  if (P < 12) return;
+  const hue = ((P * 11) % 360) / 360;
+  const col = new THREE.Color().setHSL(hue, 0.85, 0.6);
+  const glowMat = (extra = {}) => new THREE.MeshBasicMaterial({ color: col.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...extra });
+  const fx = { mats: [], comets: [], orbs: [], beads: [], risers: [], col, hue, myth: P >= 240 };
+  // Halo du bord : plus la toupie tourne vite, plus il brille
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.96, 1.16, 48), glowMat({ opacity: 0.5 }));
+  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.42;
+  tilt.add(rim); fx.rim = rim; fx.mats.push(rim.material);
+  // Comètes de lumière qui balaient le tour de la toupie (une, puis une seconde en sens inverse)
+  const comet = (rIn, rOut, y, dir, speed) => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 64), glowMat({ map: cometTex }));
+    m.rotation.x = -Math.PI / 2; m.position.y = y;
+    tilt.add(m); fx.comets.push({ m, dir, speed }); fx.mats.push(m.material);
+  };
+  if (P >= 28) comet(1.12, 1.32, 0.5, 1, 4);
+  if (P >= 60) comet(1.36, 1.5, 0.38, -1, 2.6);
+  if (P >= 150) comet(0.62, 0.8, 0.72, 1, 6);
+  // Orbes lumineux en orbite (de plus en plus nombreux)
+  if (P >= 42) {
+    const n = Math.min(6, 2 + Math.floor((P - 42) / 25)) + (fx.myth ? 2 : 0);
+    for (let i = 0; i < n; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color: col.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      s.scale.setScalar(0.34);
+      tilt.add(s);
+      fx.orbs.push({ s, a: (i / n) * Math.PI * 2, r: 1.3 + 0.12 * (i % 2), y: 0.55 + 0.25 * (i % 3) });
+      fx.mats.push(s.material);
+    }
+  }
+  // Cœur d'énergie au-dessus de la poignée
+  if (P >= 90) {
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color: col.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    core.position.y = 1.15; core.scale.setScalar(0.7);
+    tilt.add(core); fx.core = core; fx.mats.push(core.material);
+  }
+  // Petits éclairs qui crépitent entre le centre et le bord
+  if (P >= 115) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3 * 8 * 2), 3));
+    const arcs = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    arcs.frustumCulled = false;
+    tilt.add(arcs); fx.arcs = arcs; fx.arcT = 0;
+  }
+  // Le dragon : une chaîne d'écailles brillantes qui serpente autour de la toupie
+  if (P >= 130) {
+    const scaleMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ec, metalness: 0.9, roughness: 0.2, emissive: col.clone(), emissiveIntensity: 0.6 });
+    fx.mats.push(scaleMat);
+    for (let i = 0; i < 18; i++) {
+      const b = new THREE.Mesh(new THREE.OctahedronGeometry(0.075 * (1 - i / 26)), scaleMat);
+      b.scale.set(1, 0.55, 1.6);
+      tilt.add(b); fx.beads.push(b);
+    }
+  }
+  // Particules qui s'élèvent (aura légendaire)
+  if (P >= 175) {
+    for (let i = 0; i < 10; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color: col.clone(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      s.scale.setScalar(0.18);
+      tilt.add(s);
+      fx.risers.push({ s, a: Math.random() * Math.PI * 2, t: Math.random() });
+      fx.mats.push(s.material);
+    }
+  }
+  parts.fx = fx;
+}
+// Anime les effets d'une toupie : `ratio` = vitesse de rotation actuelle / vitesse de départ (0 → 1)
+function animateTopFx(fx, dt, ratio, t) {
+  if (!fx) return;
+  const k = Math.max(0, Math.min(1, ratio));
+  if (fx.myth) fx.col.setHSL((t * 0.1) % 1, 0.9, 0.62);
+  for (const m of fx.mats) (m.emissive && m.isMeshStandardMaterial ? m.emissive : m.color).copy(fx.col);
+  fx.rim.material.opacity = 0.12 + 0.5 * k * (0.85 + 0.15 * Math.sin(t * 12));
+  for (const c of fx.comets) { c.m.rotation.z += c.dir * c.speed * (0.4 + k) * dt; c.m.material.opacity = 0.25 + 0.7 * k; }
+  for (const o of fx.orbs) {
+    o.a += dt * (1.2 + 2.5 * k);
+    o.s.position.set(Math.cos(o.a) * o.r, o.y + 0.08 * Math.sin(o.a * 3), Math.sin(o.a) * o.r);
+    o.s.material.opacity = 0.4 + 0.6 * k;
+  }
+  if (fx.core) { fx.core.scale.setScalar(0.55 + 0.2 * Math.sin(t * 6) + 0.25 * k); fx.core.material.opacity = 0.5 + 0.5 * k; }
+  if (fx.arcs) {
+    fx.arcT -= dt;
+    if (fx.arcT <= 0) {
+      fx.arcT = 0.06 + Math.random() * 0.08;
+      const p = fx.arcs.geometry.attributes.position;
+      const a0 = Math.random() * Math.PI * 2;
+      let px = Math.cos(a0) * 0.25, pz = Math.sin(a0) * 0.25, py = 0.75;
+      for (let i = 0; i < 8; i++) {
+        const f = (i + 1) / 8, a = a0 + (Math.random() - 0.5) * 0.6;
+        const nx = Math.cos(a) * (0.25 + f * 1.05), nz = Math.sin(a) * (0.25 + f * 1.05), ny = 0.75 - f * 0.3 + (Math.random() - 0.5) * 0.1;
+        p.setXYZ(i * 2, px, py, pz); p.setXYZ(i * 2 + 1, nx, ny, nz);
+        px = nx; py = ny; pz = nz;
+      }
+      p.needsUpdate = true;
+      fx.arcs.visible = Math.random() < 0.35 + 0.6 * k;
+    }
+  }
+  if (fx.beads.length) {
+    fx.dragon = (fx.dragon || 0) + dt * (1.5 + 2 * k);
+    fx.beads.forEach((b, i) => {
+      const a = fx.dragon - i * 0.2;
+      b.position.set(Math.cos(a) * 1.4, 0.55 + 0.22 * Math.sin(a * 2.5), Math.sin(a) * 1.4);
+      b.rotation.set(0, -a, 0.25 * Math.sin(a * 2.5));
+    });
+  }
+  for (const r of fx.risers) {
+    r.t += dt * (0.5 + 0.6 * k);
+    if (r.t > 1) { r.t -= 1; r.a = Math.random() * Math.PI * 2; }
+    const rr = 1.0 + 0.3 * r.t;
+    r.s.position.set(Math.cos(r.a) * rr, 0.4 + r.t * 1.4, Math.sin(r.a) * rr);
+    r.s.material.opacity = (1 - r.t) * (0.4 + 0.6 * k);
+  }
+}
 function makeTopMesh(target = scene) {
   const tilt = new THREE.Group();   // inclinaison (vacillement)
   const spinner = new THREE.Group(); // tout ce qui tourne
@@ -2723,7 +2869,8 @@ function makeTopMesh(target = scene) {
     tilt.add(parts.swirl);
   }
 
-  addEvolution(spinner, tilt, parts, topPower());  addEvolution(spinner, tilt, parts, topPower());
+  addEvolution(spinner, tilt, parts, topPower());
+  addTopFx(tilt, parts, topPower());
   target.add(tilt);
 
   // Traînée (selon l'Élan) — pas dans l'aperçu de l'atelier
@@ -2780,6 +2927,7 @@ function launchTops(aim, power, perfect) {
   launcherFlash();
 }
 function disposeTop(top) {
+  top.tilt?.traverse(m => { if (m.isSprite) m.material.dispose(); });
   for (const o of [top.tilt, top.trail, top.smell]) {
     if (!o) continue;
     scene.remove(o);
@@ -4842,7 +4990,7 @@ function creditsItems() {
     { name: 'Ma vieille toupie', short: 'Toupie', desc: 'Sortie du carton du grenier… et devenue « ' + evo[1] + ' ».', build: g => {
       const m = makeTopMesh(g);
       if (m.trail) g.remove(m.trail);
-      return { spin: m.spinner };
+      return { spin: m.spinner, fx: m.fx };
     } },
     { name: 'Le lanceur', short: 'Lanceur', desc: 'Pose le doigt, vise, relâche… des milliers de fois.', build: g => { g.add(launcher.clone(true)); return { shared: true }; } },
     ...BUG_TYPES.map(t => ({ name: t.name, short: t.name, desc: CR_STAGES[t.stage || 0], build: g => {
@@ -4872,7 +5020,7 @@ function crShow(i) {
   const holder = new THREE.Group();
   holder.add(g);
   cr.pivot.add(holder);
-  cr.obj = holder; cr.objShared = !!info.shared; cr.spin = info.spin || null;
+  cr.obj = holder; cr.objShared = !!info.shared; cr.spin = info.spin || null; cr.fx = info.fx || null;
   cr.yaw = 0.5; cr.pitch = 0.25;
   document.getElementById('crName').textContent = it.name;
   document.getElementById('crDesc').textContent = it.desc;
@@ -4894,6 +5042,7 @@ function crLoop(now) {
   if (!cr.drag) cr.yaw += dt * 0.6;
   cr.pivot.rotation.set(cr.pitch, cr.yaw, 0);
   if (cr.spin) cr.spin.rotation.y += dt * 9;
+  if (cr.fx) animateTopFx(cr.fx, dt, 1, now / 1000);
   cr.renderer.render(cr.scene, cr.cam);
 }
 function openCredits({ time, wave, kills, record }) {
@@ -5775,19 +5924,44 @@ restartBtn.onclick = () => {
   pauseEl.classList.remove('open');
   restartRun();
 };
+// Quitter la partie, c'est la terminer : on garde les 🌊 gagnées, et la prochaine partie repart de la vague 1
 document.getElementById('quitBtn').onclick = () => {
-  if (nest) { leaveNest(); refillBoard(); }
-  lbSubmit();
+  const run = state.run;
+  const gained = run.metaGain ?? run.wavesCleared ?? 0;
   pauseEl.classList.remove('open');
-  save();
-  openMenu();
+  modalBox.className = 'modalBox';
+  modalBox.replaceChildren();
+  const h = document.createElement('h2');
+  h.textContent = 'Quitter la partie ?';
+  const lead = document.createElement('p');
+  lead.className = 'lead';
+  lead.textContent = `Ta partie s’arrête ici, à la vague ${run.wave}.` + (gained ? ` Tu gardes les ${gained} 🌊 déjà gagnées : elles sont dans le Carton à Jouets.` : '')
+    + ' L’argent, l’atelier et l’infestation repartent de zéro : la prochaine partie recommencera à la vague 1.';
+  const yes = document.createElement('button');
+  yes.className = 'bigBtn';
+  yes.textContent = 'Oui, quitter la partie';
+  yes.onclick = () => {
+    modal.classList.remove('open');
+    if (nest) leaveNest();
+    state.best[run.mode] = Math.max(state.best[run.mode] || 1, run.wave);
+    lbSubmit();
+    restartRun();
+    save();
+    openMenu();
+  };
+  const no = document.createElement('button');
+  no.className = 'linkBtn';
+  no.textContent = 'Non, continuer à jouer';
+  no.onclick = () => { modal.classList.remove('open'); pauseEl.classList.add('open'); };
+  modalBox.append(h, lead, yes, no);
+  modal.classList.add('open');
 };
 
 // =====================================================================
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.1';
+const VERSION = '2026-10-05.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6056,19 +6230,18 @@ function buildPreview() {
   previewDirty = false;
   previewTab = currentTab;
   previewRoot.clear();
+  previewRoot.userData = {};
   previewSpinners = [];
   if (currentTab === 'lanceur') {
-    // Le lanceur, avec la toupie posée à côté pour se rendre compte de sa taille
+    // Le lanceur seul (la toupie, quand elle devient très large, le cachait), qui tourne doucement sur l'établi
     const l = launcher.clone();
-    l.position.set(-0.05, 0, 0);
-    l.rotation.y = 0.5;
+    l.position.set(0, 0, -0.01);
     l.traverse(m => { if (m.isMesh) m.castShadow = true; });
-    previewRoot.add(l);
-    const m = makeTopMesh(previewRoot);
-    m.tilt.scale.setScalar(S.radius);
-    m.tilt.position.set(0.07, 0, 0.02);
-    previewSpinners.push([m.spinner, 6]);
-    framePreview(0.26, 0.12, new THREE.Vector3(0, 0.04, 0));
+    const turn = new THREE.Group();
+    turn.add(l);
+    previewRoot.add(turn);
+    previewSpinners.push([turn, 0.45]);
+    framePreview(0.15, 0.1, new THREE.Vector3(0, 0.035, 0));
   } else if (currentTab === 'bureau') {
     // Les insectes déjà rencontrés, à leur taille réelle, avec la lueur de la Prime
     const types = stageTypes();
@@ -6088,6 +6261,7 @@ function buildPreview() {
     m.tilt.scale.setScalar(0.05);
     previewSpinners.push([m.spinner, 6], [m.gyro, -0.6]);
     previewRoot.userData.wobble = m.tilt;
+    previewRoot.userData.fx = m.fx;
     framePreview(0.14, 0.1, new THREE.Vector3(0, 0.04, 0));
   }
 }
@@ -6105,6 +6279,7 @@ function renderPreview(dt) {
   // Léger vacillement de la toupie, comme si elle tournait vraiment sur l'établi
   const wob = previewRoot.userData.wobble;
   if (wob && wob.parent) wob.rotation.set(Math.cos(previewTime * 7) * 0.04, 0, Math.sin(previewTime * 7) * 0.04);
+  if (previewRoot.userData.fx) animateTopFx(previewRoot.userData.fx, dt, 1, previewTime);
   previewRenderer.render(previewScene, previewCam);
 }
 
@@ -6533,6 +6708,7 @@ function update(dt) {
     if (top.aura) { top.aura.rotation.z += dt * 3; top.aura.material.opacity = 0.35 + 0.25 * Math.sin(gameTime * 8); }
     if (top.legend) { top.legend.rotation.z += dt * 2; top.legend.scale.setScalar(1 + 0.05 * Math.sin(gameTime * 6)); }
     if (top.swirl) { top.swirl.rotation.z -= dt * 6; top.swirl.scale.setScalar(1 + 0.06 * Math.sin(gameTime * 7)); }
+    if (top.fx) animateTopFx(top.fx, dt, top.falling ? 0 : ratio, gameTime);
     if (top.smell) {
       top.smell.visible = !top.falling;
       top.smell.position.set(top.x, 0.003, top.z);
