@@ -892,7 +892,7 @@ const UPGRADES = [
   { id: 'eclair', tab: 'toupie', wave: 1, stage: 2, name: 'Éclairs en chaîne', desc: 'Quand la toupie frappe, un éclair peut rebondir sur un insecte voisin.', base: 9000, growth: 1.5, max: 18,
     unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
     skins: [[0, 'Sans éclairs'], [1, 'Étincelles bleues'], [7, 'Orbes électriques'], [13, 'Couronne d’orage'], [18, 'Tempête électrique']],
-    fmt: s => `${Math.round(s.chain * 100)} % de chance, ${Math.round(s.chainDmg * 100)} % des dégâts` },
+    fmt: s => `${Math.round(s.chain * 100)} % de chance, ${Math.round(s.chainDmg * 100)} % des dégâts, ${s.chainJumps} rebond${s.chainJumps > 1 ? 's' : ''}` },
   { id: 'tornade', tab: 'toupie', wave: 1, stage: 2, name: 'Tourbillon', desc: 'La toupie aspire les insectes proches vers elle.', base: 12000, growth: 1.5, max: 18,
     unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
     skins: [[0, 'Sans tourbillon'], [1, 'Courant d’air'], [7, 'Tornade'], [13, 'Ouragan'], [18, 'Cyclone']],
@@ -924,7 +924,7 @@ const UPGRADES = [
   { id: 'prime', tab: 'bureau', wave: 6, name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 60,
     skins: [[0, 'Sans éclat'], [10, 'Quelques étincelles'], [20, 'Pluie d’étincelles'], [30, 'Scintillement'], [40, 'Feu d’artifice']],
     fmt: s => `×${s.bounty.toFixed(1)} argent` },
-  { id: 'chance', tab: 'bureau', wave: 6, name: 'Trèfle doré', desc: 'Plus de chances qu’un insecte arrive tout doré : il rapporte 10 fois plus.', base: 500, growth: 1.8, max: 10,
+  { id: 'chance', tab: 'bureau', wave: 10, name: 'Trèfle doré', desc: 'Plus de chances qu’un insecte arrive tout doré : il rapporte 10 fois plus.', base: 500, growth: 1.8, max: 10,
     skins: [[0, 'Trèfle à trois feuilles'], [1, 'Trèfle à quatre feuilles'], [5, 'Trèfle en or'], [10, 'Fer à cheval doré']],
     fmt: s => `${(s.goldChance * 100).toFixed(1)} % d’insectes dorés` },
   { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 30,
@@ -981,8 +981,9 @@ const TOYBOX = [
     desc: () => '🧬 Les flammes de la Traînée de feu brûlent deux fois plus fort.' },
   { id: 'gants', icon: '🧤', name: 'Gants de jardinier', max: 2, cost: n => 50 + 30 * n, mutant: true,
     desc: n => `🧬 Après la mutation, +${n} lancer${n > 1 ? 's' : ''} à chaque vague.` },
-  { id: 'auto', icon: '⚙️', name: 'Lanceur automatique', max: 1, cost: () => 80,
-    desc: () => 'Un gros bouton sur la table : allumé, les toupies se relancent toutes seules, dans une direction au hasard, dès qu’elles tombent. Éteint, tu joues normalement.' },
+  { id: 'auto', icon: '⚙️', name: 'Lanceur automatique', max: 2, cost: n => [80, 200][n] ?? 200,
+    desc: n => n >= 2 ? 'Niveau 2 : le lanceur automatique tire toujours à pleine puissance (jauge au maximum, lancer PARFAIT).'
+      : 'Un gros bouton sur la table : allumé, les toupies se relancent toutes seules, dans une direction au hasard, dès qu’elles tombent. Éteint, tu joues normalement.' },
   { id: 'trophee', icon: '🏆', name: 'Trophée du champion', max: 3, cost: n => 120 + 100 * n,
     desc: n => `Le trophée de mes anciens tournois : ×${(1 + 0.3 * n).toFixed(1)} dégâts et ×${(1 + 0.3 * n).toFixed(1)} argent.` },
 ];
@@ -1040,12 +1041,13 @@ function rawStats(L, P) {
     // Contre les insectes des stades suivants
     // Pouvoirs des stades suivants (utiles contre tous les insectes)
     dmgMult: (1 + 0.15 * metaLevel('loupe')) * (1 + 0.3 * metaLevel('trophee')),
-    goldChance: 0.01 + 0.004 * L('chance'),   // 1 % au départ, 5 % au niveau max
+    goldChance: L('chance') ? 0.01 + 0.004 * L('chance') : 0,   // aucun insecte doré sans Trèfle doré, puis 1,4 % → 5 %
     fire: L('feu') ? (0.25 + 0.08 * L('feu')) * (metaLevel('chimiste') ? 2 : 1) : 0,   // dégâts/s, en part d'un coup moyen
     fireLife: 1 + 0.08 * L('feu'),
     souffle: L('souffle') ? 0.03 + 0.012 * L('souffle') : 0,     // rotation rendue par insecte écrasé (part du lancer)
     souffleCap: 0.25 + 0.03 * L('souffle'),                       // au plus, par lancer
     chain: Math.min(0.7, 0.07 * L('eclair')),
+    chainJumps: 1 + Math.floor(L('eclair') / 6),
     chainDmg: 0.5 + 0.03 * L('eclair'),
     vortex: L('tornade') ? 0.12 + 0.03 * L('tornade') : 0,
     vortexR: 0.1 + 0.012 * L('tornade'),
@@ -2284,10 +2286,13 @@ function addTrap() {
 // Les objets achetés dans le Carton à Jouets sont posés sur la table, autour du plateau
 const toyDecor = new THREE.Group();
 scene.add(toyDecor);
+// Les jouets sont posés derrière le plateau, de part et d'autre de l'écran : en portrait sur téléphone,
+// les côtés du plateau sortent de l'image, mais cette bande de bureau reste toujours visible
 const TOY_SPOTS = {
-  tirelire: [-0.9, -0.08, 0.4], depart: [0.9, -0.02, -0.3], catalogue: [-0.5, -0.8, 0.25], doudou: [-0.9, -0.4, 0.5],
-  carte: [0.52, -0.79, -0.35], secours: [0.88, -0.3, 0.6], montre: [0.88, -0.6, 0], loupe: [-0.86, -0.68, 0.8],
-  chimiste: [0.78, -0.82, 0.2], gants: [-0.76, -0.84, -0.4], trophee: [-0.32, -0.82, 0.3], auto: [0.86, 0.36, -0.25],
+  tirelire: [-0.76, -0.68, 0.4], doudou: [-0.56, -0.68, 0.5], secours: [-0.37, -0.68, 0.6],
+  gants: [-0.78, -0.88, -0.4], catalogue: [-0.58, -0.88, 0.25], trophee: [-0.4, -0.9, 0.3],
+  auto: [0.46, -0.68, 0], loupe: [0.62, -0.68, 0.8], depart: [0.77, -0.7, -0.3],
+  carte: [0.42, -0.88, -0.35], montre: [0.59, -0.88, 0], chimiste: [0.76, -0.86, 0.2],
 };
 function toyMat(color, o = {}) { return new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...o }); }
 function toyMesh(g, geo, mat, x, y, z) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; }
@@ -4310,21 +4315,33 @@ function stepFlames(dt) {
 // Éclairs : un trait lumineux bref entre deux insectes
 const bolts = [];
 function addBolt(x1, z1, x2, z2) {
+  const g = new THREE.Group();
   const pts = [];
-  for (let i = 0; i <= 6; i++) {
-    const f = i / 6, j = i && i < 6 ? (Math.random() - 0.5) * 0.03 : 0;
-    pts.push(new THREE.Vector3(x1 + (x2 - x1) * f + j, 0.03 + Math.sin(f * Math.PI) * 0.03, z1 + (z2 - z1) * f - j));
+  for (let i = 0; i <= 8; i++) {
+    const f = i / 8, j = i && i < 8 ? (Math.random() - 0.5) * 0.045 : 0;
+    pts.push(new THREE.Vector3(x1 + (x2 - x1) * f + j, 0.035 + Math.sin(f * Math.PI) * 0.04, z1 + (z2 - z1) * f - j));
   }
-  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x9fe8ff, transparent: true }));
-  scene.add(l);
-  bolts.push({ l, life: 0.18 });
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0);
+  // un cœur blanc et un halo bleu autour
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.0035, 5), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.009, 6), new THREE.MeshBasicMaterial({ color: 0x5ac8ff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending })));
+  // éclat à l'arrivée
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkTex, color: 0xbfeaff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  flash.position.set(x2, 0.04, z2);
+  flash.scale.setScalar(0.09);
+  g.add(flash);
+  scene.add(g);
+  bolts.push({ l: g, life: 0.3, max: 0.3 });
 }
 function stepBolts(dt) {
   for (let i = bolts.length - 1; i >= 0; i--) {
     const b = bolts[i];
     b.life -= dt;
-    b.l.material.opacity = Math.max(0, b.life / 0.18);
-    if (b.life <= 0) { scene.remove(b.l); b.l.geometry.dispose(); b.l.material.dispose(); bolts.splice(i, 1); }
+    const k = Math.max(0, b.life / b.max);
+    // il clignote en s'éteignant, comme un vrai éclair
+    b.l.children.forEach((m, j) => { m.material.opacity = k * (j === 1 ? 0.55 : 1) * (0.6 + 0.4 * Math.random()); });
+    b.l.children[2].scale.setScalar(0.09 + (1 - k) * 0.06);
+    if (b.life <= 0) { scene.remove(b.l); b.l.traverse(m => { m.geometry?.dispose(); m.material?.dispose(); }); bolts.splice(i, 1); }
   }
 }
 // Tourbillon : les insectes proches sont aspirés vers la toupie
@@ -4476,7 +4493,13 @@ const SFX = (() => {
     fall() { noise(0.15, { vol: 0.12, freq: 3000, type: 'highpass' }); tone(300, 0.18, { type: 'triangle', vol: 0.08, slide: 0.4 }); },
     pick() { tone(500, 0.12, { type: 'sine', vol: 0.14, slide: 2 }); },
     achieve() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); },
-    zap() { noise(0.08, { vol: 0.1, freq: 4000, type: 'highpass' }); tone(1800, 0.06, { type: 'square', vol: 0.04, slide: 0.5 }); },
+    zap(n = 1) {
+      const v = Math.min(1.6, 1 + 0.2 * (n - 1));
+      noise(0.05, { vol: 0.22 * v, freq: 5000, type: 'highpass' });
+      noise(0.16, { vol: 0.14 * v, freq: 1800, type: 'bandpass', q: 4, delay: 0.03 });
+      tone(2400, 0.12, { type: 'sawtooth', vol: 0.06 * v, slide: 0.25 });
+      tone(160, 0.18, { type: 'square', vol: 0.05 * v, slide: 0.6, delay: 0.02 });
+    },
   };
   const MIN_GAP = { hit: 0.035, kill: 0.03, crit: 0.06, combo: 0.05, boing: 0.12, zap: 0.06 };
   function play(name, arg = 0) {
@@ -4745,21 +4768,28 @@ function hitBug(top, b, now) {
   top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia * (b.t.sting ? 2.2 : 1);
   if (b.t.sting && now - (b.stingT ?? -9) > 1) { b.stingT = now; popup('🦂 Piqûre !', b.x, b.z + 0.03, 'bite'); }
   // Éclairs en chaîne : la décharge saute sur l'insecte le plus proche
+  // (de plus en plus de rebonds avec le niveau : 1, puis 2, 3, 4 insectes touchés à la suite)
   if (S.chain && Math.random() < S.chain) {
-    let near = null, best = 0.22;
-    for (const o of bugs) {
-      if (o === b || o.dying || o.gone || o.drop > 0) continue;
-      const d = Math.hypot(o.x - b.x, o.z - b.z);
-      if (d < best) { best = d; near = o; }
-    }
-    if (near) {
-      const zap = Math.min(near.hp, capBoss(near, dmg * S.chainDmg, 0.5));
+    const hit = new Set([b]);
+    let from = b, power = dmg * S.chainDmg, jumps = S.chainJumps;
+    while (jumps-- > 0) {
+      let near = null, best = 0.26;
+      for (const o of bugs) {
+        if (hit.has(o) || o.dying || o.gone || o.drop > 0) continue;
+        const d = Math.hypot(o.x - from.x, o.z - from.z);
+        if (d < best) { best = d; near = o; }
+      }
+      if (!near) break;
+      hit.add(near);
+      const zap = Math.min(near.hp, capBoss(near, power, 0.5));
       near.hp -= zap;
-      addBolt(b.x, b.z, near.x, near.z);
-      SFX.play('zap');
+      addBolt(from.x, from.z, near.x, near.z);
       popup('⚡ −' + fmtDmg(zap), near.x, near.z - 0.02, 'crit');
       if (near.hp <= 0) killBug(near);
+      from = near;
+      power *= 0.8;
     }
+    if (hit.size > 1) { SFX.play('zap', hit.size - 1); addShake(0.002 * hit.size); }
   }
   if (b.hp <= 0) {
     killBug(b);
@@ -6516,7 +6546,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-05.7';
+const VERSION = '2026-10-07.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6555,7 +6585,14 @@ function pointerToDesk(e) {
   raycaster.setFromCamera(pointerNdc, camera);
   const hit = new THREE.Vector3();
   if (!raycaster.ray.intersectPlane(deskPlane, hit)) return;
-  aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hit.x)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hit.z)));
+  // Lance-pierre : si le doigt passe derrière le lanceur (on tire vers soi), on vise dans la direction opposée
+  let hx = hit.x, hz = hit.z;
+  if (hz > LAUNCH.y - 0.02) {
+    if (Math.hypot(hx - LAUNCH.x, hz - LAUNCH.y) < 0.03) return; // trop près du lanceur : on garde la visée
+    hx = 2 * LAUNCH.x - hx;
+    hz = 2 * LAUNCH.y - hz;
+  }
+  aimPoint.set(Math.max(-DESK_X, Math.min(DESK_X, hx)), Math.max(-DESK_Z, Math.min(LAUNCH.y - 0.06, hz)));
 }
 // Histoire : on relance dès que la toupie tombe. Carnage : il faut attendre la recharge.
 function isReady() {
@@ -7188,7 +7225,8 @@ function update(dt) {
     autoT += dt;
     if (autoT > 0.7) {
       autoT = 0;
-      launchTops({ x: (Math.random() * 2 - 1) * DESK_X * 0.8, y: -DESK_Z * 0.85 + Math.random() * DESK_Z * 0.9 }, 0.65 + Math.random() * 0.35, Math.random() < 0.3);
+      const full = metaLevel('auto') >= 2; // niveau 2 : toujours à pleine puissance
+      launchTops({ x: (Math.random() * 2 - 1) * DESK_X * 0.8, y: -DESK_Z * 0.85 + Math.random() * DESK_Z * 0.9 }, full ? 1 : 0.65 + Math.random() * 0.35, full || Math.random() < 0.3);
     }
   } else autoT = 0;
   // Apparition des insectes : l'Appât n'attire de nouveaux cafards que pendant un lancer
