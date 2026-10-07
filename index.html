@@ -336,6 +336,45 @@
     background: var(--panel); color: var(--text); text-decoration: none; font-weight: 700; }
   #skipIntro.open { display: block; }
 
+
+  /* Tutoriel du premier lancer */
+  #coach { display: none; pointer-events: none; }
+  #coach.on { display: block; }
+  #coachRing { position: fixed; z-index: 6; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
+    border: 3px solid #ffe08a; box-shadow: 0 0 18px #ffd34a, inset 0 0 14px rgba(255, 211, 74, .5); animation: coachPulse 1.1s ease-in-out infinite; }
+  #coachDot { position: fixed; z-index: 6; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+    background: rgba(255,255,255,.95); box-shadow: 0 0 0 7px rgba(255,255,255,.28); animation: coachDrag 1.9s ease-in-out infinite; }
+  #coachText { position: fixed; z-index: 6; transform: translate(-50%, -100%); width: max-content; max-width: min(86vw, 420px);
+    padding: 10px 14px; border-radius: 14px; border: 2px solid #ffd34a; background: rgba(30, 22, 14, .92); color: #fff;
+    font-weight: 700; font-size: 15px; line-height: 1.35; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  #coachText b { color: #ffd34a; }
+  #coachText small { display: block; margin-top: 4px; font-size: 12.5px; font-weight: 600; opacity: .8; }
+  #coachText.shake { animation: coachShake .45s; border-color: #ff7a5a; }
+  #gauge.tuto { box-shadow: 0 0 0 3px #ffd34a, 0 0 24px #ffd34a; }
+  #gauge.tuto #gaugePerfect { background: rgba(95, 211, 138, .8); animation: coachPulse .6s ease-in-out infinite; }
+  @keyframes coachPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .7; } }
+  @keyframes coachDrag { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 15% { transform: translate(0, 0) scale(1); opacity: 1; }
+    70% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; } }
+  @keyframes coachShake { 0%, 100% { margin-left: 0; } 20%, 60% { margin-left: -9px; } 40%, 80% { margin-left: 9px; } }
+
+  /* Cinématique d'entrée dans le nid */
+  #cine { position: fixed; inset: 0; z-index: 30; display: none; overflow: hidden; }
+  #cine.on { display: block; }
+  #cine .lb { position: absolute; left: 0; right: 0; height: 10vh; background: #000; }
+  #cine .lb.t { top: 0; } #cine .lb.b { bottom: 0; }
+  #cine .lid { position: absolute; left: -15%; right: -15%; height: 58vh; background: #000; transition: transform .75s cubic-bezier(.55, 0, .6, 1); }
+  #cine .lid.t { top: 0; border-radius: 0 0 50% 50% / 0 0 40% 40%; transform: translateY(-110%); }
+  #cine .lid.b { bottom: 0; border-radius: 50% 50% 0 0 / 40% 40% 0 0; transform: translateY(110%); }
+  #cine.closed .lid { transform: translateY(0); }
+  #cine .fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1s; }
+  #cine.black .fade { opacity: 1; transition: none; }
+  #cineSub { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); width: min(90vw, 640px); text-align: center;
+    color: #fff; font-weight: 700; font-style: italic; font-size: clamp(15px, 2.4vw, 22px); text-shadow: 0 2px 8px #000, 0 0 2px #000;
+    opacity: 0; transition: opacity .45s; }
+  #cineSub.on { opacity: 1; }
+  #cineSkip { position: absolute; top: calc(10vh + 10px); right: 12px; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
+    background: rgba(0,0,0,.45); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  body.cine > :not(#game):not(#cine):not(script) { visibility: hidden !important; }
 </style>
 </head>
 <body>
@@ -362,6 +401,7 @@
 
 <div id="status"></div>
 <div id="rotateHint"><span class="ico">📱</span>Tourne ton téléphone pour voir le plateau en grand</div>
+<div id="coach"><div id="coachRing"></div><div id="coachDot"></div><div id="coachText"></div></div>
 <div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
 <div class="topBtns">
   <button id="speedBtn" aria-label="Vitesse du jeu">⏩ ×1</button>
@@ -517,6 +557,7 @@
 <button id="updateBar">🔄 Nouvelle version disponible — toucher pour mettre à jour</button>
 
 <div id="dialog"><div class="face">😩</div><div><div class="who">Moi</div><div class="line" id="dialogLine"></div><div class="next">▶ Touche pour continuer</div></div></div>
+<div id="cine"><div class="lb t"></div><div class="lb b"></div><div class="lid t"></div><div class="lid b"></div><div class="fade"></div><div id="cineSub"></div><button id="cineSkip">Passer ⏭</button></div>
 <button class="linkBtn" id="skipIntro">Passer ⏭</button>
 
 <script type="importmap">
@@ -766,6 +807,7 @@ const INTRO = [
   { face: '😮', text: 'Ma vieille toupie ! Heureusement que je l’ai retrouvée.', showTop: true },
   { face: '😏', text: 'Bon. À nous deux, les cafards. Je vais vous repousser, vague après vague.' },
   { face: '🎯', text: 'À chaque vague, je dois en écraser un certain nombre avant d’être à court de lancers. Sinon, ils envahissent tout.' },
+  { face: '😌', text: 'Je me souviens encore comment il faut la lancer… On vise, et on lâche quand la barre est pleine. Allez, premier lancer !' },
 ];
 
 // =====================================================================
@@ -831,6 +873,10 @@ const STAGES = [
 ];
 BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.from ? k : a), 0); });
 FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
+// Argent gagné par insecte : à partir des mutants, il suit une seule courbe régulière de sa vie réelle (fiche × coriacité du stade).
+// Avant, les premiers mutants (et les premières araignées) rapportaient moins que les derniers insectes du stade d'avant,
+// alors qu'ils ont bien plus de vie. Maintenant, un insecte plus résistant rapporte toujours plus.
+for (const t of BUG_TYPES) if (t.stage) t.reward = Math.round(4.88 * Math.pow(t.hp * STAGES[t.stage].hp, 0.658) * (t.rare ? 1.6 : 1) / 10) * 10;
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
 // Calés pour qu'une nouvelle espèce arrive à intervalles réguliers (toutes les 3-4 vagues, puis 2 après la mutation)
 const INFEST_THRESHOLDS = [0, 45, 380, 750, 1500, 3600, 6400, 9800, 13800, 19000, 27000, 35000, 45000, 58000, 72000, 90000, 110000, 135000];
@@ -4054,7 +4100,7 @@ function animateQueen(b, dt) {
   for (const w of Q.wings) w.pivot.rotation.y = w.s * (0.75 + 0.12 * Math.sin(t * 9 + w.s));
   for (const l of Q.spiderLegs) l.leg.rotation.y = 0.06 * Math.sin(t * 3 + l.phase);
   // Les bras : un petit balancement… levés, menaçants, pendant une attaque
-  const attack = qte ? 1 : 0;
+  const attack = qte || cineArms ? 1 : 0;
   Q.armLift = (Q.armLift || 0) + (attack - (Q.armLift || 0)) * Math.min(1, dt * 10);
   for (const a of Q.arms) {
     a.arm.rotation.x = -0.25 * Math.sin(t * 2 + a.s) * (1 - Q.armLift) - 1.1 * Q.armLift;
@@ -4493,6 +4539,15 @@ const SFX = (() => {
     fall() { noise(0.15, { vol: 0.12, freq: 3000, type: 'highpass' }); tone(300, 0.18, { type: 'triangle', vol: 0.08, slide: 0.4 }); },
     pick() { tone(500, 0.12, { type: 'sine', vol: 0.14, slide: 2 }); },
     achieve() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.12, delay: i * 0.09 })); },
+    step() { noise(0.09, { vol: 0.16, freq: 320 }); tone(75, 0.1, { type: 'sine', vol: 0.12, slide: 0.7 }); },
+    roar() {
+      noise(1.5, { vol: 0.38, freq: 700, sweep: 0.35, type: 'lowpass', q: 3 });
+      tone(110, 1.3, { type: 'sawtooth', vol: 0.12, slide: 0.55, attack: 0.08 });
+      tone(165, 1.1, { type: 'sawtooth', vol: 0.08, slide: 0.6, attack: 0.06, delay: 0.05 });
+      tone(58, 1.4, { type: 'square', vol: 0.06, slide: 0.7, attack: 0.1 });
+    },
+    heart() { tone(62, 0.13, { type: 'sine', vol: 0.3, slide: 0.8 }); tone(55, 0.12, { type: 'sine', vol: 0.22, slide: 0.8, delay: 0.2 }); },
+    grip() { tone(1500, 0.05, { type: 'square', vol: 0.04 }); noise(0.05, { vol: 0.1, freq: 3500, type: 'highpass', delay: 0.02 }); tone(900, 0.25, { type: 'triangle', vol: 0.06, slide: 1.8, delay: 0.05 }); },
     zap(n = 1) {
       const v = Math.min(1.6, 1 + 0.2 * (n - 1));
       noise(0.05, { vol: 0.22 * v, freq: 5000, type: 'highpass' });
@@ -5091,6 +5146,7 @@ function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult 
 function startNest() {
   const run = state.run;
   if (!isStory() || nest) return;
+  const firstTime = !run.nestPaid || TEST_MODE === 'boss'; // on vient de payer : la cinématique d'entrée
   if (!run.nestPaid) {
     if (run.cash < NEST_COST) return;
     run.cash -= NEST_COST;
@@ -5118,7 +5174,8 @@ function startNest() {
   addShake(0.02);
   paused = true;
   charging = false;
-  playDialog(NEST_INTRO, () => { paused = false; banner('🔥 Le nid des cafards', 'Pare ses attaques et détruis la Reine !'); });
+  const intro = () => playDialog(NEST_INTRO, () => { paused = false; banner('🔥 Le nid des cafards', 'Pare ses attaques et détruis la Reine !'); });
+  if (firstTime) playNestCinematic(intro); else intro();
 }
 function updateNestHud() {
   if (!nest) return;
@@ -6149,7 +6206,7 @@ function resumeRun() {
   paused = false;
   if (!aliveTops().length) refillBoard();
   if (stageIndex() > (run.stageSeen || 0)) { pendingMutation = true; return; }
-  if (isStory()) banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`);
+  if (isStory()) { banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`); maybeLaunchTuto(); }
   else banner(`🍪 Mode Carnage — vague ${run.wave}`, 'Protège ton goûter des cafards affamés (en rouge) !');
 }
 
@@ -6199,6 +6256,7 @@ function endIntro() {
   save();
   if (state.run.choice || state.run.over) { resumeRun(); return; }
   banner(`📖 Vague ${state.run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
+  maybeLaunchTuto();
 }
 dialogEl.addEventListener('click', nextIntroLine);
 skipBtn.addEventListener('click', endIntro);
@@ -6546,7 +6604,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-07.1';
+const VERSION = '2026-10-07.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6659,6 +6717,7 @@ canvas.addEventListener('pointerdown', e => {
     charging = true;
     chargeT = 0;
     chargeId = e.pointerId;
+    if (launchTuto) { launchTuto.sx = e.clientX; launchTuto.sy = e.clientY; launchTuto.moved = 0; launchTuto.err = ''; }
     gesture = null;
     return;
   }
@@ -6669,7 +6728,13 @@ canvas.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   // La direction suit le doigt pendant qu'on le fait glisser depuis le lanceur
-  if (charging) { if (e.pointerId === chargeId) pointerToDesk(e); return; }
+  if (charging) {
+    if (e.pointerId === chargeId) {
+      pointerToDesk(e);
+      if (launchTuto) launchTuto.moved = Math.max(launchTuto.moved, Math.hypot(e.clientX - launchTuto.sx, e.clientY - launchTuto.sy));
+    }
+    return;
+  }
   if (gesture?.type === 'pan' && gesture.id === e.pointerId) {
     if (!gesture.moved && Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 8) gesture.moved = true;
     if (gesture.moved && view.zoom > 1) zoomKeeping(view.zoom, gesture.full, e.clientX, e.clientY);
@@ -6704,14 +6769,292 @@ function release() {
   charging = false;
   if (!isReady()) return;
   const g = gaugeValue();
+  // Tutoriel : le premier lancer ne part que si on a visé et lâché la barre (presque) pleine — sinon on réessaie, sans perdre de lancer
+  if (launchTuto && !launchTuto.done && !nest) {
+    if (launchTuto.moved < 28) { tutoFail('aim'); return; }
+    if (g < 0.85) { tutoFail('power'); return; }
+  }
   const perfect = g >= 1 - S.perfect;
   if (perfect) { popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big'); SFX.play('perfect'); }
   state.perfectStreak = perfect ? (state.perfectStreak || 0) + 1 : 0;
   state.perfectBest = Math.max(state.perfectBest || 0, state.perfectStreak);
   launchTops(aimPoint, g, perfect);
+  if (launchTuto && !launchTuto.done) tutoDone();
 }
 canvas.addEventListener('pointerup', e => pointerEnd(e, false));
 canvas.addEventListener('pointercancel', e => pointerEnd(e, true));
+
+// =====================================================================
+//  CINÉMATIQUE D'ENTRÉE DANS LE NID (à la première personne)
+//  On avance dans le nid, on lève la tête vers la Reine, on baisse les yeux
+//  sur la toupie dans notre main… et on ferme les yeux.
+// =====================================================================
+let cine = null, cineArms = false;
+const cineEl = document.getElementById('cine'), cineSub = document.getElementById('cineSub');
+const cineEase = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+const CINE_SUBS = [
+  [0.5, 3.0, '…Ça sent le cafard à plein nez, ici.'],
+  [4.7, 5.9, 'Oh non… C’est elle. La Reine.'],
+  [6.5, 8.3, 'Ma vieille toupie… On a fait tout ce chemin ensemble.'],
+  [8.6, 9.6, 'Respire… Concentre-toi.'],
+];
+const CINE_END = 9.8;
+// Une main d'enfant (paume vers le haut), avec la manche du pull, qui tient la toupie
+function makeHandMesh() {
+  // Une main de dessin animé : paume charnue, doigts potelés attachés par des jointures, pouce qui se referme sur la toupie
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe9a87c, roughness: 0.55, emissive: 0x5a2414, emissiveIntensity: 0.12 });
+  const crease = new THREE.MeshStandardMaterial({ color: 0xc8805c, roughness: 0.7, emissive: 0x4a2014, emissiveIntensity: 0.1 });
+  const nail = new THREE.MeshStandardMaterial({ color: 0xffeae4, roughness: 0.2, emissive: 0x503030, emissiveIntensity: 0.15 });
+  const sleeve = new THREE.MeshStandardMaterial({ color: 0x2f5fb8, roughness: 0.95 });
+  const rib = new THREE.MeshStandardMaterial({ color: 0x24498f, roughness: 0.95 });
+  const g = new THREE.Group();
+  const ball = (parent, r, mat, x, y, z, sx = 1, sy = 1, sz = 1, seg = 20) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.round(seg * 0.7)), mat);
+    m.position.set(x, y, z); m.scale.set(sx, sy, sz); parent.add(m); return m;
+  };
+  // La paume, avec ses deux coussinets (sous le pouce et sous le petit doigt) et la rangée de jointures
+  ball(g, 1, skin, 0, 0, -0.004, 0.047, 0.019, 0.05, 32);
+  ball(g, 1, skin, 0.022, 0.004, 0.02, 0.024, 0.017, 0.032);
+  ball(g, 1, skin, -0.024, 0.003, 0.018, 0.02, 0.015, 0.03);
+  ball(g, 1, crease, 0, 0.0115, 0.002, 0.03, 0.004, 0.032);       // le creux de la main, un peu plus foncé
+  const knuck = new THREE.Mesh(new THREE.CapsuleGeometry(0.0125, 0.052, 6, 14), skin);
+  knuck.rotation.z = Math.PI / 2; knuck.position.set(0, 0.002, -0.04); g.add(knuck);
+  // Le poignet et la manche du pull, avec ses côtes
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.08, 20), skin);
+  wrist.rotation.x = Math.PI / 2; wrist.scale.set(1.3, 1, 0.72); wrist.position.set(0, -0.004, 0.07); g.add(wrist);
+  const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.05, 0.2, 24), sleeve);
+  sl.rotation.x = Math.PI / 2; sl.position.set(0, -0.006, 0.225); g.add(sl);
+  for (let i = 0; i < 3; i++) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.0065, 8, 28), rib);
+    r.position.set(0, -0.006, 0.113 + i * 0.011); g.add(r);
+  }
+  // Les quatre doigts : trois phalanges potelées, une jointure ronde à chaque pli, un ongle au bout
+  const fingers = [];
+  [[0.03, 0.056, 0.0105], [0.01, 0.063, 0.0112], [-0.01, 0.059, 0.0108], [-0.029, 0.046, 0.0094]].forEach(([x, len, r]) => {
+    const base = new THREE.Group();
+    base.position.set(x, 0.003, -0.04 + Math.abs(x) * 0.12);
+    base.rotation.y = -x * 1.3;   // un léger éventail
+    g.add(base);
+    const joints = [];
+    let parent = base, prev = 0;
+    [0.42, 0.32, 0.26].forEach((k, i) => {
+      const L = len * k, ri = r * (1 - 0.08 * i);
+      const j = new THREE.Group();
+      j.position.z = -prev;
+      parent.add(j);
+      ball(j, ri * 1.04, skin, 0, 0, 0, 1, 1, 1, 14);              // la jointure
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(ri * 0.94, ri, L, 14), skin);
+      seg.rotation.x = -Math.PI / 2; seg.position.z = -L / 2; j.add(seg);
+      if (i === 2) {
+        ball(j, ri * 0.97, skin, 0, 0, -L, 1, 1, 1, 14);            // le bout du doigt, bien rond
+        ball(j, ri * 0.8, nail, 0, -ri * 0.55, -L * 0.82, 1, 0.38, 1.2, 12);   // l'ongle, côté dos de la main
+      }
+      joints.push(j);
+      parent = j; prev = L;
+    });
+    fingers.push(joints);
+  });
+  // Le pouce : il part du coussinet, sur le côté, et vient se refermer par-dessus la toupie
+  const tb = new THREE.Group();
+  tb.position.set(0.036, 0.003, 0.016);
+  tb.rotation.set(0.3, -0.45, 0.45);
+  g.add(tb);
+  const thumb = [];
+  {
+    let parent = tb, prev = 0;
+    [[0.021, 0.0115], [0.018, 0.0106]].forEach(([L, ri], i) => {
+      const j = new THREE.Group();
+      j.position.z = -prev;
+      parent.add(j);
+      ball(j, ri * 1.04, skin, 0, 0, 0, 1, 1, 1, 14);
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(ri * 0.94, ri, L, 14), skin);
+      seg.rotation.x = -Math.PI / 2; seg.position.z = -L / 2; j.add(seg);
+      if (i === 1) {
+        ball(j, ri * 0.97, skin, 0, 0, -L, 1, 1, 1, 14);
+        ball(j, ri * 0.8, nail, 0, -ri * 0.55, -L * 0.8, 1, 0.38, 1.2, 12);
+      }
+      thumb.push(j);
+      parent = j; prev = L;
+    });
+  }
+  // La toupie, debout sur sa pointe au creux de la main
+  const holder = new THREE.Group();
+  holder.position.set(0, 0.016, -0.004);
+  holder.rotation.z = 0.1;
+  g.add(holder);
+  const top = makeTopMesh(holder);
+  top.tilt.scale.setScalar(0.02);
+  g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+  // c = 0 : main ouverte, un peu creusée ; c = 1 : les doigts serrent la toupie
+  const curl = c => {
+    for (const f of fingers) f.forEach((j, i) => { j.rotation.x = [0.3 + 0.55 * c, 0.35 + 0.7 * c, 0.25 + 0.5 * c][i]; });
+    thumb[0].rotation.set(0.15 + 0.25 * c, 0.2 + 0.55 * c, 0);
+    thumb[1].rotation.set(0.25 + 0.35 * c, 0.15 * c, 0);
+  };
+  curl(0);
+  return { group: g, top, curl };
+}
+function playNestCinematic(done) {
+  const b = nest?.boss;
+  if (b) { b.drop = 0; b.landT = 0; }
+  if (!camera.parent) scene.add(camera);
+  const hand = makeHandMesh();
+  hand.group.scale.setScalar(0.6);
+  camera.add(hand.group);
+  const light = new THREE.PointLight(0xffd8b8, 0.012, 0.5);
+  light.position.set(0.05, 0.08, 0);
+  camera.add(light);
+  cine = { t: 0, done, hand, light, step: 0, sub: -1, beats: 0, roared: false, gripped: false, closed: false, recoil: 0 };
+  launcher.visible = false;
+  aimLine.visible = false;
+  document.body.classList.add('cine');
+  cineEl.className = 'on black';
+  cineSub.classList.remove('on');
+  camera.clearViewOffset();
+  camera.rotation.order = 'YXZ';
+  scene.fog.near = 0.9; scene.fog.far = 3.4;
+  stepCinematic(0);
+  requestAnimationFrame(() => requestAnimationFrame(() => cineEl.classList.remove('black')));
+}
+function stepCinematic(dt) {
+  const c = cine, t = (c.t = TEST_MODE && window.__cineT != null ? window.__cineT : c.t + dt);
+  const b = nest?.boss;
+  if (b) animateQueen(b, dt);
+  // 1) On avance dans le nid, la tête un peu baissée, au rythme des pas
+  const u = Math.min(1, t / 3.4);
+  const z = 1.75 - 1.15 * (1 - (1 - u) * (1 - u));
+  const ph = (1.75 - z) * 26;
+  const stepNo = Math.floor(ph / Math.PI);
+  if (stepNo > c.step && u < 1) { c.step = stepNo; SFX.play('step'); }
+  const bob = Math.abs(Math.sin(ph)) * (1 - u * u);
+  const y = 0.135 + 0.009 * bob;
+  c.recoil = Math.max(0, c.recoil - dt * 0.05);
+  // 2) On lève la tête vers son visage ; 3) on baisse les yeux vers notre main ; 4) on se redresse, prêt
+  const walkP = -0.1 + 0.02 * Math.sin(ph * 2) * (1 - u);
+  const upP = Math.atan2(0.44 - y, z + c.recoil + 0.02);
+  let p = walkP;
+  p += (upP - walkP) * cineEase((t - 3.2) / 1.5);
+  p += (-0.72 - upP) * cineEase((t - 6.0) / 1.1);
+  p += 0.28 * cineEase((t - 8.2) / 0.9);
+  const yaw = 0.06 * Math.sin(t * 0.8) * (1 - cineEase((t - 3.0) / 1.2));
+  const roll = 0.014 * Math.sin(ph) * (1 - u);
+  if (camera.view?.enabled) camera.clearViewOffset(); // (si l'écran a tourné pendant la cinématique)
+  scene.fog.near = 0.9; scene.fog.far = 3.4;
+  camera.position.set(0.012 * Math.sin(t * 0.7), y, z + c.recoil);
+  camera.rotation.set(p, yaw, roll);
+  camera.fov = 62;
+  camera.updateProjectionMatrix();
+  // Le cri de la Reine : elle lève les bras, tout tremble, on recule d'un pas
+  if (!c.roared && t > 4.3) { c.roared = true; SFX.play('roar'); addShake(0.025); buzz(60); c.recoil = 0.05; cineArms = true; }
+  if (t > 6.0) cineArms = false;
+  // La main monte dans le champ de vision, puis serre la toupie
+  const H = c.hand, aspect = camera.aspect || 1;
+  const hz = -0.1 - 0.07 * (1 - Math.min(1, aspect));
+  H.group.position.set(0.004, -0.17 + 0.142 * cineEase((t - 5.8) / 1.1) + 0.006 * Math.sin(t * 1.6), hz);
+  H.group.rotation.set(0.72, 0, 0.06);
+  H.curl(cineEase((t - 7.2) / 0.6));
+  if (!c.gripped && t > 7.3) { c.gripped = true; SFX.play('grip'); buzz(20); }
+  H.top.spinner.rotation.y += dt * (1.5 + 14 * cineEase((t - 7.3) / 1.2));
+  for (const a of H.top.anims || []) a(t, dt, 0.6);
+  // Le cœur qui bat de plus en plus vite
+  const beats = [6.4, 7.3, 8.0, 8.6, 9.1];
+  if (c.beats < beats.length && t > beats[c.beats]) { c.beats++; SFX.play('heart'); }
+  // Sous-titres
+  const si = CINE_SUBS.findIndex(([a, b2]) => t >= a && t < b2);
+  if (si !== c.sub) {
+    c.sub = si;
+    if (si >= 0) { cineSub.textContent = CINE_SUBS[si][2]; cineSub.classList.add('on'); } else cineSub.classList.remove('on');
+  }
+  // On ferme les yeux… fin
+  if (!c.closed && t > 8.5) { c.closed = true; cineEl.classList.add('closed'); }
+  if (t > CINE_END) finishCinematic();
+}
+function skipCinematic() {
+  if (!cine) return;
+  cine.t = Math.max(cine.t, 8.45);
+  cine.roared = cine.gripped = true;
+  cine.beats = 5;
+}
+function finishCinematic() {
+  const c = cine;
+  if (!c) return;
+  cine = null;
+  cineArms = false;
+  cineEl.classList.add('closed');
+  cineSub.classList.remove('on');
+  camera.remove(c.hand.group, c.light);
+  disposeTop(c.hand.top);
+  c.hand.group.traverse(m => { if (m.isMesh && !m.geometry.userData.keep) { m.geometry.dispose(); [].concat(m.material).forEach(x => x.dispose()); } });
+  camera.rotation.order = 'XYZ';
+  launcher.visible = true;
+  document.body.classList.remove('cine');
+  placeCamera();
+  // On rouvre les yeux sur le combat
+  setTimeout(() => {
+    cineEl.classList.remove('closed');
+    setTimeout(() => { cineEl.className = ''; c.done?.(); }, 650);
+  }, 250);
+}
+document.getElementById('cineSkip').addEventListener('click', e => { e.stopPropagation(); skipCinematic(); });
+
+// =====================================================================
+//  TUTORIEL DU PREMIER LANCER : viser, puis lâcher quand la barre est pleine
+// =====================================================================
+let launchTuto = null;
+const coachEl = document.getElementById('coach'), coachRing = document.getElementById('coachRing'),
+  coachDot = document.getElementById('coachDot'), coachText = document.getElementById('coachText');
+function maybeLaunchTuto() {
+  if (launchTuto || !isStory() || nest || state.tutos?.lancer || (state.launches || 0) > 0) return;
+  launchTuto = { moved: 0, err: '', sx: 0, sy: 0 };
+}
+function tutoFail(kind) {
+  const T = launchTuto;
+  T.err = kind === 'aim'
+    ? 'Oups ! Fais d’abord <b>glisser ton doigt</b> pour viser, puis relâche.'
+    : 'Pas assez fort ! Attends que la barre arrive <b>au bout, dans la zone verte</b>, puis relâche.';
+  T.shake = performance.now();
+  SFX.play('boing');
+  buzz(30);
+}
+function tutoDone() {
+  launchTuto.done = performance.now() + 2800;
+  state.tutos = state.tutos || {};
+  state.tutos.lancer = true;
+  save();
+}
+function updateCoach() {
+  const T = launchTuto;
+  const show = T && isStory() && !nest && !cine && introStep < 0 && !paused
+    && !menuEl.classList.contains('open') && !shopEl.classList.contains('open') && !pauseEl.classList.contains('open');
+  coachEl.classList.toggle('on', !!show);
+  $('gauge').classList.toggle('tuto', !!(show && charging && !T.done));
+  if (!show) return;
+  if (T.done && performance.now() > T.done) { launchTuto = null; coachEl.classList.remove('on'); return; }
+  const rect = renderer.domElement.getBoundingClientRect();
+  const toScreen = (x, y, z) => {
+    tmpV.set(x, y, z).project(camera);
+    return [rect.left + (tmpV.x * 0.5 + 0.5) * rect.width, rect.top + (-tmpV.y * 0.5 + 0.5) * rect.height];
+  };
+  const [sx, sy] = toScreen(LAUNCH.x, 0.03, LAUNCH.y);
+  const [cx, cy] = toScreen(0, 0, -0.15);
+  const d = Math.hypot(cx - sx, cy - sy) || 1, k = Math.min(130, d * 0.7) / d;
+  coachRing.style.left = coachDot.style.left = sx + 'px';
+  coachRing.style.top = coachDot.style.top = sy + 'px';
+  coachDot.style.setProperty('--dx', (cx - sx) * k + 'px');
+  coachDot.style.setProperty('--dy', (cy - sy) * k + 'px');
+  const idle = !charging && !T.done;
+  coachRing.style.display = coachDot.style.display = idle ? '' : 'none';
+  let html;
+  if (T.done) html = 'C’est exactement ça ! Je n’ai rien oublié. 😄';
+  else if (charging) html = T.moved < 28 ? 'Fais <b>glisser ton doigt</b> pour viser…' : 'Maintenant, <b>relâche</b> quand la barre arrive <b>dans la zone verte</b> !';
+  else if (T.err) html = T.err;
+  else html = 'Pose ton doigt sur le <b>lanceur</b> et fais-le <b>glisser</b> pour viser.<small>Tu peux aussi tirer vers toi, comme un lance-pierre.</small>';
+  if (coachText.dataset.html !== html) { coachText.innerHTML = html; coachText.dataset.html = html; }
+  const half = Math.min(window.innerWidth * 0.43, 210);
+  coachText.style.left = Math.max(half + 8, Math.min(window.innerWidth - half - 8, sx)) + 'px';
+  coachText.style.top = Math.max(80, sy - 62) + 'px';
+  coachText.classList.toggle('shake', !!T.shake && performance.now() - T.shake < 450);
+}
 
 // =====================================================================
 //  INTERFACE : HUD, atelier, stats
@@ -7166,11 +7509,13 @@ function frame(now) {
   canvasRect = null; // re-mesurée au premier texte flottant de cette image
   // La montre du Carton à Jouets : tout le jeu tourne deux fois plus vite
   if (!paused) update(dt * gameSpeed());
+  else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); SFX.spin(0, 0); }
   // Chrono du speedrun : le temps réel passé dans la partie (pas dans le menu ni la pause)
   const run = state.run;
   if (run && run.timed && run.mode === 'histoire' && !run.over && !cr && !menuEl.classList.contains('open') && !pauseEl.classList.contains('open')
     && document.visibilityState === 'visible') run.time = (run.time || 0) + dt;
-  else { hudTimer -= dt; if (hudTimer <= 0) { hudTimer = 0.2; updateHud(); } if (shopDirty) renderShop(); SFX.spin(0, 0); }
+  if (cine) stepCinematic(dt);
+  updateCoach();
   if (introTop) animateIntroTop(dt);
   animateSteam(dt);
   if (autoBtn) {
@@ -7317,7 +7662,7 @@ function update(dt) {
   }
 
   // Charge du lanceur (en temps réel, même en vitesse ×2, pour garder la même difficulté de visée)
-  if (charging) chargeT += dt / gameSpeed();
+  if (charging) chargeT += dt / gameSpeed() * (launchTuto && !launchTuto.done ? 0.6 : 1);
   $('gaugeFill').style.width = (charging ? gaugeValue() : 0) * 100 + '%';
   animateTrampolines(dt);
   animateSparks(dt);
