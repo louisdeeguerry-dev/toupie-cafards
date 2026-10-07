@@ -337,25 +337,69 @@
   #skipIntro.open { display: block; }
 
 
-  /* Tutoriel du premier lancer */
+  /* Tutoriel du premier lancer : tout est montré à l'écran (main animée, flèche, barre en grand) */
+  @property --p { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
   #coach { display: none; pointer-events: none; }
   #coach.on { display: block; }
-  #coachRing { position: fixed; z-index: 6; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
-    border: 3px solid #ffe08a; box-shadow: 0 0 18px #ffd34a, inset 0 0 14px rgba(255, 211, 74, .5); animation: coachPulse 1.1s ease-in-out infinite; }
-  #coachDot { position: fixed; z-index: 6; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
-    background: rgba(255,255,255,.95); box-shadow: 0 0 0 7px rgba(255,255,255,.28); animation: coachDrag 1.9s ease-in-out infinite; }
-  #coachText { position: fixed; z-index: 6; transform: translate(-50%, -100%); width: max-content; max-width: min(86vw, 420px);
-    padding: 10px 14px; border-radius: 14px; border: 2px solid #ffd34a; background: rgba(30, 22, 14, .92); color: #fff;
-    font-weight: 700; font-size: 15px; line-height: 1.35; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  #coachShade { position: fixed; inset: 0; z-index: 5; }
+  #coach[data-step="press"] #coachShade { background: radial-gradient(circle at var(--x) var(--y), transparent 0 62px, rgba(0,0,0,.62) 115px); }
+  #coach[data-step="aim"] #coachShade { background: radial-gradient(circle at var(--x) var(--y), transparent 0 40%, rgba(0,0,0,.25) 80%); }
+  #coach[data-step="power"] #coachShade { background: rgba(0,0,0,.55); }
+  #coachRing { position: fixed; z-index: 6; width: 104px; height: 104px; margin: -52px 0 0 -52px; border-radius: 50%; display: none;
+    border: 4px solid #ffe08a; box-shadow: 0 0 22px #ffd34a, inset 0 0 16px rgba(255, 211, 74, .5); animation: coachPulse 1.1s ease-in-out infinite; }
+  #coach[data-step="press"] #coachRing { display: block; }
+  #coachArrow { position: fixed; z-index: 6; height: 10px; margin-top: -5px; transform-origin: 0 50%; display: none; border-radius: 5px;
+    background: repeating-linear-gradient(90deg, #ffd34a 0 18px, transparent 18px 30px); animation: arrowFlow .5s linear infinite; }
+  #coachArrow::after { content: ''; position: absolute; right: -20px; top: 50%; transform: translateY(-50%);
+    border-left: 26px solid #ffd34a; border-top: 17px solid transparent; border-bottom: 17px solid transparent; }
+  #coachTarget { position: fixed; z-index: 6; width: 90px; height: 90px; margin: -45px 0 0 -45px; border-radius: 50%; display: none;
+    border: 4px dashed #ffd34a; box-shadow: 0 0 18px rgba(255, 211, 74, .6); animation: targetSpin 3s linear infinite; }
+  #coachTarget::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px; border-radius: 50%; background: #ffd34a; }
+  #coach[data-step="aim"] #coachArrow, #coach[data-step="aim"] #coachTarget { display: block; }
+  #coachHand { position: fixed; z-index: 8; width: 0; height: 0; }
+  #coachHand .m { position: absolute; left: 0; top: 0; opacity: 0; }
+  #coachHand svg { position: absolute; left: -24px; top: -4px; width: 64px; height: 84px; transform-origin: 24px 4px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  #coachHand .hold { position: absolute; width: 84px; height: 84px; left: -42px; top: -42px; border-radius: 50%; opacity: 0;
+    background: conic-gradient(#ffd34a var(--p), rgba(255,255,255,.25) 0);
+    -webkit-mask: radial-gradient(circle, transparent 0 31px, #000 32px); mask: radial-gradient(circle, transparent 0 31px, #000 32px); }
+  #coachHand .ripple { position: absolute; width: 40px; height: 40px; left: -20px; top: -20px; border-radius: 50%; border: 3px solid #fff; opacity: 0; }
+  #coachHand.press .m { animation: handPress 2.6s ease-in-out infinite; }
+  #coachHand.press .hold { animation: holdFill 2.6s linear infinite; }
+  #coachHand.press .ripple { animation: ripple 2.6s ease-out infinite; }
+  #coachHand.drag .m { animation: handDrag 2s ease-in-out infinite; }
+  #coachHand.lift .m { animation: handLift .8s ease-out infinite; }
+  #coachText { position: fixed; z-index: 8; transform: translate(-50%, -100%); width: max-content; max-width: min(88vw, 440px);
+    padding: 10px 16px; border-radius: 14px; border: 2px solid #ffd34a; background: rgba(30, 22, 14, .92); color: #fff;
+    font-weight: 800; font-size: 15px; line-height: 1.3; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  #coachText.big { font-size: clamp(17px, 2.6vw, 24px); }
   #coachText b { color: #ffd34a; }
-  #coachText small { display: block; margin-top: 4px; font-size: 12.5px; font-weight: 600; opacity: .8; }
+  #coachText.go { font-size: clamp(34px, 6vw, 54px); color: #5fd38a; border-color: #5fd38a; padding: 6px 26px; animation: goPulse .4s ease-in-out infinite alternate; }
   #coachText.shake { animation: coachShake .45s; border-color: #ff7a5a; }
-  #gauge.tuto { box-shadow: 0 0 0 3px #ffd34a, 0 0 24px #ffd34a; }
-  #gauge.tuto #gaugePerfect { background: rgba(95, 211, 138, .8); animation: coachPulse .6s ease-in-out infinite; }
+  body.tutoGauge #gauge { top: 46%; bottom: auto; width: min(560px, 86vw); height: 40px; padding: 5px; border-radius: 16px; z-index: 7; opacity: 1;
+    box-shadow: 0 0 0 3px #ffd34a, 0 0 30px rgba(255, 211, 74, .6); }
+  body.tutoGauge #gaugeInner { border-radius: 12px; }
+  #gauge.tuto #gaugePerfect { background: rgba(95, 211, 138, .85); animation: zoneBlink .6s ease-in-out infinite alternate; }
+  #gauge.ready { box-shadow: 0 0 0 4px #5fd38a, 0 0 44px #5fd38a !important; }
+  #gauge.ready #gaugeFill { background: linear-gradient(to right, #5fd38a, #c8ffd8); }
+  #gaugeHint { display: none; position: absolute; bottom: calc(100% + 8px); width: 44px; text-align: center; color: #5fd38a; font-weight: 900; font-size: 16px;
+    text-shadow: 0 2px 4px #000; animation: hintBounce .5s ease-in-out infinite alternate; }
+  #gaugeHint i { display: block; margin: 3px auto 0; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 20px solid #5fd38a; }
+  body.tutoGauge #gaugeHint { display: block; }
+  #gaugeMark { position: absolute; top: -6px; bottom: -6px; width: 5px; margin-left: -2px; background: #ff4a3a; box-shadow: 0 0 10px #ff4a3a; border-radius: 3px; }
   @keyframes coachPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .7; } }
-  @keyframes coachDrag { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 15% { transform: translate(0, 0) scale(1); opacity: 1; }
-    70% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; } }
   @keyframes coachShake { 0%, 100% { margin-left: 0; } 20%, 60% { margin-left: -9px; } 40%, 80% { margin-left: 9px; } }
+  @keyframes arrowFlow { to { background-position: 30px 0; } }
+  @keyframes targetSpin { to { transform: rotate(360deg); } }
+  @keyframes zoneBlink { from { opacity: .55; } to { opacity: 1; } }
+  @keyframes hintBounce { from { transform: translateY(0); } to { transform: translateY(-9px); } }
+  @keyframes goPulse { from { transform: translate(-50%, -100%) scale(1); } to { transform: translate(-50%, -100%) scale(1.12); } }
+  @keyframes handPress { 0% { transform: translate(50px, 80px); opacity: 0; } 14% { transform: translate(0, 0); opacity: 1; }
+    22%, 86% { transform: translate(0, 0) scale(.86); opacity: 1; } 100% { transform: translate(0, 0) scale(.86); opacity: 0; } }
+  @keyframes holdFill { 0%, 22% { --p: 0%; opacity: 0; } 24% { opacity: 1; } 84% { --p: 100%; opacity: 1; } 100% { --p: 100%; opacity: 0; } }
+  @keyframes ripple { 0%, 21% { transform: scale(.6); opacity: 0; } 23% { opacity: .9; } 45%, 100% { transform: scale(2.4); opacity: 0; } }
+  @keyframes handDrag { 0% { transform: translate(0, 0) scale(.86); opacity: 0; } 12% { transform: translate(0, 0) scale(.86); opacity: 1; }
+    70%, 86% { transform: translate(var(--dx), var(--dy)) scale(.86); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(.86); opacity: 0; } }
+  @keyframes handLift { 0% { transform: translate(0, 0) scale(.86); opacity: 1; } 100% { transform: translate(0, -46px) scale(1); opacity: 0; } }
 
   /* Cinématique d'entrée dans le nid */
   #cine { position: fixed; inset: 0; z-index: 30; display: none; overflow: hidden; }
@@ -401,8 +445,14 @@
 
 <div id="status"></div>
 <div id="rotateHint"><span class="ico">📱</span>Tourne ton téléphone pour voir le plateau en grand</div>
-<div id="coach"><div id="coachRing"></div><div id="coachDot"></div><div id="coachText"></div></div>
-<div id="gauge"><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
+<div id="coach"><div id="coachShade"></div><div id="coachRing"></div><div id="coachArrow"></div><div id="coachTarget"></div><div id="coachHand"><div class="m"><div class="hold"></div><div class="ripple"></div><svg viewBox="0 0 64 84"><g stroke="#2a1a10" stroke-width="2.6" stroke-linejoin="round">
+<rect x="4" y="40" width="13" height="24" rx="6.5" fill="#fff" transform="rotate(-32 10 52)"/>
+<rect x="13" y="30" width="42" height="38" rx="13" fill="#fff"/>
+<rect x="30" y="27" width="10" height="17" rx="5" fill="#fff"/><rect x="39" y="30" width="10" height="16" rx="5" fill="#fff"/><rect x="47" y="34" width="8" height="14" rx="4" fill="#fff"/>
+<rect x="17" y="2" width="14" height="42" rx="7" fill="#fff"/>
+<rect x="19" y="66" width="32" height="16" rx="4" fill="#3a64b8"/></g>
+<path d="M21 9 q3 -3 6 0" stroke="#c9b8a8" stroke-width="1.6" fill="none"/></svg></div></div><div id="coachText"></div></div>
+<div id="gauge"><div id="gaugeHint">ICI<i></i></div><div id="gaugeMark" style="display:none"></div><div id="gaugeInner"><div id="gaugePerfect"></div><div id="gaugeFill"></div></div></div>
 <div class="topBtns">
   <button id="speedBtn" aria-label="Vitesse du jeu">⏩ ×1</button>
   <button id="menuBtn" aria-label="Menu">☰</button>
@@ -6604,7 +6654,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-07.2';
+const VERSION = '2026-10-07.3';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6717,7 +6767,7 @@ canvas.addEventListener('pointerdown', e => {
     charging = true;
     chargeT = 0;
     chargeId = e.pointerId;
-    if (launchTuto) { launchTuto.sx = e.clientX; launchTuto.sy = e.clientY; launchTuto.moved = 0; launchTuto.err = ''; }
+    if (launchTuto) { launchTuto.sx = launchTuto.px = e.clientX; launchTuto.sy = launchTuto.py = e.clientY; launchTuto.moved = 0; launchTuto.err = ''; }
     gesture = null;
     return;
   }
@@ -6731,7 +6781,7 @@ canvas.addEventListener('pointermove', e => {
   if (charging) {
     if (e.pointerId === chargeId) {
       pointerToDesk(e);
-      if (launchTuto) launchTuto.moved = Math.max(launchTuto.moved, Math.hypot(e.clientX - launchTuto.sx, e.clientY - launchTuto.sy));
+      if (launchTuto) { launchTuto.px = e.clientX; launchTuto.py = e.clientY; launchTuto.moved = Math.max(launchTuto.moved, Math.hypot(e.clientX - launchTuto.sx, e.clientY - launchTuto.sy)); }
     }
     return;
   }
@@ -6772,7 +6822,7 @@ function release() {
   // Tutoriel : le premier lancer ne part que si on a visé et lâché la barre (presque) pleine — sinon on réessaie, sans perdre de lancer
   if (launchTuto && !launchTuto.done && !nest) {
     if (launchTuto.moved < 28) { tutoFail('aim'); return; }
-    if (g < 0.85) { tutoFail('power'); return; }
+    if (g < 0.85) { tutoFail('power', g); return; }
   }
   const perfect = g >= 1 - S.perfect;
   if (perfect) { popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big'); SFX.play('perfect'); }
@@ -6998,64 +7048,105 @@ function finishCinematic() {
 document.getElementById('cineSkip').addEventListener('click', e => { e.stopPropagation(); skipCinematic(); });
 
 // =====================================================================
-//  TUTORIEL DU PREMIER LANCER : viser, puis lâcher quand la barre est pleine
+//  TUTORIEL DU PREMIER LANCER : on le MONTRE à l'écran (main animée, flèches, barre en grand), sans compter sur la lecture
+//  1) appuyer sur le lanceur et rester appuyé  2) glisser pour viser  3) lâcher quand la barre est dans le vert
 // =====================================================================
 let launchTuto = null;
-const coachEl = document.getElementById('coach'), coachRing = document.getElementById('coachRing'),
-  coachDot = document.getElementById('coachDot'), coachText = document.getElementById('coachText');
+const coachEl = document.getElementById('coach'), coachShade = document.getElementById('coachShade'),
+  coachRing = document.getElementById('coachRing'), coachHand = document.getElementById('coachHand'),
+  coachArrow = document.getElementById('coachArrow'), coachTarget = document.getElementById('coachTarget'),
+  coachText = document.getElementById('coachText'), gaugeHint = document.getElementById('gaugeHint'), gaugeMark = document.getElementById('gaugeMark');
 function maybeLaunchTuto() {
   if (launchTuto || !isStory() || nest || state.tutos?.lancer || (state.launches || 0) > 0) return;
-  launchTuto = { moved: 0, err: '', sx: 0, sy: 0 };
+  launchTuto = { moved: 0, err: '', errT: 0, sx: 0, sy: 0, px: 0, py: 0, held: 0 };
 }
-function tutoFail(kind) {
+function tutoFail(kind, g) {
   const T = launchTuto;
-  T.err = kind === 'aim'
-    ? 'Oups ! Fais d’abord <b>glisser ton doigt</b> pour viser, puis relâche.'
-    : 'Pas assez fort ! Attends que la barre arrive <b>au bout, dans la zone verte</b>, puis relâche.';
-  T.shake = performance.now();
+  T.err = kind;
+  T.errT = performance.now();
+  if (kind === 'power') {
+    // on montre sur la barre où on a lâché, à côté de la zone verte
+    gaugeMark.style.left = (g * 100) + '%';
+    T.markT = performance.now();
+  }
   SFX.play('boing');
   buzz(30);
 }
 function tutoDone() {
-  launchTuto.done = performance.now() + 2800;
+  launchTuto.done = performance.now() + 2600;
   state.tutos = state.tutos || {};
   state.tutos.lancer = true;
   save();
+}
+function setCoachText(html, big) {
+  if (coachText.dataset.html !== html) { coachText.innerHTML = html; coachText.dataset.html = html; }
+  coachText.classList.toggle('big', !!big);
 }
 function updateCoach() {
   const T = launchTuto;
   const show = T && isStory() && !nest && !cine && introStep < 0 && !paused
     && !menuEl.classList.contains('open') && !shopEl.classList.contains('open') && !pauseEl.classList.contains('open');
   coachEl.classList.toggle('on', !!show);
-  $('gauge').classList.toggle('tuto', !!(show && charging && !T.done));
-  if (!show) return;
-  if (T.done && performance.now() > T.done) { launchTuto = null; coachEl.classList.remove('on'); return; }
+  const gaugeEl = $('gauge');
+  if (!show) { gaugeEl.classList.remove('tuto', 'ready', 'review'); document.body.classList.remove('tutoGauge'); return; }
+  const now = performance.now();
+  if (T.done && now > T.done) { launchTuto = null; coachEl.classList.remove('on'); gaugeEl.classList.remove('tuto', 'ready', 'review'); document.body.classList.remove('tutoGauge'); return; }
   const rect = renderer.domElement.getBoundingClientRect();
   const toScreen = (x, y, z) => {
     tmpV.set(x, y, z).project(camera);
     return [rect.left + (tmpV.x * 0.5 + 0.5) * rect.width, rect.top + (-tmpV.y * 0.5 + 0.5) * rect.height];
   };
   const [sx, sy] = toScreen(LAUNCH.x, 0.03, LAUNCH.y);
-  const [cx, cy] = toScreen(0, 0, -0.15);
-  const d = Math.hypot(cx - sx, cy - sy) || 1, k = Math.min(130, d * 0.7) / d;
-  coachRing.style.left = coachDot.style.left = sx + 'px';
-  coachRing.style.top = coachDot.style.top = sy + 'px';
-  coachDot.style.setProperty('--dx', (cx - sx) * k + 'px');
-  coachDot.style.setProperty('--dy', (cy - sy) * k + 'px');
-  const idle = !charging && !T.done;
-  coachRing.style.display = coachDot.style.display = idle ? '' : 'none';
-  let html;
-  if (T.done) html = 'C’est exactement ça ! Je n’ai rien oublié. 😄';
-  else if (charging) html = T.moved < 28 ? 'Fais <b>glisser ton doigt</b> pour viser…' : 'Maintenant, <b>relâche</b> quand la barre arrive <b>dans la zone verte</b> !';
-  else if (T.err) html = T.err;
-  else html = 'Pose ton doigt sur le <b>lanceur</b> et fais-le <b>glisser</b> pour viser.<small>Tu peux aussi tirer vers toi, comme un lance-pierre.</small>';
-  if (coachText.dataset.html !== html) { coachText.innerHTML = html; coachText.dataset.html = html; }
-  const half = Math.min(window.innerWidth * 0.43, 210);
-  coachText.style.left = Math.max(half + 8, Math.min(window.innerWidth - half - 8, sx)) + 'px';
-  coachText.style.top = Math.max(80, sy - 62) + 'px';
-  coachText.classList.toggle('shake', !!T.shake && performance.now() - T.shake < 450);
+  // La cible : le plus gros groupe d'insectes (le centre de ceux qui sont posés)
+  let tx = 0, tz = -0.2, n = 0;
+  for (const b of bugs) if (!b.dying && !b.gone && !(b.drop > 0)) { tx += b.x; tz += b.z; n++; }
+  if (n) { tx /= n + 1; tz /= n + 1; }
+  tz = Math.min(tz, LAUNCH.y - 0.3);
+  const [cx, cy] = toScreen(tx, 0, tz);
+  const ang = Math.atan2(cy - sy, cx - sx), dist = Math.hypot(cx - sx, cy - sy);
+  const step = T.done ? 'done' : !charging ? 'press' : T.moved < 28 ? 'aim' : 'power';
+  const g = charging ? gaugeValue() : 0, ready = step === 'power' && g >= 0.85;
+  coachEl.dataset.step = step;
+  // Le projecteur : tout s'assombrit sauf le lanceur (étape 1) ou la barre (étape 3)
+  coachShade.style.setProperty('--x', sx + 'px');
+  coachShade.style.setProperty('--y', sy + 'px');
+  coachRing.style.left = sx + 'px'; coachRing.style.top = sy + 'px';
+  // La main fantôme : appuie sur le lanceur (étape 1), glisse vers les insectes (étape 2), se lève quand c'est le moment (étape 3)
+  const hx = step === 'power' ? T.px : sx, hy = step === 'power' ? T.py : sy;
+  coachHand.style.left = hx + 'px'; coachHand.style.top = hy + 'px';
+  const reach = Math.min(dist * 0.75, 170);
+  coachHand.style.setProperty('--dx', Math.cos(ang) * reach + 'px');
+  coachHand.style.setProperty('--dy', Math.sin(ang) * reach + 'px');
+  coachHand.className = step === 'press' ? 'press' : step === 'aim' ? 'drag' : ready ? 'lift' : 'hold';
+  // La flèche de visée et la cible
+  coachArrow.style.left = sx + 'px'; coachArrow.style.top = sy + 'px';
+  coachArrow.style.width = Math.max(40, dist - 30) + 'px';
+  coachArrow.style.transform = `rotate(${ang}rad)`;
+  coachTarget.style.left = cx + 'px'; coachTarget.style.top = cy + 'px';
+  // La barre : en grand au milieu de l'écran, flèche sur la zone verte, verte quand on peut lâcher
+  const marking = !!T.markT && now - T.markT < 1800, showGauge = step === 'power' || marking;
+  document.body.classList.toggle('tutoGauge', showGauge);
+  gaugeEl.classList.toggle('tuto', showGauge);
+  gaugeEl.classList.toggle('review', !charging && showGauge);
+  gaugeEl.classList.toggle('ready', ready);
+  gaugeMark.style.display = marking ? '' : 'none';
+  gaugeHint.style.right = 'calc(7.5% - 22px)';
+  // Les mots : très courts, en gros (l'animation dit déjà tout)
+  const err = T.err && now - T.errT < 1800 && step === 'press' ? T.err : '';
+  if (step === 'done') setCoachText('BRAVO !', true);
+  else if (err === 'aim') setCoachText('Glisse le doigt <b>avant</b> de lâcher !', true);
+  else if (err === 'power') setCoachText('Raté ! Lâche quand la barre est <b>dans le vert</b>', true);
+  else if (step === 'press') setCoachText('Appuie sur le lanceur<br><b>et reste appuyé</b>', true);
+  else if (step === 'aim') setCoachText('<b>Glisse</b> pour viser', true);
+  else if (ready) setCoachText('LÂCHE !', true);
+  else setCoachText('Attends le <b>vert</b>…', true);
+  coachText.classList.toggle('go', ready);
+  coachText.classList.toggle('shake', !!err);
+  coachText.style.left = Math.max(150, Math.min(window.innerWidth - 150, step === 'power' || step === 'done' ? window.innerWidth / 2 : sx)) + 'px';
+  // (en visée, le texte va tout en haut pour ne pas cacher la flèche et la cible)
+  coachText.style.left = (step === 'aim' || marking ? window.innerWidth / 2 : parseFloat(coachText.style.left)) + 'px';
+  coachText.style.top = (step === 'power' || marking ? window.innerHeight * 0.36 : step === 'aim' ? (window.innerHeight > window.innerWidth ? Math.min(window.innerHeight - 70, sy + 120) : 118) : step === 'done' ? sy - 120 : Math.max(90, sy - 110)) + 'px';
 }
-
 // =====================================================================
 //  INTERFACE : HUD, atelier, stats
 // =====================================================================
@@ -7493,7 +7584,7 @@ function updateHud() {
   $('status').textContent = msg;
 
   $('gauge').classList.toggle('on', charging);
-  $('gaugePerfect').style.width = S.perfect * 100 + '%';
+  $('gaugePerfect').style.width = (launchTuto && !launchTuto.done ? 15 : S.perfect * 100) + '%';
 }
 
 // =====================================================================
@@ -7662,7 +7753,7 @@ function update(dt) {
   }
 
   // Charge du lanceur (en temps réel, même en vitesse ×2, pour garder la même difficulté de visée)
-  if (charging) chargeT += dt / gameSpeed() * (launchTuto && !launchTuto.done ? 0.6 : 1);
+  if (charging) chargeT += dt / gameSpeed() * (launchTuto && !launchTuto.done ? (launchTuto.moved < 28 ? 0 : 0.5) : 1);
   $('gaugeFill').style.width = (charging ? gaugeValue() : 0) * 100 + '%';
   animateTrampolines(dt);
   animateSparks(dt);
