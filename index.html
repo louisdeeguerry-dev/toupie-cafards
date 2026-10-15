@@ -4219,10 +4219,10 @@ function waveLaunches() { return WAVE_LAUNCHES + perkLevel('lancer') + (stageSee
 // SANS Carton à Jouets : il doit pouvoir aller au bout, mais de justesse. Points d'appui (vague → insectes), et entre deux
 // points l'objectif grandit régulièrement (interpolation en échelle logarithmique). Après la dernière vague du tableau,
 // +QUOTA_AFTER par vague : la défaite finit toujours par arriver, il faut détruire le nid avant.
-// Mesures (robot parfait sans Carton) : ~3 à 5 lancers par vague jusqu'à la 40e, ~6-7 vers la 44e ; il paie le nid vers la vague 44-45
-// et meurt juste après. Robot « humain » avec tout le Carton : nid vers la vague 41, défaite vers la 58e.
-let QUOTA_TABLE = [[1, 3], [5, 6], [8, 9], [10, 12], [12, 15], [14, 18], [16, 24], [18, 32], [20, 46], [22, 66], [24, 115], [26, 220],
-  [28, 360], [30, 510], [32, 550], [34, 570], [36, 650], [40, 830], [46, 930], [50, 1300]];
+// Réglé au robot parfait sans Carton (il payait le nid de justesse vers la vague 44-45), puis +15 % à partir de la vague 12 :
+// en vrai, un très bon joueur fait mieux que le robot et trouvait la partie sans Carton trop simple.
+let QUOTA_TABLE = [[1, 3], [5, 6], [8, 9], [10, 13], [12, 17], [14, 21], [16, 28], [18, 37], [20, 53], [22, 76], [24, 132], [26, 253],
+  [28, 414], [30, 587], [32, 633], [34, 656], [36, 748], [40, 955], [46, 1070], [50, 1500]];
 let QUOTA_AFTER = 1.08;
 function quotaAt(wave) {
   const T = QUOTA_TABLE, last = T[T.length - 1];
@@ -5198,7 +5198,7 @@ function exitNestLook() {
 // quelle que soit la force de la toupie (sinon une toupie très améliorée la tuait en quelques secondes)
 let NEST_HIT_CAP = 1 / 400, NEST_TOP_CD = 0.6;
 function capBoss(b, dmg, k = 1) { return b.boss ? Math.min(dmg, b.maxHp * NEST_HIT_CAP * k) : dmg; }
-let NEST_HP_K = 52, NEST_PULL = 0.5, NEST_PAUSE = [0, 3.4, 2.9, 2.4];
+let NEST_HP_K = 52, NEST_PULL = 0.5, NEST_PAUSE = [0, 3.1, 2.6, 2.1];
 function nestHitAvg() { return baseDamage(0.8, 0.3) * (1 + S.crit * (S.critMult - 1)); }
 function startNest() {
   const run = state.run;
@@ -5258,8 +5258,8 @@ const QTE_PATTERNS = [
   { id: 'tourbillon', name: '🌀 Tourbillon !', hint: 'Fais tourner ton doigt autour du cercle', phase: 2, w: 2 },
   { id: 'furie', name: '🌪️ Furie !', hint: 'Les cercles dans l’ordre… puis la glissade de A à B !', phase: 3, w: 2.5 },
 ];
-const QTE_LEAD = 0.75; // le temps de lire la consigne avant que ça commence
-const QTE_SPEED = 0.92; // tous les temps des défis (1 = un peu plus généreux)
+const QTE_LEAD = 0; // plus de « Prêt… » : le défi et son chrono commencent tout de suite
+const QTE_SPEED = 0.88; // tous les temps des défis (1 = un peu plus généreux)
 function qteSize() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
   if (qteCanvas.width !== Math.round(W * dpr) || qteCanvas.height !== Math.round(H * dpr)) { qteCanvas.width = Math.round(W * dpr); qteCanvas.height = Math.round(H * dpr); }
@@ -5498,7 +5498,17 @@ qteCanvas.addEventListener('pointerdown', e => {
       it.hold = e.pointerId; it.last = Math.atan2(y - it.y, x - it.x); return;
     }
   }
+  // Rien touché (à côté, ou pas dans l'ordre) : le défi est raté tout de suite
+  qteMissTap(x, y);
 });
+function qteMissTap(x, y) {
+  if (qte.endT !== null || qte.items.every(it => it.done)) return;
+  qte.fx.push({ x, y, t: 0, ok: false });
+  qte.misses++;
+  for (const it of qte.items) if (!it.done) { it.done = true; it.ok = false; }
+  SFX.play('fall');
+  buzz([40, 30, 40]);
+}
 qteCanvas.addEventListener('pointermove', e => {
   if (!qte) return;
   const { x, y } = qtePos(e), r = qte.r;
@@ -6661,7 +6671,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-15.2';
+const VERSION = '2026-10-15.3';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6856,98 +6866,160 @@ const CINE_SUBS = [
   [8.6, 9.6, 'Respire… Concentre-toi.'],
 ];
 const CINE_END = 9.8;
-// Une main d'enfant (paume vers le haut), avec la manche du pull, qui tient la toupie
-function makeHandMesh() {
-  // Une main de dessin animé : paume charnue, doigts potelés attachés par des jointures, pouce qui se referme sur la toupie
-  const skin = new THREE.MeshStandardMaterial({ color: 0xe9a87c, roughness: 0.55, emissive: 0x5a2414, emissiveIntensity: 0.12 });
-  const crease = new THREE.MeshStandardMaterial({ color: 0xc8805c, roughness: 0.7, emissive: 0x4a2014, emissiveIntensity: 0.1 });
-  const nail = new THREE.MeshStandardMaterial({ color: 0xffeae4, roughness: 0.2, emissive: 0x503030, emissiveIntensity: 0.15 });
-  const sleeve = new THREE.MeshStandardMaterial({ color: 0x2f5fb8, roughness: 0.95 });
-  const rib = new THREE.MeshStandardMaterial({ color: 0x24498f, roughness: 0.95 });
-  const g = new THREE.Group();
-  const ball = (parent, r, mat, x, y, z, sx = 1, sy = 1, sz = 1, seg = 20) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.round(seg * 0.7)), mat);
-    m.position.set(x, y, z); m.scale.set(sx, sy, sz); parent.add(m); return m;
-  };
-  // La paume, avec ses deux coussinets (sous le pouce et sous le petit doigt) et la rangée de jointures
-  ball(g, 1, skin, 0, 0, -0.004, 0.047, 0.019, 0.05, 32);
-  ball(g, 1, skin, 0.022, 0.004, 0.02, 0.024, 0.017, 0.032);
-  ball(g, 1, skin, -0.024, 0.003, 0.018, 0.02, 0.015, 0.03);
-  ball(g, 1, crease, 0, 0.0115, 0.002, 0.03, 0.004, 0.032);       // le creux de la main, un peu plus foncé
-  const knuck = new THREE.Mesh(new THREE.CapsuleGeometry(0.0125, 0.052, 6, 14), skin);
-  knuck.rotation.z = Math.PI / 2; knuck.position.set(0, 0.002, -0.04); g.add(knuck);
-  // Le poignet et la manche du pull, avec ses côtes
-  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.08, 20), skin);
-  wrist.rotation.x = Math.PI / 2; wrist.scale.set(1.3, 1, 0.72); wrist.position.set(0, -0.004, 0.07); g.add(wrist);
-  const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.05, 0.2, 24), sleeve);
-  sl.rotation.x = Math.PI / 2; sl.position.set(0, -0.006, 0.225); g.add(sl);
-  for (let i = 0; i < 3; i++) {
-    const r = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.0065, 8, 28), rib);
-    r.position.set(0, -0.006, 0.113 + i * 0.011); g.add(r);
-  }
-  // Les quatre doigts : trois phalanges potelées, une jointure ronde à chaque pli, un ongle au bout
-  const fingers = [];
-  [[0.03, 0.056, 0.0105], [0.01, 0.063, 0.0112], [-0.01, 0.059, 0.0108], [-0.029, 0.046, 0.0094]].forEach(([x, len, r]) => {
-    const base = new THREE.Group();
-    base.position.set(x, 0.003, -0.04 + Math.abs(x) * 0.12);
-    base.rotation.y = -x * 1.3;   // un léger éventail
-    g.add(base);
-    const joints = [];
-    let parent = base, prev = 0;
-    [0.42, 0.32, 0.26].forEach((k, i) => {
-      const L = len * k, ri = r * (1 - 0.08 * i);
-      const j = new THREE.Group();
-      j.position.z = -prev;
-      parent.add(j);
-      ball(j, ri * 1.04, skin, 0, 0, 0, 1, 1, 1, 14);              // la jointure
-      const seg = new THREE.Mesh(new THREE.CylinderGeometry(ri * 0.94, ri, L, 14), skin);
-      seg.rotation.x = -Math.PI / 2; seg.position.z = -L / 2; j.add(seg);
-      if (i === 2) {
-        ball(j, ri * 0.97, skin, 0, 0, -L, 1, 1, 1, 14);            // le bout du doigt, bien rond
-        ball(j, ri * 0.8, nail, 0, -ri * 0.55, -L * 0.82, 1, 0.38, 1.2, 12);   // l'ongle, côté dos de la main
-      }
-      joints.push(j);
-      parent = j; prev = L;
-    });
-    fingers.push(joints);
+// La main : une paume d'un seul morceau (forme de galet, coussinets, lignes de la main), des doigts faits d'un tube
+// continu qui s'affine et se plie aux articulations (reconstruits quand la main se referme), ongles brillants, manche tricotée
+const handTex = (() => {
+  const mk = draw => { const c = document.createElement('canvas'); c.width = c.height = 256; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+  // Le creux de la main : peau un peu rosée au centre, et les grandes lignes
+  const palm = mk(g => {
+    const grd = g.createRadialGradient(128, 120, 10, 128, 128, 150);
+    grd.addColorStop(0, '#f6b49a'); grd.addColorStop(0.6, '#f2bc98'); grd.addColorStop(1, '#eeb690');
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = 'rgba(150, 70, 50, .45)'; g.lineCap = 'round';
+    const line = (w, pts) => { g.lineWidth = w; g.beginPath(); g.moveTo(...pts[0]); for (let i = 1; i < pts.length; i += 2) g.quadraticCurveTo(...pts[i], ...pts[i + 1]); g.stroke(); };
+    line(3.2, [[200, 70], [150, 110], [140, 200]]);            // ligne de vie (autour du pouce)
+    line(2.8, [[205, 75], [130, 95], [40, 120]]);               // ligne de tête
+    line(2.6, [[230, 40], [150, 30], [40, 60]]);                // ligne de cœur
+    line(1.6, [[128, 230], [125, 160], [120, 110]]);            // ligne du destin
+    g.strokeStyle = 'rgba(150, 70, 50, .2)';
+    for (let i = 0; i < 14; i++) line(1, [[40 + Math.random() * 180, 40 + Math.random() * 180], [60 + Math.random() * 140, 60 + Math.random() * 140], [40 + Math.random() * 180, 40 + Math.random() * 180]]);
   });
-  // Le pouce : il part du coussinet, sur le côté, et vient se refermer par-dessus la toupie
-  const tb = new THREE.Group();
-  tb.position.set(0.036, 0.003, 0.016);
-  tb.rotation.set(0.3, -0.45, 0.45);
-  g.add(tb);
-  const thumb = [];
-  {
-    let parent = tb, prev = 0;
-    [[0.021, 0.0115], [0.018, 0.0106]].forEach(([L, ri], i) => {
-      const j = new THREE.Group();
-      j.position.z = -prev;
-      parent.add(j);
-      ball(j, ri * 1.04, skin, 0, 0, 0, 1, 1, 1, 14);
-      const seg = new THREE.Mesh(new THREE.CylinderGeometry(ri * 0.94, ri, L, 14), skin);
-      seg.rotation.x = -Math.PI / 2; seg.position.z = -L / 2; j.add(seg);
-      if (i === 1) {
-        ball(j, ri * 0.97, skin, 0, 0, -L, 1, 1, 1, 14);
-        ball(j, ri * 0.8, nail, 0, -ri * 0.55, -L * 0.8, 1, 0.38, 1.2, 12);
-      }
-      thumb.push(j);
-      parent = j; prev = L;
-    });
+  // Le pull tricoté : côtes verticales et petites mailles
+  const knit = mk(g => {
+    g.fillStyle = '#3a64b8'; g.fillRect(0, 0, 256, 256);
+    for (let x = 0; x < 256; x += 16) {
+      const grd = g.createLinearGradient(x, 0, x + 16, 0);
+      grd.addColorStop(0, 'rgba(0,0,0,.28)'); grd.addColorStop(0.5, 'rgba(255,255,255,.12)'); grd.addColorStop(1, 'rgba(0,0,0,.28)');
+      g.fillStyle = grd; g.fillRect(x, 0, 16, 256);
+      for (let y = 0; y < 256; y += 10) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x + 3, y); g.lineTo(x + 8, y + 6); g.lineTo(x + 13, y); g.stroke(); }
+    }
+  });
+  knit.wrapS = knit.wrapT = THREE.RepeatWrapping;
+  return { palm, knit };
+})();
+// Un tube qui suit une courbe, s'affine de r0 à r1, un peu aplati (plus large que haut), bout arrondi
+function taperTube(pts, side, r0, r1, flat = 1.12, segs = 30, rad = 14) {
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  const pos = [], idx = [];
+  const T = new THREE.Vector3(), up = new THREE.Vector3(), sd = new THREE.Vector3();
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs, P = curve.getPointAt(u);
+    curve.getTangentAt(u, T);
+    up.crossVectors(T, side).normalize();
+    sd.crossVectors(up, T).normalize();
+    let r = r0 + (r1 - r0) * u;
+    const tip = 0.16;
+    if (u > 1 - tip) { const k = (u - (1 - tip)) / tip; r *= Math.sqrt(Math.max(0, 1 - k * k)); }
+    for (let j = 0; j < rad; j++) {
+      const a = (j / rad) * Math.PI * 2, cx = Math.cos(a) * r * flat, cy = Math.sin(a) * r;
+      pos.push(P.x + sd.x * cx + up.x * cy, P.y + sd.y * cx + up.y * cy, P.z + sd.z * cx + up.z * cy);
+    }
   }
-  // La toupie, debout sur sa pointe au creux de la main
+  for (let i = 0; i < segs; i++) for (let j = 0; j < rad; j++) {
+    const a = i * rad + j, b = i * rad + (j + 1) % rad, c = (i + 1) * rad + j, d = (i + 1) * rad + (j + 1) % rad;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return { geo: g, curve };
+}
+function makeHandMesh() {
+  const skin = new THREE.MeshPhysicalMaterial({ color: 0xf0b48e, roughness: 0.55, sheen: 0.8, sheenColor: new THREE.Color(0xff9c80), sheenRoughness: 0.45, emissive: 0x6a2a18, emissiveIntensity: 0.1 });
+  const palmMat = new THREE.MeshPhysicalMaterial({ map: handTex.palm, roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color(0xff9c80), sheenRoughness: 0.5, emissive: 0x6a2a18, emissiveIntensity: 0.08 });
+  const nail = new THREE.MeshPhysicalMaterial({ color: 0xffe2dc, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1, emissive: 0xffb0a0, emissiveIntensity: 0.18 });
+  const sleeve = new THREE.MeshStandardMaterial({ map: handTex.knit, roughness: 0.95 });
+  const cuffMat = new THREE.MeshStandardMaterial({ color: 0x2c4f96, roughness: 0.95 });
+  const g = new THREE.Group();
+  // --- La paume : un « galet » (super-ellipsoïde) plus étroit vers le poignet, coussinet du pouce, creux au milieu
+  const PW = 0.046, PH = 0.018, PD = 0.05;
+  const pg = new THREE.SphereGeometry(1, 40, 28);
+  const pa = pg.attributes.position, uv = pg.attributes.uv;
+  for (let i = 0; i < pa.count; i++) {
+    const vx = pa.getX(i), vy = pa.getY(i), vz = pa.getZ(i);
+    let x = Math.sign(vx) * Math.pow(Math.abs(vx), 0.55), z = Math.sign(vz) * Math.pow(Math.abs(vz), 0.6), y = Math.sign(vy) * Math.pow(Math.abs(vy), 0.85);
+    x *= 1 - 0.16 * Math.max(0, z);                                   // plus étroite vers le poignet (+z)
+    let Y = y * PH;
+    if (vy > 0) {
+      Y += 0.007 * Math.exp(-((x - 0.55) ** 2 + (z - 0.45) ** 2) / 0.12);  // coussinet sous le pouce
+      Y += 0.004 * Math.exp(-((x + 0.6) ** 2 + (z - 0.4) ** 2) / 0.1);    // coussinet sous le petit doigt
+      Y += 0.003 * Math.exp(-((z + 0.85) ** 2) / 0.03);                    // le bourrelet sous les doigts
+      Y -= 0.005 * Math.exp(-(x * x + z * z) / 0.3);                       // le creux de la main
+    }
+    pa.setXYZ(i, x * PW, Y, z * PD);
+    uv.setXY(i, (x + 1) / 2, (z + 1) / 2);
+  }
+  pg.computeVertexNormals();
+  g.add(new THREE.Mesh(pg, palmMat));
+  // --- Le poignet et la manche tricotée (avec son bord côtelé)
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.03, 0.09, 24), skin);
+  wrist.rotation.x = Math.PI / 2; wrist.scale.set(1.35, 1, 0.68); wrist.position.set(0, -0.003, 0.075); g.add(wrist);
+  const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.052, 0.22, 32, 1, true), sleeve);
+  sl.material.map.repeat.set(3, 1);
+  sl.rotation.x = Math.PI / 2; sl.position.set(0, -0.006, 0.235); g.add(sl);
+  for (let i = 0; i < 5; i++) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.043, 0.0042, 8, 36), cuffMat);
+    r.position.set(0, -0.006, 0.113 + i * 0.0075); g.add(r);
+  }
+  // --- Les doigts : [base x, base z, écart, longueurs des 3 phalanges, rayon à la base, rayon au bout]
+  const FINGERS = [
+    [0.031, -0.04, -0.1, [0.024, 0.017, 0.014], 0.0105, 0.0085],   // index
+    [0.0105, -0.046, -0.02, [0.027, 0.019, 0.015], 0.011, 0.009],  // majeur
+    [-0.0105, -0.044, 0.05, [0.025, 0.018, 0.014], 0.0105, 0.0085], // annulaire
+    [-0.03, -0.037, 0.13, [0.019, 0.014, 0.012], 0.0092, 0.0075],  // auriculaire
+  ];
+  const fingerMeshes = [], nails = [];
+  for (let k = 0; k < 5; k++) {
+    const m = new THREE.Mesh(new THREE.BufferGeometry(), skin);
+    g.add(m); fingerMeshes.push(m);
+    const n = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), nail);
+    g.add(n); nails.push(n);
+  }
+  const Yv = new THREE.Vector3(0, 1, 0);
+  // Suit les phalanges : chaque pli tourne la direction autour de l'axe latéral du doigt (vers la paume)
+  const chain = (base, dir, side, lens, angles) => {
+    const pts = [base.clone().addScaledVector(dir, -0.014), base.clone()];
+    let p = base.clone(), d = dir.clone();
+    lens.forEach((L, i) => { d.applyAxisAngle(side, angles[i]); p = p.clone().addScaledVector(d, L); pts.push(p); });
+    return pts;
+  };
+  let lastC = null;
+  const curl = c => {
+    if (lastC !== null && Math.abs(c - lastC) < 0.01) return;
+    lastC = c;
+    FINGERS.forEach(([bx, bz, yaw, lens, r0, r1], k) => {
+      const dir = new THREE.Vector3(0, 0, -1).applyAxisAngle(Yv, yaw);
+      const side = new THREE.Vector3().crossVectors(dir, Yv).normalize();   // l'axe des articulations : plier autour de lui ramène le doigt vers la paume (+y)
+      const base = new THREE.Vector3(bx, 0.004, bz);
+      const pts = chain(base, dir, side, lens, [0.22 + 0.75 * c, 0.3 + 0.95 * c, 0.2 + 0.7 * c]);
+      const { geo, curve } = taperTube(pts, side, r0, r1);
+      fingerMeshes[k].geometry.dispose(); fingerMeshes[k].geometry = geo;
+      // L'ongle, sur le dessus du bout du doigt
+      const tp = curve.getPointAt(0.87), tg = curve.getTangentAt(0.87), upv = new THREE.Vector3().crossVectors(tg, side).normalize();
+      nails[k].position.copy(tp).addScaledVector(upv, r1 * 0.62);
+      nails[k].scale.set(r1 * 0.72, r1 * 0.2, r1 * 0.85);
+      nails[k].quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tg);
+    });
+    // Le pouce : part du coussinet, vers l'avant et l'extérieur, puis se replie par-dessus la toupie
+    const tdir = new THREE.Vector3(0.8, 0.08, -0.6).normalize().applyAxisAngle(Yv, 0.3 + 0.5 * c);
+    const tside = new THREE.Vector3().crossVectors(tdir, Yv).normalize();
+    const tbase = new THREE.Vector3(0.036, -0.001, 0.02);
+    const tpts = chain(tbase, tdir, tside, [0.02, 0.017], [0.2 + 0.4 * c, 0.25 + 0.5 * c]);
+    const { geo, curve } = taperTube(tpts, tside, 0.0122, 0.0098);
+    fingerMeshes[4].geometry.dispose(); fingerMeshes[4].geometry = geo;
+    const tp = curve.getPointAt(0.86), tg = curve.getTangentAt(0.86), upv = new THREE.Vector3().crossVectors(tg, tside).normalize();
+    nails[4].position.copy(tp).addScaledVector(upv, 0.0105 * 0.5);
+    nails[4].scale.set(0.008, 0.0024, 0.0098);
+    nails[4].quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tg);
+  };
+  // --- La toupie, debout sur sa pointe au creux de la main
   const holder = new THREE.Group();
-  holder.position.set(0, 0.016, -0.004);
+  holder.position.set(0, 0.014, -0.004);
   holder.rotation.z = 0.1;
   g.add(holder);
   const top = makeTopMesh(holder);
   top.tilt.scale.setScalar(0.02);
-  g.traverse(o => { if (o.isMesh) o.castShadow = false; });
-  // c = 0 : main ouverte, un peu creusée ; c = 1 : les doigts serrent la toupie
-  const curl = c => {
-    for (const f of fingers) f.forEach((j, i) => { j.rotation.x = [0.3 + 0.55 * c, 0.35 + 0.7 * c, 0.25 + 0.5 * c][i]; });
-    thumb[0].rotation.set(0.15 + 0.25 * c, 0.2 + 0.55 * c, 0);
-    thumb[1].rotation.set(0.25 + 0.35 * c, 0.15 * c, 0);
-  };
   curl(0);
   return { group: g, top, curl };
 }
