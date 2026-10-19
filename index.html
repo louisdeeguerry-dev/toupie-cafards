@@ -2,8 +2,15 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Toupie contre Cafards</title>
+<meta name="theme-color" content="#1a1410">
+<meta name="description" content="Lance ta vieille toupie et repousse l'invasion de cafards, vague après vague !">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="app-assets/icon-192.png">
+<link rel="apple-touch-icon" href="app-assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root {
     --panel: rgba(20, 16, 12, 0.88);
@@ -419,6 +426,32 @@
   #cineSkip { position: absolute; top: calc(10vh + 10px); right: 12px; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
     background: rgba(0,0,0,.45); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
   body.cine > :not(#game):not(#cine):not(script) { visibility: hidden !important; }
+
+  /* Écrans à encoche (application, iPhone) : le plateau va jusqu'au bord, mais les boutons et panneaux restent dans la zone sûre */
+  #hud { top: calc(10px + env(safe-area-inset-top, 0px)); left: calc(10px + env(safe-area-inset-left, 0px)); }
+  .topBtns { top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); }
+  #pickBtn { right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #status { top: calc(10px + env(safe-area-inset-top, 0px)); }
+  #gauge { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  #nestHud { top: calc(52px + env(safe-area-inset-top, 0px)); }
+  #updateBar { top: calc(10px + env(safe-area-inset-top, 0px)); }
+  #skipIntro { top: calc(64px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); }
+  #dialog { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #shop { top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px); bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
+  #modal, #menu, #pause, #toybox, #savePanel, #lbPanel, #achPanel {
+    padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  #credits { padding-top: calc(14px + env(safe-area-inset-top, 0px)); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  @media (max-width: 700px) {
+    #pickBtn { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+    #status { top: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+    #gauge { bottom: calc(46px + env(safe-area-inset-bottom, 0px)); }
+  }
+  @media (max-height: 500px) {
+    #hud { top: calc(6px + env(safe-area-inset-top, 0px)); left: calc(6px + env(safe-area-inset-left, 0px)); }
+    #pickBtn { right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+    #status { top: calc(6px + env(safe-area-inset-top, 0px)); }
+    .topBtns { top: calc(6px + env(safe-area-inset-top, 0px)); right: calc(6px + env(safe-area-inset-right, 0px)); }
+  }
 </style>
 </head>
 <body>
@@ -532,6 +565,7 @@
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
     <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
     <div class="menuNote" id="versionNote"></div>
+    <div class="menuNote"><a href="https://louisdeeguerry-dev.github.io/toupie-cafards/confidentialite.html" target="_blank" rel="noopener" style="color:#7fd1ff">Confidentialité</a></div>
   </div>
 </div>
 
@@ -611,10 +645,14 @@
 <button class="linkBtn" id="skipIntro">Passer ⏭</button>
 
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "./vendor/three.module.js" } }
 </script>
 <script type="module">
 import * as THREE from 'three';
+// Dans l'application Android / iPhone (Capacitor), on a accès aux fonctions du téléphone (vibreur, bouton retour…)
+const CAPA = window.Capacitor;
+const NATIVE = !!(CAPA && CAPA.isNativePlatform && CAPA.isNativePlatform());
+const NATIVE_PLUGINS = (NATIVE && CAPA.Plugins) || {};
 
 // =====================================================================
 //  RÉGLAGES DU MONDE
@@ -4634,10 +4672,21 @@ const SFX = (() => {
     hum.f.frequency.setTargetAtTime(300 + 900 * ratio, ctx.currentTime, 0.05);
     hum.g.gain.setTargetAtTime(0.035 * Math.max(0.2, ratio), ctx.currentTime, 0.05);
   }
-  return { init, play, spin };
+  // Couper / remettre le son (quand l'application passe en arrière-plan)
+  function suspend(on) { if (!ctx) return; try { if (on) ctx.suspend(); else ctx.resume(); } catch { /* sans gravité */ } }
+  return { init, play, spin, suspend };
 })();
 ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => SFX.init(), { passive: true }));
-function buzz(ms) { if (state.settings?.vibrate !== false && navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* pas de vibreur */ } } }
+function buzz(ms) {
+  if (state.settings?.vibrate === false) return;
+  const H = NATIVE_PLUGINS.Haptics;
+  if (H) {
+    const total = [].concat(ms).reduce((a, b) => a + b, 0);
+    try { H.impact({ style: total >= 60 ? 'HEAVY' : total >= 20 ? 'MEDIUM' : 'LIGHT' }); } catch { /* pas de vibreur */ }
+    return;
+  }
+  if (navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* pas de vibreur */ } }
+}
 // Secousse de l'écran (coups critiques, gros insectes écrasés)
 let shake = 0;
 function addShake(a) { shake = Math.min(0.025, shake + a); }
@@ -6671,7 +6720,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-15.4';
+const VERSION = '2026-10-19.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -7942,7 +7991,37 @@ window.addEventListener('orientationchange', onScreenResize);
 window.visualViewport?.addEventListener('resize', onScreenResize);
 if (window.ResizeObserver) new ResizeObserver(() => placeCamera()).observe(container);
 window.addEventListener('pagehide', save);
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    save();
+    SFX.suspend(true);
+    // Une partie en cours se met en pause (sauf pendant un défi du nid ou la cinématique, qui sont déjà figés)
+    if (state.run && !menuEl.classList.contains('open') && !pauseEl.classList.contains('open') && !modal.classList.contains('open')
+      && !qte && !cine && introStep < 0) openPause();
+  } else SFX.suspend(false);
+});
+// Le bouton « retour » d'Android : ferme la fenêtre ouverte, sinon met en pause ; depuis le menu, quitte l'application
+function onBackButton() {
+  if (qte) return;
+  if (cine) { skipCinematic(); return; }
+  const click = id => { document.getElementById(id)?.click(); };
+  if (document.getElementById('lbPanel').classList.contains('open')) return click('lbClose');
+  if (document.getElementById('achPanel').classList.contains('open')) return click('achClose');
+  if (document.getElementById('savePanel').classList.contains('open')) return click('saveClose');
+  if (document.getElementById('toybox').classList.contains('open')) return click('toyClose');
+  if (shopEl.classList.contains('open')) return click('closeShop');
+  if (modal.classList.contains('open') || document.getElementById('credits').classList.contains('open')) return;
+  if (pauseEl.classList.contains('open')) return click('resumeBtn');
+  if (menuEl.classList.contains('open')) { NATIVE_PLUGINS.App?.exitApp?.(); return; }
+  if (introStep >= 0) return;
+  openPause();
+}
+if (NATIVE) {
+  document.documentElement.classList.add('native');
+  NATIVE_PLUGINS.App?.addListener?.('backButton', onBackButton);
+  NATIVE_PLUGINS.StatusBar?.hide?.();
+  NATIVE_PLUGINS.SplashScreen?.hide?.();
+}
 // Le navigateur ne doit jamais zoomer la page (double appui, pincement hors du plateau) : seul le plateau se zoome
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
@@ -8004,7 +8083,7 @@ requestAnimationFrame(frame);
 window.__dbg = {
   state, SFX, lbAuth, lbSubmit, lbFetch, startNest, LATE, buildLauncher, launcher, get charging() { return charging; }, setCharging: v => { charging = v; chargeT = v ? 0.5 : 0; }, setTired: v => { TOP_TIRED = v; },
   setQuota: (t, after) => { if (t) QUOTA_TABLE = t; if (after) QUOTA_AFTER = after; }, quotaAt, get QUOTA_TABLE() { return QUOTA_TABLE; }, get nest() { return nest; }, get qte() { return qte; }, qteResolve, endQte, startQte: id => startQte(QTE_PATTERNS.find(p => p.id === id)), setNestK: (k, p, pause, cap, cd) => { if (cap) NEST_HIT_CAP = cap; if (cd) NEST_TOP_CD = cd; NEST_HP_K = k; if (p !== undefined) NEST_PULL = p; if (pause) NEST_PAUSE = pause; }, get S() { return S; }, tops, bugs, update, launchTops, spawnBug, killBug, BUG_TYPES, bugType, webs, mutate, UPGRADES, PERKS, buy, costOf, infestLevel,
-  refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, scene, defeat,
+  refreshStats, camera, THREE, takePerk, restartRun, get paused() { return paused; }, endWave, makeTopMesh, makeBugMesh, scene, defeat,
   enterMode, openMenu, isReady, get introStep() { return introStep; }, nextIntroLine, openPause, checkForUpdate,
   upgradeLock, applyToybox, metaBalance, openToybox, rebuildToyDecor, waveQuota, TOYBOX, previewRoot, previewCam,
 };

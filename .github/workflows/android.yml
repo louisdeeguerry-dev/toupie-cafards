@@ -1,0 +1,55 @@
+# Fabrique l'application Android dans le cloud (GitHub), sans rien installer sur le PC.
+# À chaque envoi sur main : une APK de test, installable directement sur un téléphone,
+# à télécharger dans l'onglet « Actions » du dépôt (section « Artifacts »).
+name: Application Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'vendor/**'
+      - 'app-assets/**'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - '.github/workflows/android.yml'
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Fichiers du jeu → projet Android
+        run: |
+          npm run build:www
+          npx cap sync android
+
+      - name: Construction de l'APK de test
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toupie-cafards-android-test
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

@@ -1,0 +1,20 @@
+{
+  "appId": "io.github.louisdeeguerrydev.toupiecafards",
+  "appName": "Toupie contre Cafards",
+  "webDir": "www",
+  "backgroundColor": "#1a1410",
+  "android": {
+    "backgroundColor": "#1a1410"
+  },
+  "ios": {
+    "backgroundColor": "#1a1410",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "backgroundColor": "#1a1410",
+      "showSpinner": false
+    }
+  }
+}
