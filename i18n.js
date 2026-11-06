@@ -844,4 +844,9 @@ export const I18N = {
 "💰 JACKPOT ! +": ["💰 JACKPOT! +", "💰 ¡PREMIO GORDO! +", "💰 JACKPOT! +"],
 "aucun": ["none", "ninguno", "keine"],
 "Acheter :": ["Buy:", "Comprar:", "Kaufen:"],
+"📣 Défie un ami": ["📣 Challenge a friend","📣 Reta a un amigo","📣 Fordere einen Freund heraus"],
+"✅ Lien copié ! Colle-le à un ami": ["✅ Link copied! Paste it to a friend","✅ ¡Enlace copiado! Pégaselo a un amigo","✅ Link kopiert! Schick ihn einem Freund"],
+"Copie ce message et envoie-le à un ami :": ["Copy this message and send it to a friend:","Copia este mensaje y envíaselo a un amigo:","Kopiere diese Nachricht und schick sie einem Freund:"],
+"J’ai tenu jusqu’à la vague {0} dans Toupie contre Cafards 🌀🪳 Tu fais mieux ? 😏": ["I survived until wave {0} in Spinning Top vs Roaches 🌀🪳 Can you beat that? 😏","Aguanté hasta la oleada {0} en Peonza contra Cucarachas 🌀🪳 ¿Puedes superarlo? 😏","Ich habe bis Welle {0} in Kreisel gegen Kakerlaken durchgehalten 🌀🪳 Schaffst du mehr? 😏"],
+"J’ai détruit le nid de la Reine des cafards en {0} dans Toupie contre Cafards 👑🪳 Tu fais mieux ? 😏": ["I destroyed the Roach Queen’s nest in {0} in Spinning Top vs Roaches 👑🪳 Can you beat that? 😏","Destruí el nido de la Reina de las cucarachas en {0} en Peonza contra Cucarachas 👑🪳 ¿Puedes superarlo? 😏","Ich habe das Nest der Kakerlakenkönigin in {0} in Kreisel gegen Kakerlaken zerstört 👑🪳 Schaffst du das schneller? 😏"],
 };

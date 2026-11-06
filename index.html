@@ -6,6 +6,25 @@
 <title>Toupie contre Cafards</title>
 <meta name="theme-color" content="#1a1410">
 <meta name="description" content="Lance ta vieille toupie et repousse l'invasion de cafards, vague après vague !">
+<link rel="canonical" href="https://louisdeeguerry-dev.github.io/toupie-cafards/">
+<!-- Aperçu quand le lien est partagé (WhatsApp, Discord, Facebook, X…) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Toupie contre Cafards">
+<meta property="og:title" content="Toupie contre Cafards – jeu gratuit dans le navigateur">
+<meta property="og:description" content="Lance ta toupie et écrase l’invasion de cafards, vague après vague. Gratuit, sans installation, sur téléphone et PC. Jusqu’où tiendras-tu ?">
+<meta property="og:url" content="https://louisdeeguerry-dev.github.io/toupie-cafards/">
+<meta property="og:image" content="https://louisdeeguerry-dev.github.io/toupie-cafards/app-assets/partage.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Une toupie géante face à deux cafards – Toupie contre Cafards">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="es_ES">
+<meta property="og:locale:alternate" content="de_DE">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Toupie contre Cafards – jeu gratuit dans le navigateur">
+<meta name="twitter:description" content="Lance ta toupie et écrase l’invasion de cafards, vague après vague. Jusqu’où tiendras-tu ?">
+<meta name="twitter:image" content="https://louisdeeguerry-dev.github.io/toupie-cafards/app-assets/partage.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="app-assets/icon-192.png">
 <link rel="apple-touch-icon" href="app-assets/icon-192.png">
@@ -535,7 +554,7 @@
   <div class="crInfo"><div class="crName" id="crName"></div><div class="crDesc" id="crDesc"></div></div>
   <div class="crFrise" id="crFrise"></div>
   <p class="crThanks">Toupie contre Cafards<br>Merci à toutes celles et ceux qui ont joué, testé, trouvé des bugs (les vrais) et donné des idées.<br>À bientôt sur le bureau !</p>
-  <div class="crBtns"><button class="bigBtn" id="crNew">Nouvelle partie</button><a class="bigBtn coffeeBig" id="crCoffee" href="#" target="_blank" rel="noopener noreferrer">☕ Offrir un café</a><button class="linkBtn" id="crLb">Voir le classement</button></div>
+  <div class="crBtns"><button class="bigBtn" id="crNew">Nouvelle partie</button><button class="bigBtn" id="crShare" style="background: var(--accent)">📣 Défie un ami</button><a class="bigBtn coffeeBig" id="crCoffee" href="#" target="_blank" rel="noopener noreferrer">☕ Offrir un café</a><button class="linkBtn" id="crLb">Voir le classement</button></div>
 </div>
 
 <div id="menu">
@@ -5889,6 +5908,8 @@ function openCredits({ time, wave, kills, record }) {
   const pivot = new THREE.Group();
   s.add(pivot);
   cr = { renderer, scene: s, cam, pivot, items: creditsItems(), i: 0, obj: null, yaw: 0.5, pitch: 0.25, drag: null, last: performance.now(), w: 0, h: 0 };
+  const crShare = document.getElementById('crShare');
+  crShare.onclick = () => shareChallenge(T('J’ai détruit le nid de la Reine des cafards en {0} dans Toupie contre Cafards 👑🪳 Tu fais mieux ? 😏', fmtClockLong(time)), crShare);
   document.getElementById('crStats').textContent = T('Nid détruit en ') + fmtClockLong(time) + T(' · vague ') + wave + ' · ' + fmtInt(kills) + T(' insectes écrasés') + (record ? T(' · nouveau record !') : '');
   const frise = document.getElementById('crFrise');
   frise.replaceChildren();
@@ -6275,7 +6296,12 @@ function defeat() {
   btn.className = 'bigBtn';
   btn.textContent = T('Nouvelle partie');
   btn.onclick = restartRun;
-  btns.append(box, btn);
+  const share = document.createElement('button');
+  share.className = 'bigBtn';
+  share.style.background = 'var(--accent)';
+  share.textContent = T('📣 Défie un ami');
+  share.onclick = () => shareChallenge(T('J’ai tenu jusqu’à la vague {0} dans Toupie contre Cafards 🌀🪳 Tu fais mieux ? 😏', run.wave), share);
+  btns.append(share, box, btn);
   modalBox.append(h, lead, sum, note, btns);
   modal.classList.add('open');
 }
@@ -6545,6 +6571,20 @@ const SUPPORT_NAME = T('Louis'); // ← ex. 'Louis' ; vide = formulation neutre 
   btns.forEach(b => { b.href = SUPPORT_URL; b.style.display = b.id === 'coffeeBtn' ? 'block' : 'inline-block'; });
 })();
 
+// Partage : « Défie un ami ». Sur téléphone, ouvre la fenêtre de partage (WhatsApp, SMS…) ;
+// sinon, copie le message + le lien dans le presse-papiers.
+const SHARE_URL = 'https://louisdeeguerry-dev.github.io/toupie-cafards/';
+async function shareChallenge(text, btn) {
+  const label = btn.textContent;
+  const done = msg => { btn.textContent = msg; setTimeout(() => { btn.textContent = label; }, 2500); };
+  if (navigator.share) {
+    try { await navigator.share({ title: T('Toupie contre Cafards'), text, url: SHARE_URL }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; /* sinon : on copie */ }
+  }
+  try { await navigator.clipboard.writeText(text + ' ' + SHARE_URL); done(T('✅ Lien copié ! Colle-le à un ami')); }
+  catch { prompt(T('Copie ce message et envoie-le à un ami :'), text + ' ' + SHARE_URL); }
+}
+
 const LB_CONFIG = { apiKey: 'AIzaSyA8PL7hfbqEkHbw9_t4Jj2s8aAgBfZBSfc', dbURL: 'https://toupie-cafards-default-rtdb.europe-west1.firebasedatabase.app' };
 const lbReady = () => !!(LB_CONFIG.apiKey && LB_CONFIG.dbURL);
 let lbToken = null, lbTokenExp = 0;
@@ -6811,7 +6851,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-11-06.3';
+const VERSION = '2026-11-07.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
