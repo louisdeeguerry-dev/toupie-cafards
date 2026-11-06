@@ -335,6 +335,9 @@
   .coffeeBig { display: none; text-decoration: none; background: #d68d3c; color: #231608; }
   .linkBtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
   .menuNote { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .langRow { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 0 12px; }
+  .langRow button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer; border: 1px solid rgba(255,255,255,.18); background: rgba(36, 27, 20, .95); color: var(--muted); }
+  .langRow button.on { border-color: var(--gold); color: var(--gold); font-weight: 800; }
 
   /* Dialogue de l'histoire */
   #dialog { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(620px, calc(100vw - 24px)); z-index: 15;
@@ -540,6 +543,7 @@
     <h1>🌀 Toupie<br>contre Cafards</h1>
     <p class="tag">Mon bureau est envahi. Il est temps de ressortir les vieux jouets.</p>
     <div class="pseudoRow"><label for="pseudoInput">👤 Pseudo</label><input id="pseudoInput" maxlength="16" placeholder="Ton pseudo" autocomplete="off"></div>
+    <div class="langRow" id="langRow"><button data-lang="fr">Français</button><button data-lang="en">English</button><button data-lang="es">Español</button><button data-lang="de">Deutsch</button></div>
     <button class="modeBtn story" id="storyBtn">
       <div class="mt">📖 Mode Histoire</div>
       <div class="md">Repousse l’invasion vague après vague : à chaque vague, un nombre de cafards à écraser avec un nombre de lancers limité. Sinon, ils envahissent tout.</div>
@@ -655,6 +659,57 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { I18N } from './i18n.js';
+
+// =====================================================================
+//  LANGUES : français (texte d'origine), anglais, espagnol, allemand.
+//  Tout texte affiché passe par T('texte français', valeurs…) ; les traductions sont dans i18n.js.
+//  La langue vient du choix du joueur (menu), sinon de celle du téléphone, sinon l'anglais.
+// =====================================================================
+const LANGS = ['fr', 'en', 'es', 'de'];
+const LANG_KEY = 'toupie-cafards-lang';
+const LANG = (() => {
+  try { const s = localStorage.getItem(LANG_KEY); if (LANGS.includes(s)) return s; } catch { /* stockage bloqué */ }
+  for (const l of (navigator.languages || [navigator.language || ''])) {
+    const c = String(l).slice(0, 2).toLowerCase();
+    if (LANGS.includes(c)) return c;
+  }
+  return 'en';
+})();
+const LANG_I = LANGS.indexOf(LANG) - 1; // colonne dans I18N (en, es, de)
+const I18N_MISSING = new Set();          // textes sans traduction (visibles via window.__i18nMissing)
+function T(fr, ...args) {
+  let tr = fr;
+  if (LANG !== 'fr') {
+    const e = I18N[fr];
+    if (e && e[LANG_I] != null) tr = e[LANG_I]; else I18N_MISSING.add(fr);
+  }
+  if (typeof tr === 'function') return tr(...args);
+  return args.length ? tr.replace(/\{(\d+)\}/g, (m, i) => (i < args.length ? args[i] : m)) : tr;
+}
+window.__i18nMissing = I18N_MISSING;
+document.documentElement.lang = LANG;
+// Traduit le texte fixe de la page (menus, boutons…) une fois au démarrage
+(function translateStaticPage() {
+  if (LANG === 'fr') return;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => (n.parentElement && /^(SCRIPT|STYLE|TEXTAREA)$/.test(n.parentElement.tagName)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes) {
+    const key = n.nodeValue.replace(/\s+/g, ' ').trim();
+    const e = key && I18N[key];
+    if (e && typeof e[LANG_I] === 'string') n.nodeValue = (/^\s/.test(n.nodeValue) ? ' ' : '') + e[LANG_I] + (/\s$/.test(n.nodeValue) ? ' ' : '');
+  }
+  for (const attr of ['placeholder', 'aria-label', 'title']) {
+    for (const el of document.querySelectorAll(`[${attr}]`)) {
+      const e = I18N[el.getAttribute(attr).replace(/\s+/g, ' ').trim()];
+      if (e && typeof e[LANG_I] === 'string') el.setAttribute(attr, e[LANG_I]);
+    }
+  }
+  document.title = T('Toupie contre Cafards');
+})();
 // Dans l'application Android / iPhone (Capacitor), on a accès aux fonctions du téléphone (vibreur, bouton retour…)
 const CAPA = window.Capacitor;
 const NATIVE = !!(CAPA && CAPA.isNativePlatform && CAPA.isNativePlatform());
@@ -895,13 +950,13 @@ const SNACK_MAX = 20;          // bouchées du goûter au début d'une partie
 
 // L'introduction du mode Histoire (le personnage parle à la première personne)
 const INTRO = [
-  { face: '😩', text: 'Pfff… J’arrive définitivement pas à me débarrasser de ces cafards.' },
-  { face: '😤', text: 'Il y en a partout sur mon bureau. J’ai tout essayé : le spray, les pièges, la chaussure…' },
-  { face: '🤔', text: 'Attends… Qu’est-ce qu’il y a au fond de mon vieux carton de jouets ?' },
-  { face: '😮', text: 'Ma vieille toupie ! Heureusement que je l’ai retrouvée.', showTop: true },
-  { face: '😏', text: 'Bon. À nous deux, les cafards. Je vais vous repousser, vague après vague.' },
-  { face: '🎯', text: 'À chaque vague, je dois en écraser un certain nombre avant d’être à court de lancers. Sinon, ils envahissent tout.' },
-  { face: '😌', text: 'Je me souviens encore comment il faut la lancer… On vise, et on lâche quand la barre est pleine. Allez, premier lancer !' },
+  { face: '😩', text: T('Pfff… J’arrive définitivement pas à me débarrasser de ces cafards.') },
+  { face: '😤', text: T('Il y en a partout sur mon bureau. J’ai tout essayé : le spray, les pièges, la chaussure…') },
+  { face: '🤔', text: T('Attends… Qu’est-ce qu’il y a au fond de mon vieux carton de jouets ?') },
+  { face: '😮', text: T('Ma vieille toupie ! Heureusement que je l’ai retrouvée.'), showTop: true },
+  { face: '😏', text: T('Bon. À nous deux, les cafards. Je vais vous repousser, vague après vague.') },
+  { face: '🎯', text: T('À chaque vague, je dois en écraser un certain nombre avant d’être à court de lancers. Sinon, ils envahissent tout.') },
+  { face: '😌', text: T('Je me souviens encore comment il faut la lancer… On vise, et on lâche quand la barre est pleine. Allez, premier lancer !') },
 ];
 
 // =====================================================================
@@ -909,60 +964,60 @@ const INTRO = [
 // =====================================================================
 const BUG_TYPES = [
   // Les petits cafards meurent toujours en un coup ; la résistance arrive à l'infestation 2
-  { id: 'petit',    pts: 1,   name: 'Petit cafard',        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
-  { id: 'cafard',   pts: 2,   name: 'Cafard',              r: 0.024, hp: 6,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
-  { id: 'gros',     pts: 3,   name: 'Gros cafard',         r: 0.034, hp: 24,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
-  { id: 'blinde',   pts: 4,  name: 'Cafard blindé',       r: 0.042, hp: 160,  speed: 0.09, reward: 90,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
-  { id: 'scarabee', pts: 6,  name: 'Scarabée rhinocéros', r: 0.055, hp: 520,  speed: 0.07, reward: 300,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
-  { id: 'reine',    pts: 10, name: 'Reine des cafards',   r: 0.085, hp: 1100, speed: 0.05, reward: 600, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
+  { id: 'petit',    pts: 1,   name: T('Petit cafard'),        r: 0.016, hp: 0.7,  speed: 0.07, reward: 2,    mass: 1,   bite: 1, color: 0x7a4a24, fear: 0 },
+  { id: 'cafard',   pts: 2,   name: T('Cafard'),              r: 0.024, hp: 6,    speed: 0.13, reward: 10,   mass: 3,   bite: 1, color: 0x5a3216, fear: 0.12 },
+  { id: 'gros',     pts: 3,   name: T('Gros cafard'),         r: 0.034, hp: 24,  speed: 0.11, reward: 40,   mass: 8,   bite: 2, color: 0x3d200c, fear: 0.14 },
+  { id: 'blinde',   pts: 4,  name: T('Cafard blindé'),       r: 0.042, hp: 160,  speed: 0.09, reward: 90,  mass: 20,  bite: 2, color: 0x34343c, fear: 0.10, metal: 0.7 },
+  { id: 'scarabee', pts: 6,  name: T('Scarabée rhinocéros'), r: 0.055, hp: 520,  speed: 0.07, reward: 300,  mass: 50,  bite: 3, color: 0x22401f, fear: 0.0,  metal: 0.4, horn: true },
+  { id: 'reine',    pts: 10, name: T('Reine des cafards'),   r: 0.085, hp: 1100, speed: 0.05, reward: 600, mass: 150, bite: 4, color: 0x5a1838, fear: 0.0,  metal: 0.2, crown: true, rare: true },
   // --- Stade 2 : les insectes mutants (une fois la barre des reines remplie) ---
-  { id: 'perce',    pts: 6,  name: 'Perce-oreille',       r: 0.030, hp: 300,  speed: 0.12, reward: 700,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
-    tip: 'Rapide, avec des pinces à l’arrière.' },
-  { id: 'millepattes', pts: 7, name: 'Mille-pattes',      r: 0.036, hp: 650,  speed: 0.10, reward: 850,  mass: 25,  bite: 2, color: 0x9a4a12, fear: 0.0,  shape: 'centipede', dash: true,
-    tip: 'Il fonce par à-coups !' },
-  { id: 'lucane',   pts: 8,  name: 'Lucane cerf-volant',  r: 0.050, hp: 1200, speed: 0.07, reward: 1050, mass: 70,  bite: 3, color: 0x4a2412, fear: 0.0,  metal: 0.5, shape: 'stag',
-    tip: 'Lourd : il freine la toupie.' },
-  { id: 'criquet',  pts: 9, name: 'Criquet géant',       r: 0.040, hp: 1500, speed: 0.09, reward: 1300, mass: 30,  bite: 2, color: 0x5c8a2a, fear: 0.0,  shape: 'cricket', jump: true,
-    tip: 'Il saute pour esquiver la toupie !' },
-  { id: 'goliath',  pts: 10, name: 'Scarabée goliath',    r: 0.065, hp: 2200, speed: 0.05, reward: 1700, mass: 140, bite: 3, color: 0x7a4a20, fear: 0.0,  metal: 0.3, shape: 'goliath',
-    tip: 'Énorme et très résistant.' },
-  { id: 'reinefourmi', pts: 16, name: 'Reine des fourmis', r: 0.080, hp: 2800, speed: 0.04, reward: 2200, mass: 150, bite: 4, color: 0x5a1010, fear: 0.0,  metal: 0.2, shape: 'ant', queen: true, crown: true, rare: true, brood: 'fourmi',
-    tip: 'Elle pond des fourmis sans arrêt !' },
+  { id: 'perce',    pts: 6,  name: T('Perce-oreille'),       r: 0.030, hp: 300,  speed: 0.12, reward: 700,  mass: 15,  bite: 2, color: 0x6b3a1a, fear: 0.10, shape: 'earwig',
+    tip: T('Rapide, avec des pinces à l’arrière.') },
+  { id: 'millepattes', pts: 7, name: T('Mille-pattes'),      r: 0.036, hp: 650,  speed: 0.10, reward: 850,  mass: 25,  bite: 2, color: 0x9a4a12, fear: 0.0,  shape: 'centipede', dash: true,
+    tip: T('Il fonce par à-coups !') },
+  { id: 'lucane',   pts: 8,  name: T('Lucane cerf-volant'),  r: 0.050, hp: 1200, speed: 0.07, reward: 1050, mass: 70,  bite: 3, color: 0x4a2412, fear: 0.0,  metal: 0.5, shape: 'stag',
+    tip: T('Lourd : il freine la toupie.') },
+  { id: 'criquet',  pts: 9, name: T('Criquet géant'),       r: 0.040, hp: 1500, speed: 0.09, reward: 1300, mass: 30,  bite: 2, color: 0x5c8a2a, fear: 0.0,  shape: 'cricket', jump: true,
+    tip: T('Il saute pour esquiver la toupie !') },
+  { id: 'goliath',  pts: 10, name: T('Scarabée goliath'),    r: 0.065, hp: 2200, speed: 0.05, reward: 1700, mass: 140, bite: 3, color: 0x7a4a20, fear: 0.0,  metal: 0.3, shape: 'goliath',
+    tip: T('Énorme et très résistant.') },
+  { id: 'reinefourmi', pts: 16, name: T('Reine des fourmis'), r: 0.080, hp: 2800, speed: 0.04, reward: 2200, mass: 150, bite: 4, color: 0x5a1010, fear: 0.0,  metal: 0.2, shape: 'ant', queen: true, crown: true, rare: true, brood: 'fourmi',
+    tip: T('Elle pond des fourmis sans arrêt !') },
   // --- Stade 3 : les araignées ---
-  { id: 'faucheux', pts: 8,  name: 'Faucheux',            r: 0.030, hp: 1800,  speed: 0.17, reward: 3200,  mass: 8,   bite: 2, color: 0x8a6a4a, fear: 0.20, shape: 'spider', legScale: 2.0, legThick: 0.45, bodyScale: 0.55,
-    tip: 'Ses longues pattes le rendent insaisissable.' },
-  { id: 'loup',     pts: 9,  name: 'Araignée-loup',       r: 0.040, hp: 2200,  speed: 0.11, reward: 3600,  mass: 30,  bite: 2, color: 0x5a4632, fear: 0.0,  shape: 'spider', stripes: true, dash: true,
-    tip: 'Elle chasse en sprintant !' },
-  { id: 'scorpion', pts: 10,  name: 'Scorpion',            r: 0.050, hp: 2700, speed: 0.08, reward: 4200, mass: 60,  bite: 3, color: 0xc0953e, fear: 0.0,  metal: 0.2, shape: 'scorpion', sting: true,
-    tip: 'Son dard fait perdre de la vitesse à la toupie.' },
-  { id: 'veuve',    pts: 11, name: 'Veuve noire',         r: 0.045, hp: 3300, speed: 0.07, reward: 4800, mass: 50,  bite: 3, color: 0x141418, fear: 0.0,  metal: 0.3, shape: 'spider', hourglass: true, web: true,
-    tip: 'Ses toiles ralentissent la toupie.' },
-  { id: 'mygale',   pts: 12, name: 'Mygale',              r: 0.070, hp: 4000, speed: 0.06, reward: 5600, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
-    tip: 'Une montagne de poils… et de points de vie.' },
-  { id: 'mere',     pts: 20, name: 'Mère araignée',       r: 0.090, hp: 6510, speed: 0.04, reward: 8500, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
-    tip: 'Elle tisse des toiles et lâche ses bébés !' },
+  { id: 'faucheux', pts: 8,  name: T('Faucheux'),            r: 0.030, hp: 1800,  speed: 0.17, reward: 3200,  mass: 8,   bite: 2, color: 0x8a6a4a, fear: 0.20, shape: 'spider', legScale: 2.0, legThick: 0.45, bodyScale: 0.55,
+    tip: T('Ses longues pattes le rendent insaisissable.') },
+  { id: 'loup',     pts: 9,  name: T('Araignée-loup'),       r: 0.040, hp: 2200,  speed: 0.11, reward: 3600,  mass: 30,  bite: 2, color: 0x5a4632, fear: 0.0,  shape: 'spider', stripes: true, dash: true,
+    tip: T('Elle chasse en sprintant !') },
+  { id: 'scorpion', pts: 10,  name: T('Scorpion'),            r: 0.050, hp: 2700, speed: 0.08, reward: 4200, mass: 60,  bite: 3, color: 0xc0953e, fear: 0.0,  metal: 0.2, shape: 'scorpion', sting: true,
+    tip: T('Son dard fait perdre de la vitesse à la toupie.') },
+  { id: 'veuve',    pts: 11, name: T('Veuve noire'),         r: 0.045, hp: 3300, speed: 0.07, reward: 4800, mass: 50,  bite: 3, color: 0x141418, fear: 0.0,  metal: 0.3, shape: 'spider', hourglass: true, web: true,
+    tip: T('Ses toiles ralentissent la toupie.') },
+  { id: 'mygale',   pts: 12, name: T('Mygale'),              r: 0.070, hp: 4000, speed: 0.06, reward: 5600, mass: 160, bite: 4, color: 0x2b1e16, fear: 0.0,  shape: 'spider', hairy: true, legThick: 1.6,
+    tip: T('Une montagne de poils… et de points de vie.') },
+  { id: 'mere',     pts: 20, name: T('Mère araignée'),       r: 0.090, hp: 6510, speed: 0.04, reward: 8500, mass: 180, bite: 4, color: 0x3a2a40, fear: 0.0,  metal: 0.2, shape: 'spider', eggs: true, crown: true, rare: true, brood: 'bebe', web: true,
+    tip: T('Elle tisse des toiles et lâche ses bébés !') },
 ];
 // Les « petits » de chaque stade : ils meurent toujours en un coup et évitent que le bureau se bouche
 const FODDER_TYPES = [
-  { id: 'fourmi', pts: 1, name: 'Fourmi rouge',    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
-  { id: 'bebe',   pts: 1, name: 'Bébé araignée',   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
+  { id: 'fourmi', pts: 1, name: T('Fourmi rouge'),    r: 0.014, hp: 2, speed: 0.14, reward: 20, mass: 1, bite: 1, color: 0x8a1c10, fear: 0, shape: 'ant' },
+  { id: 'bebe',   pts: 1, name: T('Bébé araignée'),   r: 0.013, hp: 3, speed: 0.16, reward: 35, mass: 1, bite: 1, color: 0xb8a070, fear: 0, shape: 'spider' },
 ];
 const ALL_BUG_TYPES = [...BUG_TYPES, ...FODDER_TYPES];
 const bugType = id => ALL_BUG_TYPES.find(t => t.id === id);
 // Les stades : quand la barre du dernier insecte d'un stade est remplie, les insectes mutent
 const STAGES = [
-  { from: 0,  name: 'Les cafards',          fodder: 'petit' },
+  { from: 0,  name: T('Les cafards'),          fodder: 'petit' },
   // hp : les mutants sont bien plus coriaces que leur fiche (×4,5, puis ×8) — le Carton à Jouets aide beaucoup
-  { from: 6,  name: 'Les insectes mutants', fodder: 'fourmi', hp: 4.5, lines: [
-    { face: '😳', text: 'Hein ?! Ce cafard-là… il n’est pas normal. On dirait que certains ont muté !' },
-    { face: '😤', text: 'Ils ne lâchent pas l’affaire, ces bestioles. Et voilà que fourmis, perce-oreilles et mille-pattes s’en mêlent… tout le jardin débarque sur mon bureau !' },
-    { face: '🐜', text: 'Et ces petites fourmis ne comptent même pas : pour repousser une vague, il faut écraser les gros !' },
-    { face: '📦', text: 'Ils sont costauds… Mon vieux carton à jouets cache peut-être de quoi les battre.' },
+  { from: 6,  name: T('Les insectes mutants'), fodder: 'fourmi', hp: 4.5, lines: [
+    { face: '😳', text: T('Hein ?! Ce cafard-là… il n’est pas normal. On dirait que certains ont muté !') },
+    { face: '😤', text: T('Ils ne lâchent pas l’affaire, ces bestioles. Et voilà que fourmis, perce-oreilles et mille-pattes s’en mêlent… tout le jardin débarque sur mon bureau !') },
+    { face: '🐜', text: T('Et ces petites fourmis ne comptent même pas : pour repousser une vague, il faut écraser les gros !') },
+    { face: '📦', text: T('Ils sont costauds… Mon vieux carton à jouets cache peut-être de quoi les battre.') },
   ] },
-  { from: 12, name: 'Les araignées',        fodder: 'bebe', hp: 8, lines: [
-    { face: '😱', text: 'Des araignées maintenant ?! C’est vraiment de la mauvaise herbe, ces bêtes-là…' },
-    { face: '🕸️', text: 'Attention aux toiles de la veuve noire : elles ralentissent la toupie.' },
-    { face: '😠', text: 'Allez, on ne lâche rien !' },
+  { from: 12, name: T('Les araignées'),        fodder: 'bebe', hp: 8, lines: [
+    { face: '😱', text: T('Des araignées maintenant ?! C’est vraiment de la mauvaise herbe, ces bêtes-là…') },
+    { face: '🕸️', text: T('Attention aux toiles de la veuve noire : elles ralentissent la toupie.') },
+    { face: '😠', text: T('Allez, on ne lâche rien !') },
   ] },
 ];
 BUG_TYPES.forEach((t, i) => { t.stage = STAGES.reduce((a, st, k) => (i >= st.from ? k : a), 0); });
@@ -971,7 +1026,7 @@ FODDER_TYPES[0].stage = 1; FODDER_TYPES[1].stage = 2;
 // que celui d'avant, y compris quand on passe d'un stade à l'autre. On le vérifie au chargement.
 BUG_TYPES.reduce((prev, t) => {
   const hp = t.hp * (STAGES[t.stage].hp || 1);
-  if (prev && (hp <= prev.hp || t.reward <= prev.reward)) console.warn('Échelle des insectes cassée :', prev.id, '→', t.id);
+  if (prev && (hp <= prev.hp || t.reward <= prev.reward)) console.warn(T('Échelle des insectes cassée :'), prev.id, '→', t.id);
   return { id: t.id, hp, reward: t.reward };
 }, null);
 // Points d'infestation (taille des insectes écrasés) pour débloquer chaque niveau
@@ -983,152 +1038,152 @@ const INFEST_MAX = 170000; // la barre du tout dernier insecte
 //  AMÉLIORATIONS PERMANENTES (atelier) — avec leurs skins
 // =====================================================================
 const TABS = [
-  { id: 'toupie', label: '🌀 Toupie' },
-  { id: 'lanceur', label: '🚀 Lanceur' },
-  { id: 'bureau', label: '🪳 Bureau' },
-  { id: 'stats', label: '📊 Stats' },
+  { id: 'toupie', label: T('🌀 Toupie') },
+  { id: 'lanceur', label: T('🚀 Lanceur') },
+  { id: 'bureau', label: T('🪳 Bureau') },
+  { id: 'stats', label: T('📊 Stats') },
 ];
 
 const UPGRADES = [
   // --- Toupie ---
-  { id: 'endurance', tab: 'toupie', wave: 1, name: 'Endurance', desc: 'Perd sa rotation moins vite : tourne plus longtemps.', base: 32, growth: 1.5, max: 55,
-    skins: [[0, 'Poignée bâton'], [1, 'Anneau d’énergie vert'], [12, 'Anneau d’énergie bleu'], [23, 'Anneau d’énergie violet'], [34, 'Anneau d’énergie rouge'], [45, 'Anneau d’énergie doré'], [55, 'Anneau éternel']],
-    fmt: s => `${estimatedSpin(s).toFixed(1)} s de rotation` },
-  { id: 'diametre', tab: 'toupie', wave: 1, name: 'Diamètre', desc: 'Une toupie plus large touche plus de cafards.', base: 34, growth: 1.55, max: 35,
+  { id: 'endurance', tab: 'toupie', wave: 1, name: T('Endurance'), desc: T('Perd sa rotation moins vite : tourne plus longtemps.'), base: 32, growth: 1.5, max: 55,
+    skins: [[0, T('Poignée bâton')], [1, T('Anneau d’énergie vert')], [12, T('Anneau d’énergie bleu')], [23, T('Anneau d’énergie violet')], [34, T('Anneau d’énergie rouge')], [45, T('Anneau d’énergie doré')], [55, T('Anneau éternel')]],
+    fmt: s => T(`{0} s de rotation`, estimatedSpin(s).toFixed(1)) },
+  { id: 'diametre', tab: 'toupie', wave: 1, name: T('Diamètre'), desc: T('Une toupie plus large touche plus de cafards.'), base: 34, growth: 1.55, max: 35,
     fmt: s => `${(s.radius * 200).toFixed(1)} cm` },
-  { id: 'poids', tab: 'toupie', wave: 2, name: 'Poids', desc: 'Frappe plus fort et se fait moins repousser.', base: 36, growth: 1.55, max: 50,
-    skins: [[0, 'Roue en plastique'], [10, 'Roue en bois'], [20, 'Roue en acier'], [30, 'Roue en or'], [40, 'Roue en obsidienne'], [50, 'Roue de météorite']],
+  { id: 'poids', tab: 'toupie', wave: 2, name: T('Poids'), desc: T('Frappe plus fort et se fait moins repousser.'), base: 36, growth: 1.55, max: 50,
+    skins: [[0, T('Roue en plastique')], [10, T('Roue en bois')], [20, T('Roue en acier')], [30, T('Roue en or')], [40, T('Roue en obsidienne')], [50, T('Roue de météorite')]],
     fmt: s => `${Math.round(s.mass)} g` },
-  { id: 'pointe', tab: 'toupie', wave: 3, name: 'Pointe', desc: 'Pointe plus fine : glisse plus loin et se promène plus vite.', base: 30, growth: 1.55, max: 40,
-    skins: [[0, 'Pointe plastique'], [8, 'Pointe acier'], [16, 'Pointe à bille'], [24, 'Pointe rubis'], [32, 'Pointe diamant'], [40, 'Pointe étoile']],
-    fmt: s => `balade ${(s.drift / s.linFric * 100).toFixed(0)} cm/s` },
-  { id: 'lames', tab: 'toupie', wave: 3, name: 'Lames', desc: 'Ajoute des lames : plus de dégâts par contact.', base: 30, growth: 1.55, max: 60,
-    skins: [[0, 'Sans lame'], [1, '2 lames droites'], [10, '3 lames courbes'], [20, '4 faux'], [30, '5 crocs'], [40, '6 lames de dragon'], [50, '8 lames de lave'], [60, 'Lames du chaos']],
-    fmt: s => `×${s.blades.toFixed(2)} dégâts` },
-  { id: 'inertie', tab: 'toupie', wave: 5, name: 'Inertie', desc: 'Perd moins de rotation en percutant les insectes.', base: 35, growth: 1.6, max: 45,
-    skins: [[0, 'Sans volant'], [1, 'Volant léger'], [9, 'Volant d’acier'], [18, 'Volant lourd'], [27, 'Volant de laiton'], [36, 'Volant de tungstène'], [45, 'Volant éternel']],
-    fmt: s => `−${Math.round((1 - s.inertia) * 100)} % de perte au choc` },
-  { id: 'equilibre', tab: 'toupie', wave: 8, name: 'Équilibre', desc: 'Reste debout même en tournant lentement.', base: 50, growth: 1.6, max: 40,
-    skins: [[0, 'Sans gyroscope'], [1, 'Gyroscope'], [10, 'Double gyroscope'], [20, 'Triple gyroscope'], [30, 'Gyroscope de cristal'], [40, 'Gyroscope stellaire']],
-    fmt: s => `tombe sous ${Math.round(s.fallRatio * 100)} %` },
-  { id: 'rebond', tab: 'toupie', wave: 6, name: 'Rebond', desc: 'Garde sa vitesse en rebondissant sur les bords.', base: 38, growth: 1.6, max: 12,
-    skins: [[0, 'Sans pare-chocs'], [1, 'Tampons caoutchouc'], [6, 'Tampons renforcés'], [12, 'Tampons fluo']],
-    fmt: s => `${Math.round(s.restitution * 100)} % conservé` },
-  { id: 'agressivite', tab: 'toupie', wave: 10, name: 'Agressivité', desc: 'La toupie se dirige vers les insectes proches.', base: 150, growth: 1.65, max: 25,
-    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
-    skins: [[0, 'Gentille'], [1, 'Petites dents'], [8, 'Épines'], [16, 'Crocs'], [25, 'Crocs et yeux rouges']],
-    fmt: s => `attraction ${s.chase.toFixed(2)}` },
-  { id: 'critique', tab: 'toupie', wave: 10, name: 'Coup critique', desc: 'Chance d’infliger un coup ×3. Au-delà de 100 % de chance, le surplus rend les coups critiques encore plus forts.', base: 90, growth: 1.6, max: 45,
-    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
-    skins: [[0, 'Sans gemme'], [1, 'Gemmes topaze'], [16, 'Gemmes rubis'], [31, 'Gemmes saphir'], [45, 'Diamants']],
-    fmt: s => `${Math.round(s.crit * 100)} % de chance` + (s.critMult > 3 ? `, coups ×${s.critMult.toFixed(2)}` : '') },
+  { id: 'pointe', tab: 'toupie', wave: 3, name: T('Pointe'), desc: T('Pointe plus fine : glisse plus loin et se promène plus vite.'), base: 30, growth: 1.55, max: 40,
+    skins: [[0, T('Pointe plastique')], [8, T('Pointe acier')], [16, T('Pointe à bille')], [24, T('Pointe rubis')], [32, T('Pointe diamant')], [40, T('Pointe étoile')]],
+    fmt: s => T(`balade {0} cm/s`, (s.drift / s.linFric * 100).toFixed(0)) },
+  { id: 'lames', tab: 'toupie', wave: 3, name: T('Lames'), desc: T('Ajoute des lames : plus de dégâts par contact.'), base: 30, growth: 1.55, max: 60,
+    skins: [[0, T('Sans lame')], [1, T('2 lames droites')], [10, T('3 lames courbes')], [20, T('4 faux')], [30, T('5 crocs')], [40, T('6 lames de dragon')], [50, T('8 lames de lave')], [60, T('Lames du chaos')]],
+    fmt: s => T(`×{0} dégâts`, s.blades.toFixed(2)) },
+  { id: 'inertie', tab: 'toupie', wave: 5, name: T('Inertie'), desc: T('Perd moins de rotation en percutant les insectes.'), base: 35, growth: 1.6, max: 45,
+    skins: [[0, T('Sans volant')], [1, T('Volant léger')], [9, T('Volant d’acier')], [18, T('Volant lourd')], [27, T('Volant de laiton')], [36, T('Volant de tungstène')], [45, T('Volant éternel')]],
+    fmt: s => T(`−{0} % de perte au choc`, Math.round((1 - s.inertia) * 100)) },
+  { id: 'equilibre', tab: 'toupie', wave: 8, name: T('Équilibre'), desc: T('Reste debout même en tournant lentement.'), base: 50, growth: 1.6, max: 40,
+    skins: [[0, T('Sans gyroscope')], [1, T('Gyroscope')], [10, T('Double gyroscope')], [20, T('Triple gyroscope')], [30, T('Gyroscope de cristal')], [40, T('Gyroscope stellaire')]],
+    fmt: s => T(`tombe sous {0} %`, Math.round(s.fallRatio * 100)) },
+  { id: 'rebond', tab: 'toupie', wave: 6, name: T('Rebond'), desc: T('Garde sa vitesse en rebondissant sur les bords.'), base: 38, growth: 1.6, max: 12,
+    skins: [[0, T('Sans pare-chocs')], [1, T('Tampons caoutchouc')], [6, T('Tampons renforcés')], [12, T('Tampons fluo')]],
+    fmt: s => T(`{0} % conservé`, Math.round(s.restitution * 100)) },
+  { id: 'agressivite', tab: 'toupie', wave: 10, name: T('Agressivité'), desc: T('La toupie se dirige vers les insectes proches.'), base: 150, growth: 1.65, max: 25,
+    unlock: () => infestLevel() >= 1, lockText: T('Niveau d’infestation 2'),
+    skins: [[0, T('Gentille')], [1, T('Petites dents')], [8, T('Épines')], [16, T('Crocs')], [25, T('Crocs et yeux rouges')]],
+    fmt: s => T(`attraction {0}`, s.chase.toFixed(2)) },
+  { id: 'critique', tab: 'toupie', wave: 10, name: T('Coup critique'), desc: T('Chance d’infliger un coup ×3. Au-delà de 100 % de chance, le surplus rend les coups critiques encore plus forts.'), base: 90, growth: 1.6, max: 45,
+    unlock: () => infestLevel() >= 1, lockText: T('Niveau d’infestation 2'),
+    skins: [[0, T('Sans gemme')], [1, T('Gemmes topaze')], [16, T('Gemmes rubis')], [31, T('Gemmes saphir')], [45, T('Diamants')]],
+    fmt: s => T(`{0} % de chance`, Math.round(s.crit * 100)) + (s.critMult > 3 ? T(`, coups ×{0}`, s.critMult.toFixed(2)) : '') },
 
   // --- Débloquées par les mutations : de nouveaux pouvoirs, utiles contre tous les insectes ---
-  { id: 'feu', tab: 'toupie', wave: 1, stage: 1, name: 'Traînée de feu', desc: 'La toupie enflamme le plateau sur son passage : les insectes qui marchent dans les flammes brûlent.', base: 2500, growth: 1.42, max: 35,
-    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
-    skins: [[0, 'Sans feu'], [1, 'Braises'], [7, 'Flammes'], [14, 'Feu d’enfer'], [24, 'Flammes bleues'], [35, 'Phénix']],
-    fmt: s => s.fire ? `brûlure ${Math.round(s.fire * 100)} % d’un coup/s, ${s.fireLife.toFixed(1)} s` : 'pas de flammes' },
-  { id: 'souffle', tab: 'toupie', wave: 1, stage: 1, name: 'Second souffle', desc: 'Chaque insecte écrasé redonne un peu de rotation à la toupie (de moins en moins, et plafonné à chaque lancer).', base: 3000, growth: 1.5, max: 18,
-    skins: [[0, 'Sans souffle'], [1, 'Ailettes'], [7, 'Brise'], [13, 'Grand souffle'], [18, 'Tempête de vent']],
-    fmt: s => s.souffle ? `+${Math.round(s.souffle * 100)} % par insecte, ${Math.round(s.souffleCap * 100)} % max` : 'aucun regain',
-    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté' },
-  { id: 'eclair', tab: 'toupie', wave: 1, stage: 2, name: 'Éclairs en chaîne', desc: 'Quand la toupie frappe, un éclair peut rebondir sur un insecte voisin.', base: 9000, growth: 1.5, max: 18,
-    unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
-    skins: [[0, 'Sans éclairs'], [1, 'Étincelles bleues'], [7, 'Orbes électriques'], [13, 'Couronne d’orage'], [18, 'Tempête électrique']],
-    fmt: s => `${Math.round(s.chain * 100)} % de chance, ${Math.round(s.chainDmg * 100)} % des dégâts, ${s.chainJumps} rebond${s.chainJumps > 1 ? 's' : ''}` },
-  { id: 'tornade', tab: 'toupie', wave: 1, stage: 2, name: 'Tourbillon', desc: 'La toupie aspire les insectes proches vers elle.', base: 12000, growth: 1.5, max: 18,
-    unlock: () => stageSeen() >= 2, lockText: 'stade 3, quand les araignées arriveront',
-    skins: [[0, 'Sans tourbillon'], [1, 'Courant d’air'], [7, 'Tornade'], [13, 'Ouragan'], [18, 'Cyclone']],
-    fmt: s => s.vortex ? `rayon ${Math.round((s.vortexR) * 100)} cm` : 'aucune aspiration' },
+  { id: 'feu', tab: 'toupie', wave: 1, stage: 1, name: T('Traînée de feu'), desc: T('La toupie enflamme le plateau sur son passage : les insectes qui marchent dans les flammes brûlent.'), base: 2500, growth: 1.42, max: 35,
+    unlock: () => stageSeen() >= 1, lockText: T('stade 2, quand les cafards auront muté'),
+    skins: [[0, T('Sans feu')], [1, T('Braises')], [7, T('Flammes')], [14, T('Feu d’enfer')], [24, T('Flammes bleues')], [35, T('Phénix')]],
+    fmt: s => s.fire ? T(`brûlure {0} % d’un coup/s, {1} s`, Math.round(s.fire * 100), s.fireLife.toFixed(1)) : T('pas de flammes') },
+  { id: 'souffle', tab: 'toupie', wave: 1, stage: 1, name: T('Second souffle'), desc: T('Chaque insecte écrasé redonne un peu de rotation à la toupie (de moins en moins, et plafonné à chaque lancer).'), base: 3000, growth: 1.5, max: 18,
+    skins: [[0, T('Sans souffle')], [1, T('Ailettes')], [7, T('Brise')], [13, T('Grand souffle')], [18, T('Tempête de vent')]],
+    fmt: s => s.souffle ? T(`+{0} % par insecte, {1} % max`, Math.round(s.souffle * 100), Math.round(s.souffleCap * 100)) : T('aucun regain'),
+    unlock: () => stageSeen() >= 1, lockText: T('stade 2, quand les cafards auront muté') },
+  { id: 'eclair', tab: 'toupie', wave: 1, stage: 2, name: T('Éclairs en chaîne'), desc: T('Quand la toupie frappe, un éclair peut rebondir sur un insecte voisin.'), base: 9000, growth: 1.5, max: 18,
+    unlock: () => stageSeen() >= 2, lockText: T('stade 3, quand les araignées arriveront'),
+    skins: [[0, T('Sans éclairs')], [1, T('Étincelles bleues')], [7, T('Orbes électriques')], [13, T('Couronne d’orage')], [18, T('Tempête électrique')]],
+    fmt: s => T(`{0} % de chance, {1} % des dégâts, {2} rebond{3}`, Math.round(s.chain * 100), Math.round(s.chainDmg * 100), s.chainJumps, s.chainJumps > 1 ? 's' : '') },
+  { id: 'tornade', tab: 'toupie', wave: 1, stage: 2, name: T('Tourbillon'), desc: T('La toupie aspire les insectes proches vers elle.'), base: 12000, growth: 1.5, max: 18,
+    unlock: () => stageSeen() >= 2, lockText: T('stade 3, quand les araignées arriveront'),
+    skins: [[0, T('Sans tourbillon')], [1, T('Courant d’air')], [7, T('Tornade')], [13, T('Ouragan')], [18, T('Cyclone')]],
+    fmt: s => s.vortex ? T(`rayon {0} cm`, Math.round((s.vortexR) * 100)) : T('aucune aspiration') },
 
   // --- Lanceur ---
-  { id: 'puissance', tab: 'lanceur', wave: 1, name: 'Puissance', desc: 'La toupie démarre en tournant plus vite.', base: 34, growth: 1.5, max: 60,
-    skins: [[0, 'Coque en plastique'], [5, 'Coque renforcée'], [10, 'Coque en métal'], [15, 'Coque à ressorts'], [20, 'Coque de course'], [25, 'Coque néon'],
-      [30, 'Coque bleu nuit'], [35, 'Coque blanche'], [40, 'Coque dorée'], [45, 'Coque à plasma'], [50, 'Coque légendaire'], [55, 'Coque mythique']],
-    fmt: s => `${fmtInt(s.rpm)} tr/min` },
-  { id: 'elan', tab: 'lanceur', wave: 2, name: 'Élan', desc: 'La toupie part plus vite et plus loin.', base: 32, growth: 1.5, max: 45,
-    skins: [[0, 'Sans propulsion'], [1, 'Ailerons'], [9, 'Ailerons lumineux'], [18, 'Turbines'], [27, 'Propulseurs'], [36, 'Réacteurs à plasma'], [45, 'Hyper-propulsion']],
+  { id: 'puissance', tab: 'lanceur', wave: 1, name: T('Puissance'), desc: T('La toupie démarre en tournant plus vite.'), base: 34, growth: 1.5, max: 60,
+    skins: [[0, T('Coque en plastique')], [5, T('Coque renforcée')], [10, T('Coque en métal')], [15, T('Coque à ressorts')], [20, T('Coque de course')], [25, T('Coque néon')],
+      [30, T('Coque bleu nuit')], [35, T('Coque blanche')], [40, T('Coque dorée')], [45, T('Coque à plasma')], [50, T('Coque légendaire')], [55, T('Coque mythique')]],
+    fmt: s => T(`{0} tr/min`, fmtInt(s.rpm)) },
+  { id: 'elan', tab: 'lanceur', wave: 2, name: T('Élan'), desc: T('La toupie part plus vite et plus loin.'), base: 32, growth: 1.5, max: 45,
+    skins: [[0, T('Sans propulsion')], [1, T('Ailerons')], [9, T('Ailerons lumineux')], [18, T('Turbines')], [27, T('Propulseurs')], [36, T('Réacteurs à plasma')], [45, T('Hyper-propulsion')]],
     fmt: s => `${(s.speed * 100).toFixed(0)} cm/s` },
-  { id: 'precision', tab: 'lanceur', wave: 4, name: 'Précision', desc: 'Zone « PARFAIT » plus large (+25 % de puissance).', base: 34, growth: 1.65, max: 20,
-    skins: [[0, 'Sans viseur'], [1, 'Guidon'], [5, 'Lunette'], [10, 'Viseur laser'], [15, 'Réticule holographique'], [20, 'Œil de lynx']],
-    fmt: s => `zone de ${Math.round(s.perfect * 100)} %` },
-  { id: 'recharge', tab: 'lanceur', wave: 2, modes: ['carnage'], name: 'Recharge', desc: 'Mode Carnage : moins d’attente entre deux lancers.', base: 36, growth: 1.55, max: 20,
-    fmt: s => `${s.cooldown.toFixed(2)} s d’attente` },
-  { id: 'multi', tab: 'lanceur', wave: 12, name: 'Multi-lancer', desc: 'Lance plusieurs toupies d’un coup.', base: 1500, growth: 7, max: 4,
+  { id: 'precision', tab: 'lanceur', wave: 4, name: T('Précision'), desc: T('Zone « PARFAIT » plus large (+25 % de puissance).'), base: 34, growth: 1.65, max: 20,
+    skins: [[0, T('Sans viseur')], [1, T('Guidon')], [5, T('Lunette')], [10, T('Viseur laser')], [15, T('Réticule holographique')], [20, T('Œil de lynx')]],
+    fmt: s => T(`zone de {0} %`, Math.round(s.perfect * 100)) },
+  { id: 'recharge', tab: 'lanceur', wave: 2, modes: ['carnage'], name: T('Recharge'), desc: T('Mode Carnage : moins d’attente entre deux lancers.'), base: 36, growth: 1.55, max: 20,
+    fmt: s => T(`{0} s d’attente`, s.cooldown.toFixed(2)) },
+  { id: 'multi', tab: 'lanceur', wave: 12, name: T('Multi-lancer'), desc: T('Lance plusieurs toupies d’un coup.'), base: 1500, growth: 7, max: 4,
     costs: [1500, 10500, 73500, 20000000], // la 5e toupie est un luxe : 20 millions
-    unlock: () => infestLevel() >= 1, lockText: 'Niveau d’infestation 2',
-    fmt: s => `${s.tops} toupie${s.tops > 1 ? 's' : ''} par lancer` },
+    unlock: () => infestLevel() >= 1, lockText: T('Niveau d’infestation 2'),
+    fmt: s => T(`{0} toupie{1} par lancer`, s.tops, s.tops > 1 ? 's' : '') },
 
   // --- Bureau / économie ---
-  { id: 'appat', tab: 'bureau', wave: 4, name: 'Appât', desc: 'Les insectes arrivent plus souvent.', base: 34, growth: 1.5, max: 45,
-    fmt: s => `${s.spawnRate.toFixed(2)} insecte/s` },
-  { id: 'nid', tab: 'bureau', wave: 5, name: 'Nid', desc: 'Plus d’insectes en même temps sur le bureau.', base: 33, growth: 1.55, max: 32,
-    fmt: s => `${s.maxBugs} insectes max` },
-  { id: 'prime', tab: 'bureau', wave: 6, name: 'Prime', desc: 'Chaque insecte écrasé rapporte plus.', base: 30, growth: 1.6, max: 60,
-    skins: [[0, 'Sans éclat'], [10, 'Quelques étincelles'], [20, 'Pluie d’étincelles'], [30, 'Scintillement'], [40, 'Feu d’artifice']],
-    fmt: s => `×${s.bounty.toFixed(1)} argent` },
-  { id: 'chance', tab: 'bureau', wave: 10, name: 'Trèfle doré', desc: 'Plus de chances qu’un insecte arrive tout doré : il rapporte 10 fois plus.', base: 500, growth: 1.8, max: 10,
-    skins: [[0, 'Trèfle à trois feuilles'], [1, 'Trèfle à quatre feuilles'], [5, 'Trèfle en or'], [10, 'Fer à cheval doré']],
-    fmt: s => `${(s.goldChance * 100).toFixed(1)} % d’insectes dorés` },
-  { id: 'combo', tab: 'bureau', wave: 8, name: 'Combo', desc: 'Bonus quand on écrase plusieurs insectes à la suite.', base: 50, growth: 1.65, max: 30,
-    fmt: s => `+${Math.round(s.comboBonus * 100)} % / insecte, ${s.comboWindow.toFixed(1)} s` },
-  { id: 'trampoline', tab: 'bureau', wave: 1, stage: 1, name: 'Bords trampolines', desc: 'Les bords de la table deviennent des trampolines : la toupie rebondit dessus et repart encore plus vite.', base: 5000, growth: 1.5, max: 16,
-    unlock: () => stageSeen() >= 1, lockText: 'stade 2, quand les cafards auront muté',
-    skins: [[0, 'Bords en bois'], [1, 'Trampolines bleus'], [4, 'Trampolines de cirque'], [8, 'Super-trampolines fluo']],
-    fmt: s => s.bounce > 1 ? `rebond ×${s.bounce.toFixed(2)}` : 'bords en bois' },
+  { id: 'appat', tab: 'bureau', wave: 4, name: T('Appât'), desc: T('Les insectes arrivent plus souvent.'), base: 34, growth: 1.5, max: 45,
+    fmt: s => T(`{0} insecte/s`, s.spawnRate.toFixed(2)) },
+  { id: 'nid', tab: 'bureau', wave: 5, name: T('Nid'), desc: T('Plus d’insectes en même temps sur le bureau.'), base: 33, growth: 1.55, max: 32,
+    fmt: s => T(`{0} insectes max`, s.maxBugs) },
+  { id: 'prime', tab: 'bureau', wave: 6, name: T('Prime'), desc: T('Chaque insecte écrasé rapporte plus.'), base: 30, growth: 1.6, max: 60,
+    skins: [[0, T('Sans éclat')], [10, T('Quelques étincelles')], [20, T('Pluie d’étincelles')], [30, T('Scintillement')], [40, T('Feu d’artifice')]],
+    fmt: s => T(`×{0} argent`, s.bounty.toFixed(1)) },
+  { id: 'chance', tab: 'bureau', wave: 10, name: T('Trèfle doré'), desc: T('Plus de chances qu’un insecte arrive tout doré : il rapporte 10 fois plus.'), base: 500, growth: 1.8, max: 10,
+    skins: [[0, T('Trèfle à trois feuilles')], [1, T('Trèfle à quatre feuilles')], [5, T('Trèfle en or')], [10, T('Fer à cheval doré')]],
+    fmt: s => T(`{0} % d’insectes dorés`, (s.goldChance * 100).toFixed(1)) },
+  { id: 'combo', tab: 'bureau', wave: 8, name: T('Combo'), desc: T('Bonus quand on écrase plusieurs insectes à la suite.'), base: 50, growth: 1.65, max: 30,
+    fmt: s => T(`+{0} % / insecte, {1} s`, Math.round(s.comboBonus * 100), s.comboWindow.toFixed(1)) },
+  { id: 'trampoline', tab: 'bureau', wave: 1, stage: 1, name: T('Bords trampolines'), desc: T('Les bords de la table deviennent des trampolines : la toupie rebondit dessus et repart encore plus vite.'), base: 5000, growth: 1.5, max: 16,
+    unlock: () => stageSeen() >= 1, lockText: T('stade 2, quand les cafards auront muté'),
+    skins: [[0, T('Bords en bois')], [1, T('Trampolines bleus')], [4, T('Trampolines de cirque')], [8, T('Super-trampolines fluo')]],
+    fmt: s => s.bounce > 1 ? T(`rebond ×{0}`, s.bounce.toFixed(2)) : T('bords en bois') },
 ];
 
 // =====================================================================
 //  BONUS DE PARTIE (choix entre 3 à la fin de chaque vague, perdus en cas de défaite)
 // =====================================================================
 const PERKS = [
-  { id: 'odeur', icon: '🍬', name: 'Odeur sucrée', max: 3,
-    desc: n => `La toupie sent bon : certains insectes proches (${Math.round(smellChance(n) * 100)} %) s’approchent d’elle, dans un rayon de ${Math.round(smellRadius(n) * 100)} cm.` },
-  { id: 'aiguise', icon: '🔪', name: 'Lames aiguisées', max: 5, desc: () => '+20 % de dégâts.' },
-  { id: 'roulement', icon: '⚙️', name: 'Roulement à billes', max: 4, desc: () => 'La toupie tourne 25 % plus longtemps.' },
-  { id: 'lancer', icon: '🎯', name: 'Lancer en plus', max: 3, modes: ['histoire'], desc: () => '+1 lancer à chaque vague pour atteindre l’objectif.' },
-  { id: 'cookies', icon: '🍪', name: 'Boîte de cookies', max: 5, modes: ['carnage'], desc: () => '+6 bouchées de goûter tout de suite, et +4 au maximum.' },
-  { id: 'spray', icon: '🧴', name: 'Spray anti-faim', max: 3, modes: ['carnage'], desc: () => 'Les affamés traînent 30 % plus longtemps avant de foncer sur le goûter.' },
-  { id: 'insecticide', icon: '🐌', name: 'Insecticide', max: 3, desc: () => 'Les insectes avancent 15 % moins vite et fuient moins bien.' },
-  { id: 'glu', icon: '🪤', name: 'Piège à glu', max: 3, desc: () => 'Pose un piège collant sur le bureau : les insectes y avancent 4 fois moins vite.' },
-  { id: 'or', icon: '💰', name: 'Ruée vers l’or', max: 5, desc: () => '+25 % d’argent par insecte.' },
-  { id: 'jumelle', icon: '👯', name: 'Toupie jumelle', max: 3, desc: () => '25 % de chance de lancer une toupie en plus.' },
-  { id: 'onde', icon: '💥', name: 'Onde de choc', max: 3, desc: () => 'Quand la toupie tombe, elle explose et blesse les insectes autour.' },
-  { id: 'ressort', icon: '🌀', name: 'Ressort turbo', max: 4, desc: () => '+20 % d’élan et +15 % de rotation au lancer.' },
-  { id: 'braise', icon: '🔥', name: 'Combo brûlant', max: 3, desc: () => '+10 % de bonus par insecte dans un combo.' },
-  { id: 'epines', icon: '🦔', name: 'Épines empoisonnées', max: 3, desc: () => '+10 % de chance de coup critique.' },
-  { id: 'plomb', icon: '🪨', name: 'Lest en plomb', max: 4, desc: () => '+25 % de poids.' },
+  { id: 'odeur', icon: '🍬', name: T('Odeur sucrée'), max: 3,
+    desc: n => T(`La toupie sent bon : certains insectes proches ({0} %) s’approchent d’elle, dans un rayon de {1} cm.`, Math.round(smellChance(n) * 100), Math.round(smellRadius(n) * 100)) },
+  { id: 'aiguise', icon: '🔪', name: T('Lames aiguisées'), max: 5, desc: () => T('+20 % de dégâts.') },
+  { id: 'roulement', icon: '⚙️', name: T('Roulement à billes'), max: 4, desc: () => T('La toupie tourne 25 % plus longtemps.') },
+  { id: 'lancer', icon: '🎯', name: T('Lancer en plus'), max: 3, modes: ['histoire'], desc: () => T('+1 lancer à chaque vague pour atteindre l’objectif.') },
+  { id: 'cookies', icon: '🍪', name: T('Boîte de cookies'), max: 5, modes: ['carnage'], desc: () => T('+6 bouchées de goûter tout de suite, et +4 au maximum.') },
+  { id: 'spray', icon: '🧴', name: T('Spray anti-faim'), max: 3, modes: ['carnage'], desc: () => T('Les affamés traînent 30 % plus longtemps avant de foncer sur le goûter.') },
+  { id: 'insecticide', icon: '🐌', name: T('Insecticide'), max: 3, desc: () => T('Les insectes avancent 15 % moins vite et fuient moins bien.') },
+  { id: 'glu', icon: '🪤', name: T('Piège à glu'), max: 3, desc: () => T('Pose un piège collant sur le bureau : les insectes y avancent 4 fois moins vite.') },
+  { id: 'or', icon: '💰', name: T('Ruée vers l’or'), max: 5, desc: () => T('+25 % d’argent par insecte.') },
+  { id: 'jumelle', icon: '👯', name: T('Toupie jumelle'), max: 3, desc: () => T('25 % de chance de lancer une toupie en plus.') },
+  { id: 'onde', icon: '💥', name: T('Onde de choc'), max: 3, desc: () => T('Quand la toupie tombe, elle explose et blesse les insectes autour.') },
+  { id: 'ressort', icon: '🌀', name: T('Ressort turbo'), max: 4, desc: () => T('+20 % d’élan et +15 % de rotation au lancer.') },
+  { id: 'braise', icon: '🔥', name: T('Combo brûlant'), max: 3, desc: () => T('+10 % de bonus par insecte dans un combo.') },
+  { id: 'epines', icon: '🦔', name: T('Épines empoisonnées'), max: 3, desc: () => T('+10 % de chance de coup critique.') },
+  { id: 'plomb', icon: '🪨', name: T('Lest en plomb'), max: 4, desc: () => T('+25 % de poids.') },
 ];
 // =====================================================================
 //  LE CARTON À JOUETS : boutique permanente, payée en 🌊 (1 par vague repoussée, gardées même après une défaite)
 // =====================================================================
 const TOYBOX = [
-  { id: 'tirelire', icon: '🐷', name: 'Tirelire', max: 5, cost: n => 8 + 8 * n,
-    desc: n => `Chaque partie commence avec ${25 * n} $.` },
-  { id: 'depart', icon: '🚀', name: 'Départ lancé', max: 3, cost: n => 15 + 15 * n,
-    desc: n => `Chaque partie commence avec ${n} niveau${n > 1 ? 'x' : ''} en Endurance, Puissance et Diamètre.` },
-  { id: 'catalogue', icon: '📒', name: 'Vieux catalogue', max: 1, cost: () => 25,
-    desc: () => 'Les améliorations de l’atelier se débloquent 2 vagues plus tôt.' },
-  { id: 'doudou', icon: '🧸', name: 'Doudou porte-bonheur', max: 2, cost: n => 30 + 20 * n,
-    desc: n => `Chaque partie commence avec ${n} bonus au hasard.` },
-  { id: 'carte', icon: '🃏', name: 'Quatrième carte', max: 1, cost: () => 35,
-    desc: () => 'Entre deux vagues, tu choisis parmi 4 bonus au lieu de 3.' },
-  { id: 'secours', icon: '🩹', name: 'Toupie de secours', max: 1, cost: () => 40,
-    desc: () => 'Une fois par partie, au moment de perdre : +3 lancers.' },
-  { id: 'montre', icon: '⌚', name: 'Montre de grand-père', max: 1, cost: () => 20,
-    desc: () => 'Ajoute un bouton ⏩ pour jouer en vitesse ×2 (les toupies, les cafards et les vagues vont deux fois plus vite).' },
+  { id: 'tirelire', icon: '🐷', name: T('Tirelire'), max: 5, cost: n => 8 + 8 * n,
+    desc: n => T(`Chaque partie commence avec {0} $.`, 25 * n) },
+  { id: 'depart', icon: '🚀', name: T('Départ lancé'), max: 3, cost: n => 15 + 15 * n,
+    desc: n => T(`Chaque partie commence avec {0} niveau{1} en Endurance, Puissance et Diamètre.`, n, n > 1 ? 'x' : '') },
+  { id: 'catalogue', icon: '📒', name: T('Vieux catalogue'), max: 1, cost: () => 25,
+    desc: () => T('Les améliorations de l’atelier se débloquent 2 vagues plus tôt.') },
+  { id: 'doudou', icon: '🧸', name: T('Doudou porte-bonheur'), max: 2, cost: n => 30 + 20 * n,
+    desc: n => T(`Chaque partie commence avec {0} bonus au hasard.`, n) },
+  { id: 'carte', icon: '🃏', name: T('Quatrième carte'), max: 1, cost: () => 35,
+    desc: () => T('Entre deux vagues, tu choisis parmi 4 bonus au lieu de 3.') },
+  { id: 'secours', icon: '🩹', name: T('Toupie de secours'), max: 1, cost: () => 40,
+    desc: () => T('Une fois par partie, au moment de perdre : +3 lancers.') },
+  { id: 'montre', icon: '⌚', name: T('Montre de grand-père'), max: 1, cost: () => 20,
+    desc: () => T('Ajoute un bouton ⏩ pour jouer en vitesse ×2 (les toupies, les cafards et les vagues vont deux fois plus vite).') },
   // Pour après la mutation des cafards
-  { id: 'loupe', icon: '🔬', name: 'Loupe de naturaliste', max: 3, cost: n => 40 + 20 * n, mutant: true,
-    desc: n => `🧬 On repère les points faibles des insectes : +${15 * n} % de dégâts.` },
-  { id: 'chimiste', icon: '🧪', name: 'Boîte du petit chimiste', max: 1, cost: () => 60, mutant: true,
-    desc: () => '🧬 Les flammes de la Traînée de feu brûlent deux fois plus fort.' },
-  { id: 'gants', icon: '🧤', name: 'Gants de jardinier', max: 2, cost: n => 50 + 30 * n, mutant: true,
-    desc: n => `🧬 Après la mutation, +${n} lancer${n > 1 ? 's' : ''} à chaque vague.` },
-  { id: 'auto', icon: '⚙️', name: 'Lanceur automatique', max: 2, cost: n => [80, 200][n] ?? 200,
-    desc: n => n >= 2 ? 'Niveau 2 : le lanceur automatique tire toujours à pleine puissance (jauge au maximum, lancer PARFAIT).'
-      : 'Un gros bouton sur la table : allumé, les toupies se relancent toutes seules, dans une direction au hasard, dès qu’elles tombent. Éteint, tu joues normalement.' },
-  { id: 'trophee', icon: '🏆', name: 'Trophée du champion', max: 3, cost: n => 120 + 100 * n,
-    desc: n => `Le trophée de mes anciens tournois : ×${(1 + 0.3 * n).toFixed(1)} dégâts et ×${(1 + 0.3 * n).toFixed(1)} argent.` },
+  { id: 'loupe', icon: '🔬', name: T('Loupe de naturaliste'), max: 3, cost: n => 40 + 20 * n, mutant: true,
+    desc: n => T(`🧬 On repère les points faibles des insectes : +{0} % de dégâts.`, 15 * n) },
+  { id: 'chimiste', icon: '🧪', name: T('Boîte du petit chimiste'), max: 1, cost: () => 60, mutant: true,
+    desc: () => T('🧬 Les flammes de la Traînée de feu brûlent deux fois plus fort.') },
+  { id: 'gants', icon: '🧤', name: T('Gants de jardinier'), max: 2, cost: n => 50 + 30 * n, mutant: true,
+    desc: n => T(`🧬 Après la mutation, +{0} lancer{1} à chaque vague.`, n, n > 1 ? 's' : '') },
+  { id: 'auto', icon: '⚙️', name: T('Lanceur automatique'), max: 2, cost: n => [80, 200][n] ?? 200,
+    desc: n => n >= 2 ? T('Niveau 2 : le lanceur automatique tire toujours à pleine puissance (jauge au maximum, lancer PARFAIT).')
+      : T('Un gros bouton sur la table : allumé, les toupies se relancent toutes seules, dans une direction au hasard, dès qu’elles tombent. Éteint, tu joues normalement.') },
+  { id: 'trophee', icon: '🏆', name: T('Trophée du champion'), max: 3, cost: n => 120 + 100 * n,
+    desc: n => T(`Le trophée de mes anciens tournois : ×{0} dégâts et ×{1} argent.`, (1 + 0.3 * n).toFixed(1), (1 + 0.3 * n).toFixed(1)) },
 ];
 function metaLevel(id) { return state.meta?.items?.[id] || 0; }
 function metaBalance() { return state.meta.earned - state.meta.spent; }
@@ -1354,13 +1409,18 @@ function obstacles() { return isStory() ? OBS_BASE : OBS_CARNAGE; }
 // =====================================================================
 //  FORMATAGE
 // =====================================================================
-const nf = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
-const nf1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+// Nombres et argent écrits à la façon de chaque langue (1 234 / 1,234 / 1.234 ; Md, B, mil M, Mrd.)
+const LOCALE = { fr: 'fr-FR', en: 'en-US', es: 'es-ES', de: 'de-DE' }[LANG];
+const MONEY_UNITS = { fr: [' Md $', ' M $', ' $'], en: ['B', 'M', ''], es: [' mil M $', ' M $', ' $'], de: [' Mrd. $', ' Mio. $', ' $'] }[LANG];
+const nf = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
 function fmtInt(n) { return nf.format(Math.floor(n)); }
 function fmtMoney(n) {
-  if (n >= 1e9) return nf1.format(n / 1e9) + ' Md $';
-  if (n >= 1e6) return nf1.format(n / 1e6) + ' M $';
-  return fmtInt(n) + ' $';
+  let num, unit;
+  if (n >= 1e9) { num = nf1.format(n / 1e9); unit = MONEY_UNITS[0]; }
+  else if (n >= 1e6) { num = nf1.format(n / 1e6); unit = MONEY_UNITS[1]; }
+  else { num = fmtInt(n); unit = MONEY_UNITS[2]; }
+  return LANG === 'en' ? '$' + num + unit : num + unit; // en anglais : $1.2B
 }
 
 // =====================================================================
@@ -1631,12 +1691,12 @@ const wallpaperScreen = canvasTex(1024, 576, (g, w, h) => {
   g.lineWidth = 10;
   g.strokeStyle = '#111';
   g.fillStyle = '#ffd23f';
-  g.strokeText('S.O.S. CAFARDS', cx, 82); g.fillText('S.O.S. CAFARDS', cx, 82);
+  g.strokeText(T('S.O.S. CAFARDS'), cx, 82); g.fillText(T('S.O.S. CAFARDS'), cx, 82);
   g.font = 'bold 30px system-ui, sans-serif';
   g.lineWidth = 6;
-  g.strokeText('Brigade anti-cafards · intervention 24 h/24', cx, h - 64);
+  g.strokeText(T('Brigade anti-cafards · intervention 24 h/24'), cx, h - 64);
   g.fillStyle = '#fff';
-  g.fillText('Brigade anti-cafards · intervention 24 h/24', cx, h - 64);
+  g.fillText(T('Brigade anti-cafards · intervention 24 h/24'), cx, h - 64);
   // Barre des tâches, comme un vrai bureau d'ordinateur
   g.fillStyle = 'rgba(10, 20, 30, .85)';
   g.fillRect(0, h - 34, w, 34);
@@ -1733,13 +1793,13 @@ const posterTex = canvasTex(360, 480, (g, w, h) => {
   g.fillStyle = '#e9d6a8'; g.fillRect(0, 0, w, h);
   g.strokeStyle = '#7a5a2a'; g.lineWidth = 10; g.strokeRect(14, 14, w - 28, h - 28);
   g.fillStyle = '#3a2410'; g.textAlign = 'center';
-  g.font = '900 52px Georgia, serif'; g.fillText('RECHERCHÉE', w / 2, 82);
+  g.font = '900 52px Georgia, serif'; g.fillText(T('RECHERCHÉE'), w / 2, 82);
   drawCockroachCartoon(g, w / 2, 210, 95);
   g.fillStyle = '#c9a227'; g.beginPath(); // couronne de la reine
   g.moveTo(w / 2 - 34, 132); g.lineTo(w / 2 - 22, 108); g.lineTo(w / 2 - 6, 128); g.lineTo(w / 2 + 8, 104); g.lineTo(w / 2 + 22, 128); g.lineTo(w / 2 + 36, 110); g.lineTo(w / 2 + 34, 136); g.closePath(); g.fill();
   g.fillStyle = '#3a2410';
-  g.font = 'bold 30px Georgia, serif'; g.fillText('La Reine des cafards', w / 2, 340);
-  g.font = 'bold 26px Georgia, serif'; g.fillText('Récompense', w / 2, 392);
+  g.font = 'bold 30px Georgia, serif'; g.fillText(T('La Reine des cafards'), w / 2, 340);
+  g.font = 'bold 26px Georgia, serif'; g.fillText(T('Récompense'), w / 2, 392);
   g.font = '900 44px Georgia, serif'; g.fillText('4 000 $', w / 2, 440);
 });
 const poster = addMesh(new THREE.PlaneGeometry(0.36, 0.48), new THREE.MeshStandardMaterial({ map: posterTex, roughness: 0.9 }), -0.62, TABLE_Y + 0.62, WALL_Z + 0.005);
@@ -1764,8 +1824,8 @@ function buildMug(o) {
   x.textAlign = 'center';
   x.textBaseline = 'middle';
   x.fillStyle = '#2b1d14';
-  x.fillText('CHASSEUR', 256, 105);
-  x.fillText('DE CAFARDS', 256, 165);
+  x.fillText(T('CHASSEUR'), 256, 105);
+  x.fillText(T('DE CAFARDS'), 256, 165);
   x.font = '120px serif';
   x.fillText('🪳', 768, 128);
   x.strokeStyle = '#c0392b';
@@ -2666,273 +2726,273 @@ const cometTex = (() => {
 // =====================================================================
 const SKINS = {
   poids: [
-    { at: 0, name: 'Roue en plastique rouge', body: ['hsl(8,80%,55%)', '#f4f1ea', 'hsl(42,90%,55%)', '#222'], wheel: 0xd8402e, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#f4f1ea' },
-    { at: 3, name: 'Roue en plastique bleu', body: ['#2f6fd8', '#f4f1ea', '#7fc3ff', '#1a2a4a'], wheel: 0x2f6fd8, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#ffffff' },
-    { at: 6, name: 'Roue en bois', body: ['#8a5a2b', '#b07a44', '#6e4420', '#c18d55'], wheel: 0x7a4a22, metal: 0, rough: 0.8, mark: 'dash', markCol: '#f2d8a8' },
-    { at: 9, name: 'Roue en bois verni', body: ['#5a3518', '#8a5a2b', '#3e240f', '#a8743f'], wheel: 0x5a3518, metal: 0.1, rough: 0.3, mark: 'dash', markCol: '#ffd67a' },
-    { at: 12, name: 'Roue en cuivre', body: ['#c87533', '#e09a5a', '#9a5420', '#f0b880'], wheel: 0xc87533, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#4a2008' },
-    { at: 15, name: 'Anneau chromé', body: ['#a8763a', '#c8964a', '#8a5a2a', '#e0b070'], wheel: 0xb08040, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#3a2008', trim: 0xdfe6ec },
-    { at: 18, name: 'Double anneau', body: ['#7a7f86', '#5a5f66', '#9aa0a8', '#4a4e54'], wheel: 0x8a9098, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#1a1e24', trim: 0xdfe6ec },
-    { at: 21, name: 'Roue en acier', body: ['#c9d1d8', '#7d8790', '#e6ebef', '#5d666e'], wheel: 0xc7d0d8, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xdfe6ec },
-    { at: 24, name: 'Couronne crénelée', body: ['#b8c2cb', '#6d7780', '#d6dce2', '#4d565e'], wheel: 0xb8c2cb, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xeef2f5 },
-    { at: 27, name: 'Disque de poids', body: ['#5a5f68', '#3d4148', '#7a7f86', '#2b2f36'], wheel: 0x5a5f68, metal: 0.6, rough: 0.35, mark: 'roman', markCol: '#c9d1d8', trim: 0xc9d1d8 },
-    { at: 30, name: 'Roue en or massif', body: ['#ffd65a', '#c99a1c', '#fff0a8', '#a87a10'], wheel: 0xffc94a, metal: 0.65, rough: 0.22, mark: 'roman', markCol: '#6a4a08', trim: 0xffe9a8 },
-    { at: 33, name: 'Roue en or rose', body: ['#e8a08a', '#c87a6a', '#f8c8b8', '#a85a4a'], wheel: 0xe8a08a, metal: 0.6, rough: 0.22, mark: 'roman', markCol: '#6a2a1a', trim: 0xffd6c8 },
-    { at: 36, name: 'Roue en platine', body: ['#e8ecf0', '#c0c8d0', '#ffffff', '#a0a8b0'], wheel: 0xe0e6ec, metal: 0.6, rough: 0.2, mark: 'star', markCol: '#5a6a7a', trim: 0xffffff },
-    { at: 39, name: 'Roue de jade', body: ['#3fae7a', '#7fd8a8', '#2a7a50', '#a8f0c8'], wheel: 0x3fae7a, metal: 0.2, rough: 0.15, mark: 'rune', markCol: '#e8fff0', emissive: 0x0a3a20, trim: 0xffd67a },
-    { at: 42, name: 'Roue en obsidienne', body: ['#1a0f24', '#3b1d5c', '#120a1a', '#5b2a8c'], wheel: 0x3a2450, metal: 0.5, rough: 0.2, mark: 'rune', markCol: '#c9a2ff', emissive: 0x2a0d4a, trim: 0xc9a2ff },
-    { at: 45, name: 'Roue de cristal', body: ['#bff4ff', '#e8fbff', '#8fd8f0', '#ffffff'], wheel: 0xbff4ff, metal: 0.1, rough: 0.05, mark: 'star', markCol: '#ffffff', emissive: 0x3fb8d8, glass: true, trim: 0xffffff },
-    { at: 48, name: 'Roue de lave', body: ['#3a1a10', '#ff5a1a', '#2a1008', '#ff8a2a'], wheel: 0x4a2010, metal: 0.3, rough: 0.5, mark: 'crack', markCol: '#ff8a3a', emissive: 0xff3a00, trim: 0xff8a3a },
-    { at: 50, name: 'Roue de météorite', body: ['#2b2420', '#4a3a30', '#1e1814', '#5a4030'], wheel: 0x4a3a30, metal: 0.4, rough: 0.6, mark: 'crack', markCol: '#ff8a3a', emissive: 0x5a1a00, trim: 0xffb070, sparkle: true },
+    { at: 0, name: T('Roue en plastique rouge'), body: ['hsl(8,80%,55%)', '#f4f1ea', 'hsl(42,90%,55%)', '#222'], wheel: 0xd8402e, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#f4f1ea' },
+    { at: 3, name: T('Roue en plastique bleu'), body: ['#2f6fd8', '#f4f1ea', '#7fc3ff', '#1a2a4a'], wheel: 0x2f6fd8, metal: 0.1, rough: 0.45, mark: 'dash', markCol: '#ffffff' },
+    { at: 6, name: T('Roue en bois'), body: ['#8a5a2b', '#b07a44', '#6e4420', '#c18d55'], wheel: 0x7a4a22, metal: 0, rough: 0.8, mark: 'dash', markCol: '#f2d8a8' },
+    { at: 9, name: T('Roue en bois verni'), body: ['#5a3518', '#8a5a2b', '#3e240f', '#a8743f'], wheel: 0x5a3518, metal: 0.1, rough: 0.3, mark: 'dash', markCol: '#ffd67a' },
+    { at: 12, name: T('Roue en cuivre'), body: ['#c87533', '#e09a5a', '#9a5420', '#f0b880'], wheel: 0xc87533, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#4a2008' },
+    { at: 15, name: T('Anneau chromé'), body: ['#a8763a', '#c8964a', '#8a5a2a', '#e0b070'], wheel: 0xb08040, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#3a2008', trim: 0xdfe6ec },
+    { at: 18, name: T('Double anneau'), body: ['#7a7f86', '#5a5f66', '#9aa0a8', '#4a4e54'], wheel: 0x8a9098, metal: 0.55, rough: 0.3, mark: 'roman', markCol: '#1a1e24', trim: 0xdfe6ec },
+    { at: 21, name: T('Roue en acier'), body: ['#c9d1d8', '#7d8790', '#e6ebef', '#5d666e'], wheel: 0xc7d0d8, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xdfe6ec },
+    { at: 24, name: T('Couronne crénelée'), body: ['#b8c2cb', '#6d7780', '#d6dce2', '#4d565e'], wheel: 0xb8c2cb, metal: 0.6, rough: 0.3, mark: 'roman', markCol: '#2b3036', trim: 0xeef2f5 },
+    { at: 27, name: T('Disque de poids'), body: ['#5a5f68', '#3d4148', '#7a7f86', '#2b2f36'], wheel: 0x5a5f68, metal: 0.6, rough: 0.35, mark: 'roman', markCol: '#c9d1d8', trim: 0xc9d1d8 },
+    { at: 30, name: T('Roue en or massif'), body: ['#ffd65a', '#c99a1c', '#fff0a8', '#a87a10'], wheel: 0xffc94a, metal: 0.65, rough: 0.22, mark: 'roman', markCol: '#6a4a08', trim: 0xffe9a8 },
+    { at: 33, name: T('Roue en or rose'), body: ['#e8a08a', '#c87a6a', '#f8c8b8', '#a85a4a'], wheel: 0xe8a08a, metal: 0.6, rough: 0.22, mark: 'roman', markCol: '#6a2a1a', trim: 0xffd6c8 },
+    { at: 36, name: T('Roue en platine'), body: ['#e8ecf0', '#c0c8d0', '#ffffff', '#a0a8b0'], wheel: 0xe0e6ec, metal: 0.6, rough: 0.2, mark: 'star', markCol: '#5a6a7a', trim: 0xffffff },
+    { at: 39, name: T('Roue de jade'), body: ['#3fae7a', '#7fd8a8', '#2a7a50', '#a8f0c8'], wheel: 0x3fae7a, metal: 0.2, rough: 0.15, mark: 'rune', markCol: '#e8fff0', emissive: 0x0a3a20, trim: 0xffd67a },
+    { at: 42, name: T('Roue en obsidienne'), body: ['#1a0f24', '#3b1d5c', '#120a1a', '#5b2a8c'], wheel: 0x3a2450, metal: 0.5, rough: 0.2, mark: 'rune', markCol: '#c9a2ff', emissive: 0x2a0d4a, trim: 0xc9a2ff },
+    { at: 45, name: T('Roue de cristal'), body: ['#bff4ff', '#e8fbff', '#8fd8f0', '#ffffff'], wheel: 0xbff4ff, metal: 0.1, rough: 0.05, mark: 'star', markCol: '#ffffff', emissive: 0x3fb8d8, glass: true, trim: 0xffffff },
+    { at: 48, name: T('Roue de lave'), body: ['#3a1a10', '#ff5a1a', '#2a1008', '#ff8a2a'], wheel: 0x4a2010, metal: 0.3, rough: 0.5, mark: 'crack', markCol: '#ff8a3a', emissive: 0xff3a00, trim: 0xff8a3a },
+    { at: 50, name: T('Roue de météorite'), body: ['#2b2420', '#4a3a30', '#1e1814', '#5a4030'], wheel: 0x4a3a30, metal: 0.4, rough: 0.6, mark: 'crack', markCol: '#ff8a3a', emissive: 0x5a1a00, trim: 0xffb070, sparkle: true },
   ],
   lames: [
-    { at: 0, name: 'Sans lame', n: 0 },
-    { at: 1, name: '2 lames droites', n: 2, style: 'droite', col: 0xdfe6ec, metal: 0.5 },
-    { at: 4, name: '2 lames larges', n: 2, style: 'large', col: 0xbfc8d4, metal: 0.5 },
-    { at: 7, name: '3 lames courbes', n: 3, style: 'courbe', col: 0xa9c4ef, metal: 0.5 },
-    { at: 10, name: '3 faucilles', n: 3, style: 'faucille', col: 0x8fd0b0, metal: 0.45 },
-    { at: 13, name: '4 faux', n: 4, style: 'faux', col: 0x7d8a99, metal: 0.55 },
-    { at: 16, name: '4 lames dentées', n: 4, style: 'dentee', col: 0xc0c8d0, metal: 0.5 },
-    { at: 19, name: 'Dents de scie', n: 8, style: 'scie', col: 0xcfd6dd, metal: 0.5 },
-    { at: 22, name: '5 crocs', n: 5, style: 'croc', col: 0xf2ead0, metal: 0.1 },
-    { at: 25, name: 'Anneau d’attaque', n: 3, style: 'aile', col: 0xe2483d, metal: 0.3 },
-    { at: 28, name: 'Lames tournoyantes', n: 4, style: 'aileVive', col: 0x4a8af0, metal: 0.3, em: 0x1a3a8a },
-    { at: 31, name: '6 lames de dragon', n: 6, style: 'dragon', col: 0x3ac27f, metal: 0.45, em: 0x0a4a22, dragon: 0x2fa36b },
-    { at: 34, name: '6 lames de cristal', n: 6, style: 'cristal', col: 0xbff4ff, metal: 0.1, em: 0x3fb8d8, glass: true },
-    { at: 37, name: '6 lames d’or', n: 6, style: 'courbe', col: 0xffc72c, metal: 0.6, em: 0x6a4800, dragon: 0xffc72c },
-    { at: 40, name: 'Double anneau de lames', n: 6, style: 'aileVive', col: 0xcfd6dd, metal: 0.55, double: 0xffc72c },
-    { at: 43, name: '8 lames de lave', n: 8, style: 'lave', col: 0xff5a1f, metal: 0.2, em: 0xff3a00, emI: 1.1, dragon: 0xff6a1a },
-    { at: 46, name: '8 lames de glace', n: 8, style: 'glace', col: 0xd8f4ff, metal: 0.1, em: 0x7fd8ff, emI: 0.8, glass: true, dragon: 0x9fe8ff },
-    { at: 49, name: '8 lames d’ombre', n: 8, style: 'ombre', col: 0x2a1a3a, metal: 0.4, em: 0x6a2aaa, emI: 0.9, dragon: 0x8a3aff },
-    { at: 52, name: 'Dragons jumeaux', n: 8, style: 'dragon', col: 0xdfe6ec, metal: 0.55, em: 0x6a4800, dragon: 0x3ac27f, twin: 0xff4a1a },
-    { at: 55, name: 'Lames solaires', n: 8, style: 'soleil', col: 0xffd23a, metal: 0.4, em: 0xffa020, emI: 1, dragon: 0xffd23a, twin: 0xffffff, double: 0xffe9a8 },
-    { at: 58, name: 'Lames du chaos', n: 8, style: 'chaos', col: 0x4a1a5a, metal: 0.5, em: 0xff2a9a, emI: 1.1, dragon: 0xff2a9a, twin: 0x2affd8, hue: true },
-    { at: 60, name: 'Chaos absolu', n: 8, style: 'chaos', col: 0x1a0a20, metal: 0.5, em: 0xff2a9a, emI: 1.3, dragon: 0xff2a9a, twin: 0x2affd8, double: 0xffffff, hue: true },
+    { at: 0, name: T('Sans lame'), n: 0 },
+    { at: 1, name: T('2 lames droites'), n: 2, style: 'droite', col: 0xdfe6ec, metal: 0.5 },
+    { at: 4, name: T('2 lames larges'), n: 2, style: 'large', col: 0xbfc8d4, metal: 0.5 },
+    { at: 7, name: T('3 lames courbes'), n: 3, style: 'courbe', col: 0xa9c4ef, metal: 0.5 },
+    { at: 10, name: T('3 faucilles'), n: 3, style: 'faucille', col: 0x8fd0b0, metal: 0.45 },
+    { at: 13, name: T('4 faux'), n: 4, style: 'faux', col: 0x7d8a99, metal: 0.55 },
+    { at: 16, name: T('4 lames dentées'), n: 4, style: 'dentee', col: 0xc0c8d0, metal: 0.5 },
+    { at: 19, name: T('Dents de scie'), n: 8, style: 'scie', col: 0xcfd6dd, metal: 0.5 },
+    { at: 22, name: T('5 crocs'), n: 5, style: 'croc', col: 0xf2ead0, metal: 0.1 },
+    { at: 25, name: T('Anneau d’attaque'), n: 3, style: 'aile', col: 0xe2483d, metal: 0.3 },
+    { at: 28, name: T('Lames tournoyantes'), n: 4, style: 'aileVive', col: 0x4a8af0, metal: 0.3, em: 0x1a3a8a },
+    { at: 31, name: T('6 lames de dragon'), n: 6, style: 'dragon', col: 0x3ac27f, metal: 0.45, em: 0x0a4a22, dragon: 0x2fa36b },
+    { at: 34, name: T('6 lames de cristal'), n: 6, style: 'cristal', col: 0xbff4ff, metal: 0.1, em: 0x3fb8d8, glass: true },
+    { at: 37, name: T('6 lames d’or'), n: 6, style: 'courbe', col: 0xffc72c, metal: 0.6, em: 0x6a4800, dragon: 0xffc72c },
+    { at: 40, name: T('Double anneau de lames'), n: 6, style: 'aileVive', col: 0xcfd6dd, metal: 0.55, double: 0xffc72c },
+    { at: 43, name: T('8 lames de lave'), n: 8, style: 'lave', col: 0xff5a1f, metal: 0.2, em: 0xff3a00, emI: 1.1, dragon: 0xff6a1a },
+    { at: 46, name: T('8 lames de glace'), n: 8, style: 'glace', col: 0xd8f4ff, metal: 0.1, em: 0x7fd8ff, emI: 0.8, glass: true, dragon: 0x9fe8ff },
+    { at: 49, name: T('8 lames d’ombre'), n: 8, style: 'ombre', col: 0x2a1a3a, metal: 0.4, em: 0x6a2aaa, emI: 0.9, dragon: 0x8a3aff },
+    { at: 52, name: T('Dragons jumeaux'), n: 8, style: 'dragon', col: 0xdfe6ec, metal: 0.55, em: 0x6a4800, dragon: 0x3ac27f, twin: 0xff4a1a },
+    { at: 55, name: T('Lames solaires'), n: 8, style: 'soleil', col: 0xffd23a, metal: 0.4, em: 0xffa020, emI: 1, dragon: 0xffd23a, twin: 0xffffff, double: 0xffe9a8 },
+    { at: 58, name: T('Lames du chaos'), n: 8, style: 'chaos', col: 0x4a1a5a, metal: 0.5, em: 0xff2a9a, emI: 1.1, dragon: 0xff2a9a, twin: 0x2affd8, hue: true },
+    { at: 60, name: T('Chaos absolu'), n: 8, style: 'chaos', col: 0x1a0a20, metal: 0.5, em: 0xff2a9a, emI: 1.3, dragon: 0xff2a9a, twin: 0x2affd8, double: 0xffffff, hue: true },
   ],
   endurance: [
-    { at: 0, name: 'Poignée bâton', knob: 'stick' },
-    { at: 1, name: 'Anneau émeraude', ring: 0x3ad35a, knob: 'ball', knobCol: 0x3ad35a },
-    { at: 4, name: 'Poignée boule', ring: 0xff9f43, knob: 'ball', knobCol: 0xff9f43 },
-    { at: 7, name: 'Anneau saphir', ring: 0x3a8dff, knob: 'ball', knobCol: 0x3a8dff, gloss: true },
-    { at: 10, name: 'Gemme violette', ring: 0xa25cff, knob: 'gem', knobCol: 0xa25cff },
-    { at: 13, name: 'Gemme rouge', ring: 0xff3a3a, knob: 'gem', knobCol: 0xff3a3a },
-    { at: 16, name: 'Étoile topaze', ring: 0xffc23a, knob: 'star', knobCol: 0xffc23a },
-    { at: 19, name: 'Flamme éternelle', ring: 0xff7a1a, knob: 'flame', knobCol: 0xff7a1a },
-    { at: 22, name: 'Couche d’énergie', ring: 0x3fd8ff, knob: 'crystal', knobCol: 0xbff4ff, dome: 0x3fd8ff },
-    { at: 25, name: 'Dôme de jade', ring: 0x3fae7a, knob: 'crystal', knobCol: 0x9ff0c8, dome: 0x3fae7a },
-    { at: 28, name: 'Couronne d’ambre', ring: 0xffa31a, knob: 'crown', knobCol: 0xffa31a, core: true },
-    { at: 31, name: 'Toupie à emblème', ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, emblems: true, core: true },
-    { at: 34, name: 'Cœur turquoise', ring: 0x1fc8c8, knob: 'crown', knobCol: 0xffc72c, core: true, dome: 0x1fc8c8, emblems: true },
-    { at: 37, name: 'Flamme de grenat', ring: 0x9a1030, knob: 'flame', knobCol: 0xff3a3a, core: true, dome: 0xff3a3a, emblems: true },
-    { at: 40, name: 'Couronne de cristal', ring: 0xeaf6ff, knob: 'crown', knobCol: 0xeaf6ff, core: true, crystals: true, emblems: true },
-    { at: 43, name: 'Anneau doré', ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, core: true, crystals: true, emblems: true, dome: 0xffd45a },
-    { at: 46, name: 'Anneau céleste', ring: 0x2a3aff, knob: 'crown', knobCol: 0xbfd0ff, core: true, crystals: true, stars: true, emblems: true },
-    { at: 49, name: 'Anneau divin', ring: 0xfff2b0, knob: 'crown', knobCol: 0xffe9a8, core: true, crystals: true, halo: true, emblems: true },
-    { at: 52, name: 'Anneau arc-en-ciel', ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, emblems: true, stars: true },
-    { at: 55, name: 'Anneau éternel', ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, beam: true, emblems: true, stars: true, dome: 'rainbow' },
+    { at: 0, name: T('Poignée bâton'), knob: 'stick' },
+    { at: 1, name: T('Anneau émeraude'), ring: 0x3ad35a, knob: 'ball', knobCol: 0x3ad35a },
+    { at: 4, name: T('Poignée boule'), ring: 0xff9f43, knob: 'ball', knobCol: 0xff9f43 },
+    { at: 7, name: T('Anneau saphir'), ring: 0x3a8dff, knob: 'ball', knobCol: 0x3a8dff, gloss: true },
+    { at: 10, name: T('Gemme violette'), ring: 0xa25cff, knob: 'gem', knobCol: 0xa25cff },
+    { at: 13, name: T('Gemme rouge'), ring: 0xff3a3a, knob: 'gem', knobCol: 0xff3a3a },
+    { at: 16, name: T('Étoile topaze'), ring: 0xffc23a, knob: 'star', knobCol: 0xffc23a },
+    { at: 19, name: T('Flamme éternelle'), ring: 0xff7a1a, knob: 'flame', knobCol: 0xff7a1a },
+    { at: 22, name: T('Couche d’énergie'), ring: 0x3fd8ff, knob: 'crystal', knobCol: 0xbff4ff, dome: 0x3fd8ff },
+    { at: 25, name: T('Dôme de jade'), ring: 0x3fae7a, knob: 'crystal', knobCol: 0x9ff0c8, dome: 0x3fae7a },
+    { at: 28, name: T('Couronne d’ambre'), ring: 0xffa31a, knob: 'crown', knobCol: 0xffa31a, core: true },
+    { at: 31, name: T('Toupie à emblème'), ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, emblems: true, core: true },
+    { at: 34, name: T('Cœur turquoise'), ring: 0x1fc8c8, knob: 'crown', knobCol: 0xffc72c, core: true, dome: 0x1fc8c8, emblems: true },
+    { at: 37, name: T('Flamme de grenat'), ring: 0x9a1030, knob: 'flame', knobCol: 0xff3a3a, core: true, dome: 0xff3a3a, emblems: true },
+    { at: 40, name: T('Couronne de cristal'), ring: 0xeaf6ff, knob: 'crown', knobCol: 0xeaf6ff, core: true, crystals: true, emblems: true },
+    { at: 43, name: T('Anneau doré'), ring: 0xffc23a, knob: 'crown', knobCol: 0xffc72c, core: true, crystals: true, emblems: true, dome: 0xffd45a },
+    { at: 46, name: T('Anneau céleste'), ring: 0x2a3aff, knob: 'crown', knobCol: 0xbfd0ff, core: true, crystals: true, stars: true, emblems: true },
+    { at: 49, name: T('Anneau divin'), ring: 0xfff2b0, knob: 'crown', knobCol: 0xffe9a8, core: true, crystals: true, halo: true, emblems: true },
+    { at: 52, name: T('Anneau arc-en-ciel'), ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, emblems: true, stars: true },
+    { at: 55, name: T('Anneau éternel'), ring: 'rainbow', knob: 'crown', knobCol: 0xffffff, core: true, crystals: true, halo: true, beam: true, emblems: true, stars: true, dome: 'rainbow' },
   ],
   pointe: [
-    { at: 0, name: 'Pointe plastique', shape: 'cone', col: 0xf2efe8 },
-    { at: 3, name: 'Pointe en bois', shape: 'cone', col: 0x9a6a3a, rough: 0.8 },
-    { at: 6, name: 'Pointe acier', shape: 'sharp', col: 0xc9d1d8, metal: 0.6 },
-    { at: 9, name: 'Pointe à bille', shape: 'ball', col: 0xdfe6ec, metal: 0.6, ring: 0xffc94a },
-    { at: 12, name: 'Pointe en cuivre', shape: 'sharp', col: 0xc87533, metal: 0.6 },
-    { at: 15, name: 'Pointe rubis', shape: 'facet6', col: 0xe0115f, em: 0x7a0020 },
-    { at: 18, name: 'Pointe émeraude', shape: 'facet6', col: 0x18b06a, em: 0x0a5a30 },
-    { at: 21, name: 'Pointe saphir', shape: 'facet6', col: 0x2a5bd7, em: 0x102a7a },
-    { at: 24, name: 'Pointe diamant', shape: 'facet5', col: 0xbff4ff, em: 0x3fb8d8, glass: true },
-    { at: 27, name: 'Pointes d’or', shape: 'sharp', col: 0xffc72c, metal: 0.6, em: 0x6a4800 },
-    { at: 30, name: 'Pointe de jade', shape: 'ball', col: 0x3fae7a, em: 0x0a3a20, ring: 0xffd67a },
-    { at: 33, name: 'Pointe de lave', shape: 'facet6', col: 0xff5a1a, em: 0xff3a00, emI: 1 },
-    { at: 36, name: 'Pointe de cristal', shape: 'facet5', col: 0xffffff, em: 0xbfefff, glass: true, sparkle: 0xffffff },
-    { at: 39, name: 'Pointe étoile', shape: 'star', col: 0xffd45a, em: 0xffb020, sparkle: 0xfff0a0 },
-    { at: 40, name: 'Pointe comète', shape: 'star', col: 0xeaf6ff, em: 0x7fd8ff, sparkle: 0xbfe8ff, big: true },
+    { at: 0, name: T('Pointe plastique'), shape: 'cone', col: 0xf2efe8 },
+    { at: 3, name: T('Pointe en bois'), shape: 'cone', col: 0x9a6a3a, rough: 0.8 },
+    { at: 6, name: T('Pointe acier'), shape: 'sharp', col: 0xc9d1d8, metal: 0.6 },
+    { at: 9, name: T('Pointe à bille'), shape: 'ball', col: 0xdfe6ec, metal: 0.6, ring: 0xffc94a },
+    { at: 12, name: T('Pointe en cuivre'), shape: 'sharp', col: 0xc87533, metal: 0.6 },
+    { at: 15, name: T('Pointe rubis'), shape: 'facet6', col: 0xe0115f, em: 0x7a0020 },
+    { at: 18, name: T('Pointe émeraude'), shape: 'facet6', col: 0x18b06a, em: 0x0a5a30 },
+    { at: 21, name: T('Pointe saphir'), shape: 'facet6', col: 0x2a5bd7, em: 0x102a7a },
+    { at: 24, name: T('Pointe diamant'), shape: 'facet5', col: 0xbff4ff, em: 0x3fb8d8, glass: true },
+    { at: 27, name: T('Pointes d’or'), shape: 'sharp', col: 0xffc72c, metal: 0.6, em: 0x6a4800 },
+    { at: 30, name: T('Pointe de jade'), shape: 'ball', col: 0x3fae7a, em: 0x0a3a20, ring: 0xffd67a },
+    { at: 33, name: T('Pointe de lave'), shape: 'facet6', col: 0xff5a1a, em: 0xff3a00, emI: 1 },
+    { at: 36, name: T('Pointe de cristal'), shape: 'facet5', col: 0xffffff, em: 0xbfefff, glass: true, sparkle: 0xffffff },
+    { at: 39, name: T('Pointe étoile'), shape: 'star', col: 0xffd45a, em: 0xffb020, sparkle: 0xfff0a0 },
+    { at: 40, name: T('Pointe comète'), shape: 'star', col: 0xeaf6ff, em: 0x7fd8ff, sparkle: 0xbfe8ff, big: true },
   ],
   inertie: [
-    { at: 0, name: 'Sans volant' },
-    { at: 1, name: 'Volant léger', col: 0xc9d1d8 },
-    { at: 4, name: 'Bande de course', col: 0xc9d1d8, band: 0xe2483d },
-    { at: 7, name: 'Volant d’acier', col: 0x9aa4ad, band: 0xe2483d },
-    { at: 10, name: 'Volant bleu', col: 0x3a7ad8, band: 0xffffff },
-    { at: 13, name: 'Volant de cuivre', col: 0xc87533, band: 0x2b2f36 },
-    { at: 16, name: 'Volant lourd', col: 0x5a5f68, band: 0xffc72c },
-    { at: 19, name: 'Volant de laiton', col: 0xd9b25a, lip: 0xc9a24a },
-    { at: 22, name: 'Toupie argentée', col: 0xe6ebef, lip: 0xffffff, band: 0x5ab8ff },
-    { at: 25, name: 'Double volant', col: 0x9aa4ad, lip: 0xc9a24a, double: true },
-    { at: 28, name: 'Volant de bronze', col: 0xa8763a, lip: 0xffd67a, double: true },
-    { at: 31, name: 'Volant de tungstène', col: 0x5a6a80, lip: 0x9fe8ff, double: true, band: 0x9fe8ff },
-    { at: 34, name: 'Volant noir', col: 0x23262c, lip: 0xe2483d, double: true, band: 0xe2483d },
-    { at: 37, name: 'Volant doré', col: 0xffc94a, lip: 0xffffff, double: true },
-    { at: 40, name: 'Volant de jade', col: 0x3fae7a, em: 0x0a3a20, lip: 0xffd67a, double: true },
-    { at: 43, name: 'Volant de cristal', col: 0xbff4ff, em: 0x3fb8d8, glass: true, lip: 0xffffff, double: true },
-    { at: 45, name: 'Volant éternel', col: 0xfff2c0, em: 0xffc23a, lip: 0xffffff, double: true, band: 'rainbow' },
+    { at: 0, name: T('Sans volant') },
+    { at: 1, name: T('Volant léger'), col: 0xc9d1d8 },
+    { at: 4, name: T('Bande de course'), col: 0xc9d1d8, band: 0xe2483d },
+    { at: 7, name: T('Volant d’acier'), col: 0x9aa4ad, band: 0xe2483d },
+    { at: 10, name: T('Volant bleu'), col: 0x3a7ad8, band: 0xffffff },
+    { at: 13, name: T('Volant de cuivre'), col: 0xc87533, band: 0x2b2f36 },
+    { at: 16, name: T('Volant lourd'), col: 0x5a5f68, band: 0xffc72c },
+    { at: 19, name: T('Volant de laiton'), col: 0xd9b25a, lip: 0xc9a24a },
+    { at: 22, name: T('Toupie argentée'), col: 0xe6ebef, lip: 0xffffff, band: 0x5ab8ff },
+    { at: 25, name: T('Double volant'), col: 0x9aa4ad, lip: 0xc9a24a, double: true },
+    { at: 28, name: T('Volant de bronze'), col: 0xa8763a, lip: 0xffd67a, double: true },
+    { at: 31, name: T('Volant de tungstène'), col: 0x5a6a80, lip: 0x9fe8ff, double: true, band: 0x9fe8ff },
+    { at: 34, name: T('Volant noir'), col: 0x23262c, lip: 0xe2483d, double: true, band: 0xe2483d },
+    { at: 37, name: T('Volant doré'), col: 0xffc94a, lip: 0xffffff, double: true },
+    { at: 40, name: T('Volant de jade'), col: 0x3fae7a, em: 0x0a3a20, lip: 0xffd67a, double: true },
+    { at: 43, name: T('Volant de cristal'), col: 0xbff4ff, em: 0x3fb8d8, glass: true, lip: 0xffffff, double: true },
+    { at: 45, name: T('Volant éternel'), col: 0xfff2c0, em: 0xffc23a, lip: 0xffffff, double: true, band: 'rainbow' },
   ],
   equilibre: [
-    { at: 0, name: 'Sans gyroscope', n: 0 },
-    { at: 1, name: 'Gyroscope', n: 1, col: 0x5fd3c8 },
-    { at: 4, name: 'Gyroscope rouge', n: 1, col: 0xe2483d },
-    { at: 7, name: 'Gyroscope doré', n: 1, col: 0xffc72c },
-    { at: 10, name: 'Double gyroscope', n: 2, col: 0x5fd3c8 },
-    { at: 13, name: 'Double gyroscope bleu', n: 2, col: 0x3a7ad8 },
-    { at: 16, name: 'Double gyroscope de cuivre', n: 2, col: 0xc87533 },
-    { at: 19, name: 'Triple gyroscope', n: 3, col: 0x5fd3c8 },
-    { at: 22, name: 'Triple gyroscope violet', n: 3, col: 0x9b59d0 },
-    { at: 25, name: 'Gyroscope de cristal', n: 3, col: 0xbff4ff, glow: true, glass: true },
-    { at: 28, name: 'Gyroscope de rubis', n: 3, col: 0xe0115f, glow: true },
-    { at: 31, name: 'Gyroscope d’émeraude', n: 3, col: 0x18b06a, glow: true },
-    { at: 34, name: 'Gyroscope stellaire', n: 3, col: 0xffd45a, glow: true, stars: true },
-    { at: 37, name: 'Gyroscope galactique', n: 3, col: 0x9b59d0, glow: true, stars: true },
-    { at: 40, name: 'Gyroscope infini', n: 3, col: 0xffffff, glow: true, stars: true, rainbow: true },
+    { at: 0, name: T('Sans gyroscope'), n: 0 },
+    { at: 1, name: T('Gyroscope'), n: 1, col: 0x5fd3c8 },
+    { at: 4, name: T('Gyroscope rouge'), n: 1, col: 0xe2483d },
+    { at: 7, name: T('Gyroscope doré'), n: 1, col: 0xffc72c },
+    { at: 10, name: T('Double gyroscope'), n: 2, col: 0x5fd3c8 },
+    { at: 13, name: T('Double gyroscope bleu'), n: 2, col: 0x3a7ad8 },
+    { at: 16, name: T('Double gyroscope de cuivre'), n: 2, col: 0xc87533 },
+    { at: 19, name: T('Triple gyroscope'), n: 3, col: 0x5fd3c8 },
+    { at: 22, name: T('Triple gyroscope violet'), n: 3, col: 0x9b59d0 },
+    { at: 25, name: T('Gyroscope de cristal'), n: 3, col: 0xbff4ff, glow: true, glass: true },
+    { at: 28, name: T('Gyroscope de rubis'), n: 3, col: 0xe0115f, glow: true },
+    { at: 31, name: T('Gyroscope d’émeraude'), n: 3, col: 0x18b06a, glow: true },
+    { at: 34, name: T('Gyroscope stellaire'), n: 3, col: 0xffd45a, glow: true, stars: true },
+    { at: 37, name: T('Gyroscope galactique'), n: 3, col: 0x9b59d0, glow: true, stars: true },
+    { at: 40, name: T('Gyroscope infini'), n: 3, col: 0xffffff, glow: true, stars: true, rainbow: true },
   ],
   rebond: [
-    { at: 0, name: 'Sans pare-chocs' },
-    { at: 1, name: 'Pare-chocs caoutchouc', col: 0x1d1d1d },
-    { at: 3, name: 'Pare-chocs rouges', col: 0xb02a2a },
-    { at: 5, name: 'Pare-chocs bleus', col: 0x2a5bd7 },
-    { at: 7, name: 'Pare-chocs renforcés', col: 0x2b2f36, studs: true },
-    { at: 9, name: 'Pare-chocs fluo', col: 0x39ff6a, em: 0x0f7a35 },
-    { at: 11, name: 'Pare-chocs fluo rose', col: 0xff5ac8, em: 0x7a1a5a, studs: true },
-    { at: 12, name: 'Pare-chocs néon', col: 0xffffff, em: 0xffffff, rainbow: true, studs: true },
+    { at: 0, name: T('Sans pare-chocs') },
+    { at: 1, name: T('Pare-chocs caoutchouc'), col: 0x1d1d1d },
+    { at: 3, name: T('Pare-chocs rouges'), col: 0xb02a2a },
+    { at: 5, name: T('Pare-chocs bleus'), col: 0x2a5bd7 },
+    { at: 7, name: T('Pare-chocs renforcés'), col: 0x2b2f36, studs: true },
+    { at: 9, name: T('Pare-chocs fluo'), col: 0x39ff6a, em: 0x0f7a35 },
+    { at: 11, name: T('Pare-chocs fluo rose'), col: 0xff5ac8, em: 0x7a1a5a, studs: true },
+    { at: 12, name: T('Pare-chocs néon'), col: 0xffffff, em: 0xffffff, rainbow: true, studs: true },
   ],
   agressivite: [
-    { at: 0, name: 'Gentille' },
-    { at: 1, name: 'Petites dents', len: 0.1, col: 0x2b2b2b },
-    { at: 4, name: 'Dents noires', len: 0.12, col: 0x111111 },
-    { at: 7, name: 'Épines', len: 0.15, col: 0x2b2b2b },
-    { at: 10, name: 'Épines rouges', len: 0.16, col: 0xb02a2a },
-    { at: 13, name: 'Crocs', len: 0.2, col: 0xf2ead0 },
-    { at: 16, name: 'Crocs d’acier', len: 0.21, col: 0xdfe6ec, metal: 0.6 },
-    { at: 19, name: 'Crocs dorés', len: 0.22, col: 0xffc72c, metal: 0.6 },
-    { at: 22, name: 'Épines et yeux rouges', len: 0.22, col: 0x2b2b2b, eyes: true },
-    { at: 25, name: 'Crocs de démon', len: 0.26, col: 0x6a0a0a, em: 0xff1a1a, eyes: true },
+    { at: 0, name: T('Gentille') },
+    { at: 1, name: T('Petites dents'), len: 0.1, col: 0x2b2b2b },
+    { at: 4, name: T('Dents noires'), len: 0.12, col: 0x111111 },
+    { at: 7, name: T('Épines'), len: 0.15, col: 0x2b2b2b },
+    { at: 10, name: T('Épines rouges'), len: 0.16, col: 0xb02a2a },
+    { at: 13, name: T('Crocs'), len: 0.2, col: 0xf2ead0 },
+    { at: 16, name: T('Crocs d’acier'), len: 0.21, col: 0xdfe6ec, metal: 0.6 },
+    { at: 19, name: T('Crocs dorés'), len: 0.22, col: 0xffc72c, metal: 0.6 },
+    { at: 22, name: T('Épines et yeux rouges'), len: 0.22, col: 0x2b2b2b, eyes: true },
+    { at: 25, name: T('Crocs de démon'), len: 0.26, col: 0x6a0a0a, em: 0xff1a1a, eyes: true },
   ],
   critique: [
-    { at: 0, name: 'Sans gemme' },
-    { at: 1, name: 'Étincelles', gem: 'stud', col: 0xb87333, aura: 0xffe066 },
-    { at: 4, name: 'Clous d’argent', gem: 'stud', col: 0xdfe6ec, aura: 0xffe066 },
-    { at: 7, name: 'Gemmes topaze', gem: 'octa', col: 0xffc72c, aura: 0xffe066 },
-    { at: 10, name: 'Aura rouge', gem: 'octa', col: 0xe0115f, aura: 0xff3b3b, auraW: 0.08 },
-    { at: 13, name: 'Pointes d’or', gem: 'cone', col: 0xffc72c, aura: 0xff3b3b, auraW: 0.08 },
-    { at: 16, name: 'Cristaux lumineux', gem: 'crystal', col: 0xbff4ff, aura: 0x8fd3ff },
-    { at: 19, name: 'Aura de foudre', gem: 'octa', col: 0x2a5bd7, aura: 0x8fd3ff, auraW: 0.08 },
-    { at: 22, name: 'Orbes lumineux', gem: 'orb', col: 0x9b59d0, aura: 0xc9a2ff },
-    { at: 25, name: 'Étoiles dorées', gem: 'gold', col: 0xffc72c, aura: 0xffd45a },
-    { at: 28, name: 'Flèches de cristal', gem: 'arrow', col: 0x7fd8ff, aura: 0x7fd8ff },
-    { at: 31, name: 'Gemmes émeraude', gem: 'octa', col: 0x18b06a, aura: 0x3ad35a },
-    { at: 34, name: 'Diamants blancs', gem: 'dodeca', col: 0xffffff, aura: 0xffffff },
-    { at: 37, name: 'Joyaux étincelants', gem: 'jewel', col: 0xeaf6ff, aura: 0xffe9a8, sparkle: true },
-    { at: 40, name: 'Aura légendaire', gem: 'jewel', col: 0xffd45a, aura: 0xffd45a, legend: 0xffd45a },
-    { at: 43, name: 'Aura mythique', gem: 'jewel', col: 0xff4a1a, aura: 0xff4a1a, legend: 0xff4a1a },
-    { at: 45, name: 'Diamants éternels', gem: 'dodeca', col: 0xffffff, aura: 'rainbow', legend: 'rainbow', sparkle: true },
+    { at: 0, name: T('Sans gemme') },
+    { at: 1, name: T('Étincelles'), gem: 'stud', col: 0xb87333, aura: 0xffe066 },
+    { at: 4, name: T('Clous d’argent'), gem: 'stud', col: 0xdfe6ec, aura: 0xffe066 },
+    { at: 7, name: T('Gemmes topaze'), gem: 'octa', col: 0xffc72c, aura: 0xffe066 },
+    { at: 10, name: T('Aura rouge'), gem: 'octa', col: 0xe0115f, aura: 0xff3b3b, auraW: 0.08 },
+    { at: 13, name: T('Pointes d’or'), gem: 'cone', col: 0xffc72c, aura: 0xff3b3b, auraW: 0.08 },
+    { at: 16, name: T('Cristaux lumineux'), gem: 'crystal', col: 0xbff4ff, aura: 0x8fd3ff },
+    { at: 19, name: T('Aura de foudre'), gem: 'octa', col: 0x2a5bd7, aura: 0x8fd3ff, auraW: 0.08 },
+    { at: 22, name: T('Orbes lumineux'), gem: 'orb', col: 0x9b59d0, aura: 0xc9a2ff },
+    { at: 25, name: T('Étoiles dorées'), gem: 'gold', col: 0xffc72c, aura: 0xffd45a },
+    { at: 28, name: T('Flèches de cristal'), gem: 'arrow', col: 0x7fd8ff, aura: 0x7fd8ff },
+    { at: 31, name: T('Gemmes émeraude'), gem: 'octa', col: 0x18b06a, aura: 0x3ad35a },
+    { at: 34, name: T('Diamants blancs'), gem: 'dodeca', col: 0xffffff, aura: 0xffffff },
+    { at: 37, name: T('Joyaux étincelants'), gem: 'jewel', col: 0xeaf6ff, aura: 0xffe9a8, sparkle: true },
+    { at: 40, name: T('Aura légendaire'), gem: 'jewel', col: 0xffd45a, aura: 0xffd45a, legend: 0xffd45a },
+    { at: 43, name: T('Aura mythique'), gem: 'jewel', col: 0xff4a1a, aura: 0xff4a1a, legend: 0xff4a1a },
+    { at: 45, name: T('Diamants éternels'), gem: 'dodeca', col: 0xffffff, aura: 'rainbow', legend: 'rainbow', sparkle: true },
   ],
   feu: [
-    { at: 0, name: 'Sans feu' },
-    { at: 1, name: 'Braises', col: 0xff8a20 },
-    { at: 4, name: 'Flammes', col: 0xffa030 },
-    { at: 7, name: 'Flammes jaunes', col: 0xffd23a },
-    { at: 10, name: 'Feu d’enfer', col: 0xff4a1a },
-    { at: 13, name: 'Flammes vertes', col: 0x3aff6a },
-    { at: 16, name: 'Flammes violettes', col: 0xb05aff },
-    { at: 19, name: 'Flammes bleues', col: 0x4ab8ff },
-    { at: 22, name: 'Flammes blanches', col: 0xeaf6ff },
-    { at: 25, name: 'Couronne solaire', col: 0xffc24a, rays: 0xffc24a },
-    { at: 28, name: 'Flammes dorées', col: 0xffd23a, rays: 0xffe9a8 },
-    { at: 31, name: 'Feu sacré', col: 0xfff2c0, rays: 0xffffff },
-    { at: 34, name: 'Toupie flamboyante', col: 0xff6a1a, rays: 0xffc24a, rainbow: true },
-    { at: 35, name: 'Phénix', col: 0xffd23a, rays: 0xffc24a, phoenix: true },
+    { at: 0, name: T('Sans feu') },
+    { at: 1, name: T('Braises'), col: 0xff8a20 },
+    { at: 4, name: T('Flammes'), col: 0xffa030 },
+    { at: 7, name: T('Flammes jaunes'), col: 0xffd23a },
+    { at: 10, name: T('Feu d’enfer'), col: 0xff4a1a },
+    { at: 13, name: T('Flammes vertes'), col: 0x3aff6a },
+    { at: 16, name: T('Flammes violettes'), col: 0xb05aff },
+    { at: 19, name: T('Flammes bleues'), col: 0x4ab8ff },
+    { at: 22, name: T('Flammes blanches'), col: 0xeaf6ff },
+    { at: 25, name: T('Couronne solaire'), col: 0xffc24a, rays: 0xffc24a },
+    { at: 28, name: T('Flammes dorées'), col: 0xffd23a, rays: 0xffe9a8 },
+    { at: 31, name: T('Feu sacré'), col: 0xfff2c0, rays: 0xffffff },
+    { at: 34, name: T('Toupie flamboyante'), col: 0xff6a1a, rays: 0xffc24a, rainbow: true },
+    { at: 35, name: T('Phénix'), col: 0xffd23a, rays: 0xffc24a, phoenix: true },
   ],
   souffle: [
-    { at: 0, name: 'Sans souffle' },
-    { at: 1, name: 'Ailettes', col: 0xe6f6ff },
-    { at: 3, name: 'Ailettes bleues', col: 0x7fc3ff },
-    { at: 5, name: 'Brise', col: 0xbfeaff, glow: true },
-    { at: 7, name: 'Vent doré', col: 0xffe9a8, glow: true },
-    { at: 9, name: 'Grand souffle', col: 0xdff6ff, glow: true },
-    { at: 11, name: 'Souffle glacé', col: 0x9fe8ff, glow: true },
-    { at: 13, name: 'Tourbillons d’air', col: 0xeaf6ff, glow: true },
-    { at: 15, name: 'Tempête de vent', col: 0xc9f0ff, glow: true },
-    { at: 17, name: 'Souffle céleste', col: 0xffffff, glow: true, rainbow: true },
+    { at: 0, name: T('Sans souffle') },
+    { at: 1, name: T('Ailettes'), col: 0xe6f6ff },
+    { at: 3, name: T('Ailettes bleues'), col: 0x7fc3ff },
+    { at: 5, name: T('Brise'), col: 0xbfeaff, glow: true },
+    { at: 7, name: T('Vent doré'), col: 0xffe9a8, glow: true },
+    { at: 9, name: T('Grand souffle'), col: 0xdff6ff, glow: true },
+    { at: 11, name: T('Souffle glacé'), col: 0x9fe8ff, glow: true },
+    { at: 13, name: T('Tourbillons d’air'), col: 0xeaf6ff, glow: true },
+    { at: 15, name: T('Tempête de vent'), col: 0xc9f0ff, glow: true },
+    { at: 17, name: T('Souffle céleste'), col: 0xffffff, glow: true, rainbow: true },
   ],
   eclair: [
-    { at: 0, name: 'Sans éclairs' },
-    { at: 1, name: 'Étincelles bleues', col: 0x9fe8ff, em: 0x3fb8ff },
-    { at: 3, name: 'Cristaux de foudre', col: 0xbff4ff, em: 0x3fd8ff },
-    { at: 5, name: 'Éclairs violets', col: 0xd0a0ff, em: 0x8a3aff, orbs: true },
-    { at: 7, name: 'Orbes électriques', col: 0x9fe8ff, em: 0x3fb8ff, orbs: true },
-    { at: 9, name: 'Couronne d’orage', col: 0xbff4ff, em: 0x3fd8ff, orbs: true, arcs: true },
-    { at: 11, name: 'Tempête quadruple', col: 0x9fe8ff, em: 0x3fb8ff, orbs: true, arcs: true },
-    { at: 13, name: 'Foudre dorée', col: 0xffe9a8, em: 0xffc23a, orbs: true, arcs: true },
-    { at: 15, name: 'Foudre rouge', col: 0xffa0a0, em: 0xff3a3a, orbs: true, arcs: true },
-    { at: 17, name: 'Tempête électrique', col: 0xeaf6ff, em: 0x7fd8ff, orbs: true, arcs: true, big: true },
-    { at: 18, name: 'Colère céleste', col: 0xffffff, em: 0xffffff, orbs: true, arcs: true, big: true, rainbow: true },
+    { at: 0, name: T('Sans éclairs') },
+    { at: 1, name: T('Étincelles bleues'), col: 0x9fe8ff, em: 0x3fb8ff },
+    { at: 3, name: T('Cristaux de foudre'), col: 0xbff4ff, em: 0x3fd8ff },
+    { at: 5, name: T('Éclairs violets'), col: 0xd0a0ff, em: 0x8a3aff, orbs: true },
+    { at: 7, name: T('Orbes électriques'), col: 0x9fe8ff, em: 0x3fb8ff, orbs: true },
+    { at: 9, name: T('Couronne d’orage'), col: 0xbff4ff, em: 0x3fd8ff, orbs: true, arcs: true },
+    { at: 11, name: T('Tempête quadruple'), col: 0x9fe8ff, em: 0x3fb8ff, orbs: true, arcs: true },
+    { at: 13, name: T('Foudre dorée'), col: 0xffe9a8, em: 0xffc23a, orbs: true, arcs: true },
+    { at: 15, name: T('Foudre rouge'), col: 0xffa0a0, em: 0xff3a3a, orbs: true, arcs: true },
+    { at: 17, name: T('Tempête électrique'), col: 0xeaf6ff, em: 0x7fd8ff, orbs: true, arcs: true, big: true },
+    { at: 18, name: T('Colère céleste'), col: 0xffffff, em: 0xffffff, orbs: true, arcs: true, big: true, rainbow: true },
   ],
   tornade: [
-    { at: 0, name: 'Sans tourbillon' },
-    { at: 1, name: 'Courant d’air', col: 0xd8f4ff },
-    { at: 3, name: 'Rafale', col: 0xbfeaff },
-    { at: 5, name: 'Tornade', col: 0xd8f4ff },
-    { at: 7, name: 'Ruban de lumière', col: 0xd8f4ff, ribbons: 1 },
-    { at: 9, name: 'Ouragan', col: 0xa8d8ff, ribbons: 1 },
-    { at: 11, name: 'Tourbillon doré', col: 0xffe9a8, ribbons: 1 },
-    { at: 13, name: 'Cyclone', col: 0xd8f4ff, ribbons: 2 },
-    { at: 15, name: 'Double ruban', col: 0xeaf6ff, ribbons: 2 },
-    { at: 17, name: 'Œil du cyclone', col: 0xffffff, ribbons: 2, eye: true },
-    { at: 18, name: 'Tempête infinie', col: 0xffffff, ribbons: 2, eye: true, rainbow: true },
+    { at: 0, name: T('Sans tourbillon') },
+    { at: 1, name: T('Courant d’air'), col: 0xd8f4ff },
+    { at: 3, name: T('Rafale'), col: 0xbfeaff },
+    { at: 5, name: T('Tornade'), col: 0xd8f4ff },
+    { at: 7, name: T('Ruban de lumière'), col: 0xd8f4ff, ribbons: 1 },
+    { at: 9, name: T('Ouragan'), col: 0xa8d8ff, ribbons: 1 },
+    { at: 11, name: T('Tourbillon doré'), col: 0xffe9a8, ribbons: 1 },
+    { at: 13, name: T('Cyclone'), col: 0xd8f4ff, ribbons: 2 },
+    { at: 15, name: T('Double ruban'), col: 0xeaf6ff, ribbons: 2 },
+    { at: 17, name: T('Œil du cyclone'), col: 0xffffff, ribbons: 2, eye: true },
+    { at: 18, name: T('Tempête infinie'), col: 0xffffff, ribbons: 2, eye: true, rainbow: true },
   ],
   // ----- Le lanceur -----
   puissance: [
-    { at: 0, name: 'Coque en plastique', body: 0xff8c2a, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0xffd36a, stickers: true },
-    { at: 3, name: 'Coque en plastique bleu', body: 0x2f6fd8, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0x9fd0ff, stickers: true },
-    { at: 6, name: 'Coque renforcée', body: 0xf2701e, metal: 0.1, rough: 0.4, accent: 0x2b2f36, light: 0xffd36a, bolts: true, stickers: true },
-    { at: 9, name: 'Coque en métal', body: 0x9aa4ad, metal: 0.55, rough: 0.28, accent: 0xe84a3a, light: 0xff6a4a, bolts: true, metalParts: true },
-    { at: 12, name: 'Coque en cuivre', body: 0xc87533, metal: 0.55, rough: 0.3, accent: 0x2b2f36, light: 0xffb070, bolts: true, metalParts: true },
-    { at: 15, name: 'Coque à ressorts', body: 0x7d8a96, metal: 0.55, rough: 0.3, accent: 0x37c6ff, light: 0x37c6ff, bolts: true, metalParts: true, springs: true },
-    { at: 18, name: 'Coque de course', body: 0xe8322a, metal: 0.35, rough: 0.22, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true },
-    { at: 21, name: 'Coque carbone', body: 0x2b2b30, metal: 0.3, rough: 0.35, accent: 0xff3a3a, light: 0xff3a3a, bolts: true, metalParts: true, springs: true, padChrome: true },
-    { at: 24, name: 'Coque néon', body: 0x1c222c, metal: 0.6, rough: 0.3, accent: 0x35e8ff, light: 0x35e8ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
-    { at: 27, name: 'Coque néon rose', body: 0x221c2c, metal: 0.6, rough: 0.3, accent: 0xff5ac8, light: 0xff5ac8, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
-    { at: 30, name: 'Coque bleu nuit', body: 0x24304a, metal: 0.6, rough: 0.28, accent: 0x58a6ff, light: 0x58a6ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
-    { at: 33, name: 'Coque blanche', body: 0xf2f2f2, metal: 0.3, rough: 0.25, accent: 0xe8322a, light: 0xff8a2a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
-    { at: 36, name: 'Coque rubis', body: 0x9a1030, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0xff4a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
-    { at: 39, name: 'Coque émeraude', body: 0x0f7a45, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0x3aff8a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
-    { at: 42, name: 'Coque dorée', body: 0xffc94a, metal: 0.65, rough: 0.18, accent: 0xfff2b0, light: 0xfff2b0, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
-    { at: 45, name: 'Coque à plasma', body: 0x2a1a44, metal: 0.6, rough: 0.25, accent: 0xc05aff, light: 0xd07aff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true },
-    { at: 48, name: 'Coque légendaire', body: 0x101018, metal: 0.65, rough: 0.15, accent: 0xff3a6a, light: 0xff3a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
-    { at: 51, name: 'Coque cosmique', body: 0x1a1040, metal: 0.6, rough: 0.2, accent: 0x9fd0ff, light: 0x9fd0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true },
-    { at: 54, name: 'Coque arc-en-ciel', body: 0xf4f6ff, metal: 0.4, rough: 0.15, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
-    { at: 57, name: 'Coque mythique', body: 0xf4f6ff, metal: 0.55, rough: 0.12, accent: 0x7af0ff, light: 0x7af0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, wings: true, hue: true },
+    { at: 0, name: T('Coque en plastique'), body: 0xff8c2a, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0xffd36a, stickers: true },
+    { at: 3, name: T('Coque en plastique bleu'), body: 0x2f6fd8, metal: 0.05, rough: 0.45, accent: 0xffffff, light: 0x9fd0ff, stickers: true },
+    { at: 6, name: T('Coque renforcée'), body: 0xf2701e, metal: 0.1, rough: 0.4, accent: 0x2b2f36, light: 0xffd36a, bolts: true, stickers: true },
+    { at: 9, name: T('Coque en métal'), body: 0x9aa4ad, metal: 0.55, rough: 0.28, accent: 0xe84a3a, light: 0xff6a4a, bolts: true, metalParts: true },
+    { at: 12, name: T('Coque en cuivre'), body: 0xc87533, metal: 0.55, rough: 0.3, accent: 0x2b2f36, light: 0xffb070, bolts: true, metalParts: true },
+    { at: 15, name: T('Coque à ressorts'), body: 0x7d8a96, metal: 0.55, rough: 0.3, accent: 0x37c6ff, light: 0x37c6ff, bolts: true, metalParts: true, springs: true },
+    { at: 18, name: T('Coque de course'), body: 0xe8322a, metal: 0.35, rough: 0.22, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true },
+    { at: 21, name: T('Coque carbone'), body: 0x2b2b30, metal: 0.3, rough: 0.35, accent: 0xff3a3a, light: 0xff3a3a, bolts: true, metalParts: true, springs: true, padChrome: true },
+    { at: 24, name: T('Coque néon'), body: 0x1c222c, metal: 0.6, rough: 0.3, accent: 0x35e8ff, light: 0x35e8ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 27, name: T('Coque néon rose'), body: 0x221c2c, metal: 0.6, rough: 0.3, accent: 0xff5ac8, light: 0xff5ac8, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 30, name: T('Coque bleu nuit'), body: 0x24304a, metal: 0.6, rough: 0.28, accent: 0x58a6ff, light: 0x58a6ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 33, name: T('Coque blanche'), body: 0xf2f2f2, metal: 0.3, rough: 0.25, accent: 0xe8322a, light: 0xff8a2a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true },
+    { at: 36, name: T('Coque rubis'), body: 0x9a1030, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0xff4a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 39, name: T('Coque émeraude'), body: 0x0f7a45, metal: 0.5, rough: 0.2, accent: 0xffc72c, light: 0x3aff8a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 42, name: T('Coque dorée'), body: 0xffc94a, metal: 0.65, rough: 0.18, accent: 0xfff2b0, light: 0xfff2b0, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true },
+    { at: 45, name: T('Coque à plasma'), body: 0x2a1a44, metal: 0.6, rough: 0.25, accent: 0xc05aff, light: 0xd07aff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true },
+    { at: 48, name: T('Coque légendaire'), body: 0x101018, metal: 0.65, rough: 0.15, accent: 0xff3a6a, light: 0xff3a6a, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
+    { at: 51, name: T('Coque cosmique'), body: 0x1a1040, metal: 0.6, rough: 0.2, accent: 0x9fd0ff, light: 0x9fd0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true },
+    { at: 54, name: T('Coque arc-en-ciel'), body: 0xf4f6ff, metal: 0.4, rough: 0.15, accent: 0xffffff, light: 0xffffff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, hue: true },
+    { at: 57, name: T('Coque mythique'), body: 0xf4f6ff, metal: 0.55, rough: 0.12, accent: 0x7af0ff, light: 0x7af0ff, bolts: true, metalParts: true, springs: true, padChrome: true, neon: true, gems: true, core: true, halos: true, wings: true, hue: true },
   ],
   elan: [
-    { at: 0, name: 'Sans propulsion' },
-    { at: 1, name: 'Ailerons', fins: 'accent' },
-    { at: 4, name: 'Ailerons rouges', fins: 0xe2483d },
-    { at: 7, name: 'Ailerons bleus', fins: 0x3a7ad8 },
-    { at: 10, name: 'Ailerons lumineux', fins: 'accent', finGlow: true },
-    { at: 13, name: 'Turbines', fins: 'accent', finGlow: true, turbines: 'light' },
-    { at: 16, name: 'Turbines rouges', fins: 0xe2483d, finGlow: true, turbines: 0xff3a3a },
-    { at: 19, name: 'Turbines dorées', fins: 0xffc72c, finGlow: true, turbines: 0xffc72c },
-    { at: 22, name: 'Propulseurs', fins: 'accent', finGlow: true, turbines: 'light', flames: [0xff7a1a, 0xfff2a0] },
-    { at: 25, name: 'Propulseurs verts', fins: 0x18b06a, finGlow: true, turbines: 0x3aff6a, flames: [0x3aff6a, 0xe8ffe8] },
-    { at: 28, name: 'Réacteurs à plasma', fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xdff6ff] },
-    { at: 31, name: 'Réacteurs violets', fins: 0x9b59d0, finGlow: true, turbines: 0xb05aff, flames: [0xb05aff, 0xf0e0ff] },
-    { at: 34, name: 'Réacteurs blancs', fins: 0xf2f2f2, finGlow: true, turbines: 0xffffff, flames: [0xeaf6ff, 0xffffff] },
-    { at: 37, name: 'Hyper-propulsion', fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xffffff], big: 1.35 },
-    { at: 40, name: 'Propulsion comète', fins: 0xffc72c, finGlow: true, turbines: 0xffc72c, flames: [0xffc23a, 0xffffff], big: 1.45 },
-    { at: 43, name: 'Propulsion nova', fins: 'accent', finGlow: true, turbines: 'light', flames: 'rainbow', big: 1.55 },
+    { at: 0, name: T('Sans propulsion') },
+    { at: 1, name: T('Ailerons'), fins: 'accent' },
+    { at: 4, name: T('Ailerons rouges'), fins: 0xe2483d },
+    { at: 7, name: T('Ailerons bleus'), fins: 0x3a7ad8 },
+    { at: 10, name: T('Ailerons lumineux'), fins: 'accent', finGlow: true },
+    { at: 13, name: T('Turbines'), fins: 'accent', finGlow: true, turbines: 'light' },
+    { at: 16, name: T('Turbines rouges'), fins: 0xe2483d, finGlow: true, turbines: 0xff3a3a },
+    { at: 19, name: T('Turbines dorées'), fins: 0xffc72c, finGlow: true, turbines: 0xffc72c },
+    { at: 22, name: T('Propulseurs'), fins: 'accent', finGlow: true, turbines: 'light', flames: [0xff7a1a, 0xfff2a0] },
+    { at: 25, name: T('Propulseurs verts'), fins: 0x18b06a, finGlow: true, turbines: 0x3aff6a, flames: [0x3aff6a, 0xe8ffe8] },
+    { at: 28, name: T('Réacteurs à plasma'), fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xdff6ff] },
+    { at: 31, name: T('Réacteurs violets'), fins: 0x9b59d0, finGlow: true, turbines: 0xb05aff, flames: [0xb05aff, 0xf0e0ff] },
+    { at: 34, name: T('Réacteurs blancs'), fins: 0xf2f2f2, finGlow: true, turbines: 0xffffff, flames: [0xeaf6ff, 0xffffff] },
+    { at: 37, name: T('Hyper-propulsion'), fins: 'accent', finGlow: true, turbines: 0x4ab8ff, flames: [0x4ab8ff, 0xffffff], big: 1.35 },
+    { at: 40, name: T('Propulsion comète'), fins: 0xffc72c, finGlow: true, turbines: 0xffc72c, flames: [0xffc23a, 0xffffff], big: 1.45 },
+    { at: 43, name: T('Propulsion nova'), fins: 'accent', finGlow: true, turbines: 'light', flames: 'rainbow', big: 1.55 },
   ],
   precision: [
-    { at: 0, name: 'Sans viseur', sight: 0 },
-    { at: 1, name: 'Guidon', sight: 1 },
-    { at: 3, name: 'Guidon doré', sight: 1, gold: true },
-    { at: 5, name: 'Lunette', sight: 2 },
-    { at: 7, name: 'Lunette double', sight: 2, double: true },
-    { at: 9, name: 'Viseur laser', sight: 3, laser: 0xff2a3a },
-    { at: 11, name: 'Laser vert', sight: 3, laser: 0x3aff6a },
-    { at: 13, name: 'Laser bleu', sight: 3, laser: 0x3a8dff },
-    { at: 15, name: 'Réticule holographique', sight: 4, laser: 0xff2a3a, holo: 0x7fffd4 },
-    { at: 17, name: 'Réticule doré', sight: 4, laser: 0xffc23a, holo: 0xffd45a, gold: true },
-    { at: 19, name: 'Œil de lynx', sight: 5, laser: 0xff2a3a, holo: 0x7fffd4, eye: 0xffc94a },
-    { at: 20, name: 'Œil d’aigle', sight: 5, laser: 0xffffff, holo: 0xffd45a, eye: 0xffffff, double: true, gold: true },
+    { at: 0, name: T('Sans viseur'), sight: 0 },
+    { at: 1, name: T('Guidon'), sight: 1 },
+    { at: 3, name: T('Guidon doré'), sight: 1, gold: true },
+    { at: 5, name: T('Lunette'), sight: 2 },
+    { at: 7, name: T('Lunette double'), sight: 2, double: true },
+    { at: 9, name: T('Viseur laser'), sight: 3, laser: 0xff2a3a },
+    { at: 11, name: T('Laser vert'), sight: 3, laser: 0x3aff6a },
+    { at: 13, name: T('Laser bleu'), sight: 3, laser: 0x3a8dff },
+    { at: 15, name: T('Réticule holographique'), sight: 4, laser: 0xff2a3a, holo: 0x7fffd4 },
+    { at: 17, name: T('Réticule doré'), sight: 4, laser: 0xffc23a, holo: 0xffd45a, gold: true },
+    { at: 19, name: T('Œil de lynx'), sight: 5, laser: 0xff2a3a, holo: 0x7fffd4, eye: 0xffc94a },
+    { at: 20, name: T('Œil d’aigle'), sight: 5, laser: 0xffffff, holo: 0xffd45a, eye: 0xffffff, double: true, gold: true },
   ],
 };
 // Les cartes de l'atelier lisent les noms des skins directement dans ce catalogue
@@ -2961,24 +3021,24 @@ const axeRingsAt = L => Math.min(7, Math.ceil(L / 6));
 const chevronsAt = L => Math.min(8, Math.ceil(L / 5));
 // Ce que change chaque niveau (affiché sur les cartes de l'atelier)
 const UPGRADE_DETAIL = {
-  endurance: L => L ? `${segsAt(L)} / 11 segments d’énergie` : '',
-  poids: L => `${8 + L} dents sur la roue`,
-  pointe: L => `${axeRingsAt(L)} anneau${axeRingsAt(L) > 1 ? 'x' : ''} sur l’axe, pointe +${L * 2} %`,
-  lames: L => { if (!L) return ''; const s = tierAt('lames', L).step; return `lames +${s * 4} %` + (s ? `, ${s} dent${s > 1 ? 's' : ''} de scie` : ''); },
-  inertie: L => L ? `${2 + L} boulons` : '',
-  equilibre: L => L ? `${L} perle${L > 1 ? 's' : ''} sur le gyroscope` : '',
-  rebond: L => L ? `${L} / 12 tampons` : '',
-  agressivite: L => L ? `${L} pointe${L > 1 ? 's' : ''}` : '',
-  critique: L => L ? `${gemsAt(L)} gemme${gemsAt(L) > 1 ? 's' : ''}` : '',
-  feu: L => L ? `${Math.min(18, L)} flamme${L > 1 ? 's' : ''}` + (L > 18 ? `, plus hautes (+${L - 18})` : '') : '',
-  souffle: L => L ? `${L} ailette${L > 1 ? 's' : ''}` : '',
-  eclair: L => L ? `${L} cristal${L > 1 ? 'x' : ''}` : '',
-  tornade: L => L ? `${1 + Math.floor((L - 1) / 3)} bras de vent, ${[45, 60, 75][(L - 1) % 3]} % de tour` : '',
-  puissance: L => `${12 + L} dents sur la couronne`,
-  elan: L => L ? `${chevronsAt(L)} chevron${chevronsAt(L) > 1 ? 's' : ''}, ailerons +${Math.round(L * 1.2)} %` + (L >= 9 ? ` · ${Math.floor(L / 9)} comète${L >= 18 ? 's' : ''} autour de la toupie` : '') : '',
-  precision: L => `${8 + 2 * L} graduations sur le plot`,
-  multi: L => `${1 + L} plot${L ? 's' : ''} de lancement`,
-  recharge: L => L ? `${L} pile${L > 1 ? 's' : ''}` : '',
+  endurance: L => L ? T(`{0} / 11 segments d’énergie`, segsAt(L)) : '',
+  poids: L => T(`{0} dents sur la roue`, 8 + L),
+  pointe: L => T(`{0} anneau{1} sur l’axe, pointe +{2} %`, axeRingsAt(L), axeRingsAt(L) > 1 ? 'x' : '', L * 2),
+  lames: L => { if (!L) return ''; const s = tierAt('lames', L).step; return T(`lames +{0} %`, s * 4) + (s ? T(`, {0} dent{1} de scie`, s, s > 1 ? 's' : '') : ''); },
+  inertie: L => L ? T(`{0} boulons`, 2 + L) : '',
+  equilibre: L => L ? T(`{0} perle{1} sur le gyroscope`, L, L > 1 ? 's' : '') : '',
+  rebond: L => L ? T(`{0} / 12 tampons`, L) : '',
+  agressivite: L => L ? T(`{0} pointe{1}`, L, L > 1 ? 's' : '') : '',
+  critique: L => L ? T(`{0} gemme{1}`, gemsAt(L), gemsAt(L) > 1 ? 's' : '') : '',
+  feu: L => L ? T(`{0} flamme{1}`, Math.min(18, L), L > 1 ? 's' : '') + (L > 18 ? T(`, plus hautes (+{0})`, L - 18) : '') : '',
+  souffle: L => L ? T(`{0} ailette{1}`, L, L > 1 ? 's' : '') : '',
+  eclair: L => L ? T(`{0} cristal{1}`, L, L > 1 ? 'x' : '') : '',
+  tornade: L => L ? T(`{0} bras de vent, {1} % de tour`, 1 + Math.floor((L - 1) / 3), [45, 60, 75][(L - 1) % 3]) : '',
+  puissance: L => T(`{0} dents sur la couronne`, 12 + L),
+  elan: L => L ? T(`{0} chevron{1}, ailerons +{2} %`, chevronsAt(L), chevronsAt(L) > 1 ? 's' : '', Math.round(L * 1.2)) + (L >= 9 ? T(` · {0} comète{1} autour de la toupie`, Math.floor(L / 9), L >= 18 ? 's' : '') : '') : '',
+  precision: L => T(`{0} graduations sur le plot`, 8 + 2 * L),
+  multi: L => T(`{0} plot{1} de lancement`, 1 + L, L ? 's' : ''),
+  recharge: L => L ? T(`{0} pile{1}`, L, L > 1 ? 's' : '') : '',
 };
 // La traînée derrière la toupie (selon l'Élan)
 const trailTier = L => L >= 20 ? 3 : L >= 12 ? 2 : L >= 5 ? 1 : 0;
@@ -3192,23 +3252,23 @@ function makeTopMesh(target = scene) {
   }
 
   // ---------- POINTE : la pointe et l'axe ----------
-  const T = skinOf('pointe');
+  const TT = skinOf('pointe');
   add(cGeo('axe', () => new THREE.CylinderGeometry(0.2, 0.17, 0.2, 24)), SM(0x2b2f36, 0.5, 0.4), 0, 0.22, 0);
-  const tipMat = skinMat(T, { rough: 0.3 });
+  const tipMat = skinMat(TT, { rough: 0.3 });
   const ringB = SM(0xf4f1ea, 0.2, 0.4);
-  for (let i = 0; i < axeRingsAt(T.L); i++) add(cGeo('anneauAxe', () => new THREE.TorusGeometry(0.195, 0.02, 6, 24)), i % 2 ? ringB : tipMat, 0, 0.14 + i * 0.022, 0).rotation.x = Math.PI / 2;
-  const tipLen = 0.17 + 0.004 * T.L;
-  if (T.shape === 'ball') {
+  for (let i = 0; i < axeRingsAt(TT.L); i++) add(cGeo('anneauAxe', () => new THREE.TorusGeometry(0.195, 0.02, 6, 24)), i % 2 ? ringB : tipMat, 0, 0.14 + i * 0.022, 0).rotation.x = Math.PI / 2;
+  const tipLen = 0.17 + 0.004 * TT.L;
+  if (TT.shape === 'ball') {
     add(cGeo('bille', () => new THREE.SphereGeometry(0.12, 16, 12)), tipMat, 0, 0.1, 0);
-    add(cGeo('roulement', () => new THREE.TorusGeometry(0.13, 0.025, 8, 20)), SM(T.ring || 0xffc94a, 0.6, 0.25), 0, 0.13, 0).rotation.x = Math.PI / 2;
-  } else if (T.shape === 'star') {
+    add(cGeo('roulement', () => new THREE.TorusGeometry(0.13, 0.025, 8, 20)), SM(TT.ring || 0xffc94a, 0.6, 0.25), 0, 0.13, 0).rotation.x = Math.PI / 2;
+  } else if (TT.shape === 'star') {
     add(cGeo('pointeEtoile', () => new THREE.OctahedronGeometry(0.13)), tipMat, 0, 0.12, 0).scale.set(1, 1.3, 1);
   } else {
-    const [r, seg] = { cone: [0.3, 12], sharp: [0.2, 12], facet6: [0.22, 6], facet5: [0.2, 5] }[T.shape];
-    add(cGeo('pointe' + T.shape + T.L, () => new THREE.ConeGeometry(r, tipLen, seg)), tipMat, 0, tipLen / 2, 0).rotation.x = Math.PI;
+    const [r, seg] = { cone: [0.3, 12], sharp: [0.2, 12], facet6: [0.22, 6], facet5: [0.2, 5] }[TT.shape];
+    add(cGeo('pointe' + TT.shape + TT.L, () => new THREE.ConeGeometry(r, tipLen, seg)), tipMat, 0, tipLen / 2, 0).rotation.x = Math.PI;
   }
-  if (T.sparkle) {
-    const sp = glowSprite(T.sparkle, T.big ? 0.7 : 0.45);
+  if (TT.sparkle) {
+    const sp = glowSprite(TT.sparkle, TT.big ? 0.7 : 0.45);
     sp.position.y = 0.05;
     tilt.add(sp);
     anims.push(t => { sp.material.opacity = 0.6 + 0.4 * Math.sin(t * 9); });
@@ -3618,7 +3678,7 @@ function launchTops(aim, power, perfect) {
       falling: 0, fallDir: 0, dead: false, smell, ...mesh,
     });
   }
-  if (n > S.tops) popup('Toupie jumelle !', LAUNCH.x, LAUNCH.y - 0.12, 'big');
+  if (n > S.tops) popup(T('Toupie jumelle !'), LAUNCH.x, LAUNCH.y - 0.12, 'big');
   state.launches++;
   state.run.launches++;
   if (isStory() && !nest) state.run.launchesLeft--;
@@ -4271,11 +4331,11 @@ let QUOTA_TABLE = [[1, 3], [5, 6], [8, 9], [10, 14], [12, 21], [14, 25], [16, 33
   [24, 159], [26, 304], [28, 497], [30, 704], [32, 759], [34, 787], [36, 897], [40, 1145], [46, 1283], [50, 1794]];
 let QUOTA_AFTER = 1.08;
 function quotaAt(wave) {
-  const T = QUOTA_TABLE, last = T[T.length - 1];
+  const TT = QUOTA_TABLE, last = TT[TT.length - 1];
   if (wave >= last[0]) return Math.ceil(last[1] * Math.pow(QUOTA_AFTER, wave - last[0]));
-  for (let k = 1; k < T.length; k++) {
-    if (wave <= T[k][0]) {
-      const [w0, q0] = T[k - 1], [w1, q1] = T[k];
+  for (let k = 1; k < TT.length; k++) {
+    if (wave <= TT[k][0]) {
+      const [w0, q0] = TT[k - 1], [w1, q1] = TT[k];
       return Math.ceil(q0 * Math.pow(q1 / q0, (wave - w0) / (w1 - w0)));
     }
   }
@@ -4701,33 +4761,33 @@ function addShake(a) { shake = Math.min(0.025, shake + a); }
 
 // ---------- Succès : des défis qui rapportent des 🌊 ----------
 const ACHIEVEMENTS = [
-  { id: 'k1', icon: '🪳', name: 'Premier écrasé', desc: 'Écraser un insecte.', reward: 1, v: () => state.kills, goal: 1 },
-  { id: 'k100', icon: '🧹', name: 'Grand ménage', desc: 'Écraser 100 insectes.', reward: 2, v: () => state.kills, goal: 100 },
-  { id: 'k1000', icon: '💪', name: 'Exterminateur', desc: 'Écraser 1 000 insectes.', reward: 5, v: () => state.kills, goal: 1000 },
-  { id: 'k10000', icon: '☠️', name: 'Fléau des cafards', desc: 'Écraser 10 000 insectes.', reward: 15, v: () => state.kills, goal: 10000 },
-  { id: 'k100000', icon: '👑', name: 'Légende du bureau', desc: 'Écraser 100 000 insectes.', reward: 40, v: () => state.kills, goal: 100000 },
-  { id: 'c10', icon: '🔥', name: 'En série', desc: 'Faire un combo ×10.', reward: 4, v: () => state.bestCombo, goal: 10 },
-  { id: 'c25', icon: '⚡', name: 'Déchaîné', desc: 'Faire un combo ×25.', reward: 10, v: () => state.bestCombo, goal: 25 },
-  { id: 'c50', icon: '🌪️', name: 'Tornade vivante', desc: 'Faire un combo ×50.', reward: 20, v: () => state.bestCombo, goal: 50 },
-  { id: 'w10', icon: '🛡️', name: 'Ça résiste', desc: 'Atteindre la vague 10.', reward: 3, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 10 },
-  { id: 'w20', icon: '🏰', name: 'Forteresse', desc: 'Atteindre la vague 20.', reward: 6, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 20 },
-  { id: 'w30', icon: '🎖️', name: 'Vétéran', desc: 'Atteindre la vague 30.', reward: 12, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 30 },
-  { id: 'w40', icon: '🏆', name: 'Champion', desc: 'Atteindre la vague 40.', reward: 20, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 40 },
-  { id: 'w50', icon: '🌟', name: 'Inarrêtable', desc: 'Atteindre la vague 50.', reward: 35, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 50 },
-  { id: 'reine', icon: '👸', name: 'Régicide', desc: 'Écraser une reine des cafards.', reward: 5, v: () => state.killsByType.reine || 0, goal: 1 },
-  { id: 'mutant', icon: '🧬', name: 'Ça a muté !', desc: 'Voir les insectes mutants.', reward: 8, v: () => state.maxStage, goal: 1 },
-  { id: 'spider', icon: '🕷️', name: 'Arachnophobe', desc: 'Voir les araignées.', reward: 15, v: () => state.maxStage, goal: 2 },
-  { id: 'p5', icon: '🎯', name: 'Main sûre', desc: 'Réussir 5 lancers PARFAIT d’affilée.', reward: 3, v: () => state.perfectBest, goal: 5 },
-  { id: 'p15', icon: '🏹', name: 'Tireur d’élite', desc: 'Réussir 15 lancers PARFAIT d’affilée.', reward: 10, v: () => state.perfectBest, goal: 15 },
-  { id: 'm1', icon: '💰', name: 'Millionnaire', desc: 'Gagner 1 million de $ dans une même partie.', reward: 5, v: () => state.bestRunMoney, goal: 1e6 },
-  { id: 'm1b', icon: '💎', name: 'Milliardaire', desc: 'Gagner 1 milliard de $ dans une même partie.', reward: 15, v: () => state.bestRunMoney, goal: 1e9 },
-  { id: 'toys5', icon: '🧸', name: 'Collectionneur', desc: 'Posséder 5 objets différents du Carton à Jouets.', reward: 5, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: 5 },
-  { id: 'toys11', icon: '📦', name: 'Le Carton au complet', desc: 'Posséder tous les objets du Carton à Jouets.', reward: 20, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: TOYBOX.length },
-  { id: 'legend', icon: '🌀', name: 'Toupie légendaire', desc: 'Atteindre 175 niveaux d’améliorations pour la toupie.', reward: 10, v: () => state.run ? topPower() : 0, goal: 175 },
-  { id: 'gold1', icon: '✨', name: 'Ruée vers l’or', desc: 'Écraser un insecte doré.', reward: 2, v: () => state.goldenKills || 0, goal: 1 },
-  { id: 'gold10', icon: '🪙', name: 'Chasseur d’or', desc: 'Écraser 10 insectes dorés.', reward: 8, v: () => state.goldenKills || 0, goal: 10 },
-  { id: 'nest', icon: '🔥', name: 'Exterminateur', desc: 'Détruire le nid des cafards.', reward: 30, v: () => state.nestWins || 0, goal: 1 },
-  { id: 'multi5', icon: '🖐️', name: 'Cinq à la fois', desc: 'Lancer 5 toupies d’un coup.', reward: 10, v: () => state.run ? 1 + lv('multi') : 1, goal: 5 },
+  { id: 'k1', icon: '🪳', name: T('Premier écrasé'), desc: T('Écraser un insecte.'), reward: 1, v: () => state.kills, goal: 1 },
+  { id: 'k100', icon: '🧹', name: T('Grand ménage'), desc: T('Écraser 100 insectes.'), reward: 2, v: () => state.kills, goal: 100 },
+  { id: 'k1000', icon: '💪', name: T('Exterminateur'), desc: T('Écraser 1 000 insectes.'), reward: 5, v: () => state.kills, goal: 1000 },
+  { id: 'k10000', icon: '☠️', name: T('Fléau des cafards'), desc: T('Écraser 10 000 insectes.'), reward: 15, v: () => state.kills, goal: 10000 },
+  { id: 'k100000', icon: '👑', name: T('Légende du bureau'), desc: T('Écraser 100 000 insectes.'), reward: 40, v: () => state.kills, goal: 100000 },
+  { id: 'c10', icon: '🔥', name: T('En série'), desc: T('Faire un combo ×10.'), reward: 4, v: () => state.bestCombo, goal: 10 },
+  { id: 'c25', icon: '⚡', name: T('Déchaîné'), desc: T('Faire un combo ×25.'), reward: 10, v: () => state.bestCombo, goal: 25 },
+  { id: 'c50', icon: '🌪️', name: T('Tornade vivante'), desc: T('Faire un combo ×50.'), reward: 20, v: () => state.bestCombo, goal: 50 },
+  { id: 'w10', icon: '🛡️', name: T('Ça résiste'), desc: T('Atteindre la vague 10.'), reward: 3, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 10 },
+  { id: 'w20', icon: '🏰', name: T('Forteresse'), desc: T('Atteindre la vague 20.'), reward: 6, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 20 },
+  { id: 'w30', icon: '🎖️', name: T('Vétéran'), desc: T('Atteindre la vague 30.'), reward: 12, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 30 },
+  { id: 'w40', icon: '🏆', name: T('Champion'), desc: T('Atteindre la vague 40.'), reward: 20, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 40 },
+  { id: 'w50', icon: '🌟', name: T('Inarrêtable'), desc: T('Atteindre la vague 50.'), reward: 35, v: () => Math.max(state.best.histoire, state.best.carnage), goal: 50 },
+  { id: 'reine', icon: '👸', name: T('Régicide'), desc: T('Écraser une reine des cafards.'), reward: 5, v: () => state.killsByType.reine || 0, goal: 1 },
+  { id: 'mutant', icon: '🧬', name: T('Ça a muté !'), desc: T('Voir les insectes mutants.'), reward: 8, v: () => state.maxStage, goal: 1 },
+  { id: 'spider', icon: '🕷️', name: T('Arachnophobe'), desc: T('Voir les araignées.'), reward: 15, v: () => state.maxStage, goal: 2 },
+  { id: 'p5', icon: '🎯', name: T('Main sûre'), desc: T('Réussir 5 lancers PARFAIT d’affilée.'), reward: 3, v: () => state.perfectBest, goal: 5 },
+  { id: 'p15', icon: '🏹', name: T('Tireur d’élite'), desc: T('Réussir 15 lancers PARFAIT d’affilée.'), reward: 10, v: () => state.perfectBest, goal: 15 },
+  { id: 'm1', icon: '💰', name: T('Millionnaire'), desc: T('Gagner 1 million de $ dans une même partie.'), reward: 5, v: () => state.bestRunMoney, goal: 1e6 },
+  { id: 'm1b', icon: '💎', name: T('Milliardaire'), desc: T('Gagner 1 milliard de $ dans une même partie.'), reward: 15, v: () => state.bestRunMoney, goal: 1e9 },
+  { id: 'toys5', icon: '🧸', name: T('Collectionneur'), desc: T('Posséder 5 objets différents du Carton à Jouets.'), reward: 5, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: 5 },
+  { id: 'toys11', icon: '📦', name: T('Le Carton au complet'), desc: T('Posséder tous les objets du Carton à Jouets.'), reward: 20, v: () => Object.values(state.meta.items).filter(n => n > 0).length, goal: TOYBOX.length },
+  { id: 'legend', icon: '🌀', name: T('Toupie légendaire'), desc: T('Atteindre 175 niveaux d’améliorations pour la toupie.'), reward: 10, v: () => state.run ? topPower() : 0, goal: 175 },
+  { id: 'gold1', icon: '✨', name: T('Ruée vers l’or'), desc: T('Écraser un insecte doré.'), reward: 2, v: () => state.goldenKills || 0, goal: 1 },
+  { id: 'gold10', icon: '🪙', name: T('Chasseur d’or'), desc: T('Écraser 10 insectes dorés.'), reward: 8, v: () => state.goldenKills || 0, goal: 10 },
+  { id: 'nest', icon: '🔥', name: T('Exterminateur'), desc: T('Détruire le nid des cafards.'), reward: 30, v: () => state.nestWins || 0, goal: 1 },
+  { id: 'multi5', icon: '🖐️', name: T('Cinq à la fois'), desc: T('Lancer 5 toupies d’un coup.'), reward: 10, v: () => state.run ? 1 + lv('multi') : 1, goal: 5 },
 ];
 let toastQueue = [], toastBusy = false;
 function showToast(html) {
@@ -4755,7 +4815,7 @@ function checkAchievements() {
     state.meta.earned += a.reward;
     SFX.play('achieve');
     buzz([20, 40, 20]);
-    showToast(`🏅 ${a.icon} ${a.name}<small>Succès débloqué · +${a.reward} 🌊 pour le Carton à Jouets</small>`);
+    showToast(T(`🏅 {0} {1}<small>Succès débloqué · +{2} 🌊 pour le Carton à Jouets</small>`, a.icon, a.name, a.reward));
     save();
   }
 }
@@ -4777,12 +4837,12 @@ function renderAchievements() {
     if (!ok) el.querySelector('.bar > div').style.width = Math.min(100, v / a.goal * 100) + '%';
     list.appendChild(el);
   }
-  document.getElementById('achSummary').textContent = `${done} / ${ACHIEVEMENTS.length} succès · ${won} 🌊 gagnées`;
+  document.getElementById('achSummary').textContent = T(`{0} / {1} succès · {2} 🌊 gagnées`, done, ACHIEVEMENTS.length, won);
 }
 function updateAchCount() {
   const done = ACHIEVEMENTS.filter(a => state.achievements?.[a.id]).length;
   const el = document.getElementById('achCount');
-  if (el) el.textContent = `${done} / ${ACHIEVEMENTS.length} succès`;
+  if (el) el.textContent = T(`{0} / {1} succès`, done, ACHIEVEMENTS.length);
 }
 
 function banner(title, sub) {
@@ -4801,10 +4861,10 @@ let pendingMutation = false; // la barre du dernier insecte d'un stade vient d'�
 let pendingTuto = null;       // une explication à montrer dès que possible
 const TUTOS = {
   infest: [
-    { face: '🤔', text: 'Tiens, une nouvelle bestiole ! Plus j’écrase d’insectes, plus il en arrive des gros et des coriaces.' },
-    { face: '📊', text: 'Regarde la barre d’infestation, en haut à gauche : elle se remplit à chaque insecte écrasé (les gros comptent plus que les petits).' },
-    { face: '🪳', text: 'Quand elle est pleine, une nouvelle espèce débarque : plus grosse, plus résistante… et qui rapporte plus.' },
-    { face: '🛠', text: 'Pour suivre, il faudra améliorer ma toupie à l’atelier !' },
+    { face: '🤔', text: T('Tiens, une nouvelle bestiole ! Plus j’écrase d’insectes, plus il en arrive des gros et des coriaces.') },
+    { face: '📊', text: T('Regarde la barre d’infestation, en haut à gauche : elle se remplit à chaque insecte écrasé (les gros comptent plus que les petits).') },
+    { face: '🪳', text: T('Quand elle est pleine, une nouvelle espèce débarque : plus grosse, plus résistante… et qui rapporte plus.') },
+    { face: '🛠', text: T('Pour suivre, il faudra améliorer ma toupie à l’atelier !') },
   ],
 };
 function showTuto(id) {
@@ -4838,7 +4898,7 @@ function mutate() {
   charging = false;
   playDialog(st.lines, () => {
     paused = false;
-    banner(`🧬 Stade ${k + 1} : ${st.name}`, `Nouvel insecte : ${BUG_TYPES[st.from].name} — ${BUG_TYPES[st.from].tip} · 🛠 Nouvelles améliorations à l’atelier !`);
+    banner(T(`🧬 Stade {0} : {1}`, k + 1, st.name), T(`Nouvel insecte : {0} — {1} · 🛠 Nouvelles améliorations à l’atelier !`, BUG_TYPES[st.from].name, BUG_TYPES[st.from].tip));
     shopDirty = true;
     previewDirty = true;
   });
@@ -4863,7 +4923,7 @@ function killBug(b) {
   if (b.golden) {
     gain *= 10;
     state.goldenKills = (state.goldenKills || 0) + 1;
-    popup('💰 JACKPOT ! +' + fmtMoney(gain), b.x, b.z - 0.08, 'big');
+    popup(T('💰 JACKPOT ! +') + fmtMoney(gain), b.x, b.z - 0.08, 'big');
     SFX.play('achieve');
     addShake(0.008);
     buzz([30, 30, 60]);
@@ -4879,11 +4939,11 @@ function killBug(b) {
     if (countsForQuota(b.t)) run.waveKills++;
     if (!run.cleared && run.waveKills >= waveQuota()) {
       run.cleared = true;
-      banner('🎯 Objectif atteint !', 'La vague sera repoussée quand la toupie s’arrêtera');
+      banner(T('🎯 Objectif atteint !'), T('La vague sera repoussée quand la toupie s’arrêtera'));
     }
   }
   popup('+' + fmtMoney(gain), b.x, b.z);
-  if (combo >= 3) popup('Combo ×' + combo, b.x, b.z - 0.05, 'crit');
+  if (combo >= 3) popup(T('Combo ×') + combo, b.x, b.z - 0.05, 'crit');
   // Sons, compteur de combo et secousse selon la taille de l'insecte
   const size = Math.min(1, b.t.r / 0.08);
   SFX.play('kill', size);
@@ -4903,7 +4963,7 @@ function killBug(b) {
   if (newLevel > prevLevel) {
     const t = BUG_TYPES[newLevel], st = STAGES[t.stage];
     if (t.stage > (run.stageSeen || 0)) pendingMutation = true;
-    else { banner(`Infestation niveau ${newLevel - st.from + 1} !`, `Nouvel insecte : ${t.name}${t.tip ? ' — ' + t.tip : ''}`); SFX.play('level'); }
+    else { banner(T(`Infestation niveau {0} !`, newLevel - st.from + 1), T(`Nouvel insecte : {0}{1}`, t.name, t.tip ? ' — ' + t.tip : '')); SFX.play('level'); }
     if (!state.tutos?.infest) pendingTuto = 'infest';
     shopDirty = true;
     previewDirty = true;
@@ -4931,11 +4991,11 @@ function hitBug(top, b, now) {
   if (crit) { dmg *= S.critMult; SFX.play('crit'); addShake(0.003); buzz(8); }
   else SFX.play('hit', Math.min(1, b.t.r / 0.08));
   dmg = Math.min(capBoss(b, dmg), b.hp); // on n'affiche pas plus que la vie restante
-  popup((crit ? 'CRITIQUE −' : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
+  popup((crit ? T('CRITIQUE −') : '−') + fmtDmg(dmg), b.x, b.z - 0.02, crit ? 'crit' : 'dmg');
   b.hp -= dmg;
   // La toupie perd de la rotation en percutant l'insecte
   top.spin -= 18 * b.t.mass / (S.mass / 20) * S.inertia * (b.t.sting ? 2.2 : 1);
-  if (b.t.sting && now - (b.stingT ?? -9) > 1) { b.stingT = now; popup('🦂 Piqûre !', b.x, b.z + 0.03, 'bite'); }
+  if (b.t.sting && now - (b.stingT ?? -9) > 1) { b.stingT = now; popup(T('🦂 Piqûre !'), b.x, b.z + 0.03, 'bite'); }
   // Éclairs en chaîne : la décharge saute sur l'insecte le plus proche
   // (de plus en plus de rebonds avec le niveau : 1, puis 2, 3, 4 insectes touchés à la suite)
   if (S.chain && Math.random() < S.chain) {
@@ -5057,7 +5117,7 @@ function stepTop(top, dt, now) {
     top.vx *= k; top.vz *= k;
     top.spin -= top.spin * 0.35 * dt;
     w.hold += dt;
-    if (w.hold > 0.7) { w.life = Math.min(w.life, 0.4); w.hold = -99; popup('🕸️ Déchirée !', w.x, w.z, 'dmg'); }
+    if (w.hold > 0.7) { w.life = Math.min(w.life, 0.4); w.hold = -99; popup(T('🕸️ Déchirée !'), w.x, w.z, 'dmg'); }
   }
 
   // Rebonds sur le mug, le pot à crayons (et l'assiette en mode Carnage)
@@ -5133,7 +5193,7 @@ function wallBounce(top, wall) {
   top.vx *= Math.max(k, S.restitution); top.vz *= Math.max(k, S.restitution);
   tramp.hit[wall] = 1;
   tramp.hitAt[wall] = wall < 2 ? top.x : top.z;
-  if (gameTime - boingT > 0.5) { boingT = gameTime; popup('BOING !', top.x, top.z, 'crit'); }
+  if (gameTime - boingT > 0.5) { boingT = gameTime; popup(T('BOING !'), top.x, top.z, 'crit'); }
   SFX.play('boing');
 }
 
@@ -5144,7 +5204,7 @@ function pickUpTops() {
     top.falling = 0.001;
     top.picked = true;
   }
-  popup('✋ Ramassée', alive[0].x, alive[0].z - 0.05, 'big');
+  popup(T('✋ Ramassée'), alive[0].x, alive[0].z - 0.05, 'big');
   SFX.play('pick');
 }
 document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropagation(); pickUpTops(); });
@@ -5157,14 +5217,14 @@ document.getElementById('pickBtn').addEventListener('click', e => { e.stopPropag
 // =====================================================================
 const NEST_COST = 1e9;
 // r = rayon de contact du corps (les longues pattes ne gênent pas les toupies)
-const NEST_BOSS = { id: 'reinenid', pts: 0, name: 'La Reine du Nid', r: 0.16, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x8a2a18, fear: 0, metal: 0.25, stage: 0 };
+const NEST_BOSS = { id: 'reinenid', pts: 0, name: T('La Reine du Nid'), r: 0.16, hp: 1, speed: 0, reward: 0, mass: 45, bite: 0, color: 0x8a2a18, fear: 0, metal: 0.25, stage: 0 };
 const NEST_BOSS_Z = -0.04; // au milieu du plateau
 let nest = null;
 const NEST_INTRO = [
-  { face: '😨', text: 'Me voilà dans le nid des cafards… et voilà leur Reine !' },
-  { face: '🌀', text: 'Ici, je n’ai qu’un seul lancer… mais mes toupies tournent sans jamais s’arrêter !' },
-  { face: '⏸️', text: 'Quand la Reine attaque, le temps se fige : pour parer, je dois réussir son défi (toucher les cercles dans l’ordre, glisser, tourner…).' },
-  { face: '💥', text: 'Chaque défi raté détruit une de mes toupies. Plus de toupie = perdu. Allez !' },
+  { face: '😨', text: T('Me voilà dans le nid des cafards… et voilà leur Reine !') },
+  { face: '🌀', text: T('Ici, je n’ai qu’un seul lancer… mais mes toupies tournent sans jamais s’arrêter !') },
+  { face: '⏸️', text: T('Quand la Reine attaque, le temps se fige : pour parer, je dois réussir son défi (toucher les cercles dans l’ordre, glisser, tourner…).') },
+  { face: '💥', text: T('Chaque défi raté détruit une de mes toupies. Plus de toupie = perdu. Allez !') },
 ];
 const nestTex = (() => {
   const c = document.createElement('canvas');
@@ -5288,7 +5348,7 @@ function startNest() {
   addShake(0.02);
   paused = true;
   charging = false;
-  const intro = () => playDialog(NEST_INTRO, () => { paused = false; banner('🔥 Le nid des cafards', 'Pare ses attaques et détruis la Reine !'); });
+  const intro = () => playDialog(NEST_INTRO, () => { paused = false; banner(T('🔥 Le nid des cafards'), T('Pare ses attaques et détruis la Reine !')); });
   if (firstTime) playNestCinematic(intro); else intro();
 }
 function updateNestHud() {
@@ -5307,13 +5367,13 @@ const qteCanvas = document.getElementById('qte'), qctx = qteCanvas.getContext('2
 let qte = null;
 // Les défis, de plus en plus nombreux selon la phase (hint = la consigne, toujours affichée)
 const QTE_PATTERNS = [
-  { id: 'patte', name: '🦵 Coup de patte !', hint: 'Touche le cercle avant la fin du chrono', phase: 1, w: 2 },
-  { id: 'combo', name: '🔢 Enchaînement !', hint: 'Touche les cercles dans l’ordre', phase: 1, w: 3 },
-  { id: 'glisse', name: '〰️ Glissade !', hint: 'Fais glisser la boule de A jusqu’à B sans lever le doigt', phase: 1, w: 2 },
-  { id: 'ponte', name: '🥚 Ponte !', hint: 'Écrase tous les œufs (dans n’importe quel ordre)', phase: 1, w: 1.5 },
-  { id: 'double', name: '🦵🦵 Double patte !', hint: 'Touche les deux cercles', phase: 2, w: 2 },
-  { id: 'tourbillon', name: '🌀 Tourbillon !', hint: 'Fais tourner ton doigt autour du cercle', phase: 2, w: 2 },
-  { id: 'furie', name: '🌪️ Furie !', hint: 'Les cercles dans l’ordre… puis la glissade de A à B !', phase: 3, w: 2.5 },
+  { id: 'patte', name: T('🦵 Coup de patte !'), hint: T('Touche le cercle avant la fin du chrono'), phase: 1, w: 2 },
+  { id: 'combo', name: T('🔢 Enchaînement !'), hint: T('Touche les cercles dans l’ordre'), phase: 1, w: 3 },
+  { id: 'glisse', name: T('〰️ Glissade !'), hint: T('Fais glisser la boule de A jusqu’à B sans lever le doigt'), phase: 1, w: 2 },
+  { id: 'ponte', name: T('🥚 Ponte !'), hint: T('Écrase tous les œufs (dans n’importe quel ordre)'), phase: 1, w: 1.5 },
+  { id: 'double', name: T('🦵🦵 Double patte !'), hint: T('Touche les deux cercles'), phase: 2, w: 2 },
+  { id: 'tourbillon', name: T('🌀 Tourbillon !'), hint: T('Fais tourner ton doigt autour du cercle'), phase: 2, w: 2 },
+  { id: 'furie', name: T('🌪️ Furie !'), hint: T('Les cercles dans l’ordre… puis la glissade de A à B !'), phase: 3, w: 2.5 },
 ];
 const QTE_LEAD = 0; // plus de « Prêt… » : le défi et son chrono commencent tout de suite
 const QTE_SPEED = 0.88; // tous les temps des défis (1 = un peu plus généreux)
@@ -5480,7 +5540,7 @@ function drawQte() {
       qctx.strokeStyle = '#ffd45a'; qctx.lineWidth = 10;
       qctx.beginPath(); qctx.arc(it.x, it.y, it.R, -Math.PI / 2, -Math.PI / 2 + fr * Math.PI * 2); qctx.stroke();
       qctx.fillStyle = '#fff'; qctx.font = `900 ${Math.round(r * 1.1)}px system-ui, sans-serif`;
-      qctx.fillText(`${Math.min(it.need, it.turned / (Math.PI * 2)).toFixed(1)} / ${it.need} tours`, it.x, it.y);
+      qctx.fillText(T(`{0} / {1} tours`, Math.min(it.need, it.turned / (Math.PI * 2)).toFixed(1), it.need), it.x, it.y);
       if (ICON_STYLE) qctx.drawImage(iconImage('recommencer'), it.x - r * 0.7, it.y - it.R * 0.5 - r * 0.7, r * 1.4, r * 1.4);
       else { qctx.font = `${Math.round(r * 1.2)}px system-ui, sans-serif`; qctx.fillText('🔄', it.x, it.y - it.R * 0.5); }
     }
@@ -5499,7 +5559,7 @@ function drawQte() {
   if (t < QTE_LEAD) {
     qctx.fillStyle = 'rgba(255,255,255,.9)';
     qctx.font = `900 ${Math.round(r * 1.4)}px system-ui, sans-serif`;
-    qctx.fillText('Prêt…', W / 2, H * 0.55);
+    qctx.fillText(T('Prêt…'), W / 2, H * 0.55);
   }
 }
 // Le chronomètre : le cadran se vide à mesure que le temps passe, les secondes restantes au milieu
@@ -5602,12 +5662,12 @@ function endQte() {
   paused = false;
   const b = nest.boss;
   for (let i = 0; i < q.eggMiss; i++) for (let j = 0; j < 2; j++) spawnBug(false, 0.05, { type: pickBugType(), x: (Math.random() * 2 - 1) * DESK_X * 0.8, z: (Math.random() * 2 - 1) * DESK_Z * 0.6 });
-  if (q.eggMiss) popup(`🐣 ${q.eggMiss * 2} insectes éclosent !`, 0, 0.1, 'dmg');
+  if (q.eggMiss) popup(T(`🐣 {0} insectes éclosent !`, q.eggMiss * 2), 0, 0.1, 'dmg');
   if (q.misses) { nestLoseTop(); return; }
   // Défi réussi : la Reine encaisse une contre-attaque
   const dmg = Math.min(b.hp, b.maxHp * 0.01);
   b.hp -= dmg;
-  popup('🛡️ Paré ! Contre-attaque −' + fmtInt(dmg), b.x, b.z + 0.12, 'big');
+  popup(T('🛡️ Paré ! Contre-attaque −') + fmtInt(dmg), b.x, b.z + 0.12, 'big');
   SFX.play('perfect');
   addShake(0.008);
   if (b.hp <= 0) killBug(b);
@@ -5624,7 +5684,7 @@ function nestLoseTop() {
   t.falling = 0.001;
   t.fallDir = t.prec;
   addShock(t.x, t.z, 0.15, 0xff3020);
-  popup('💥 Toupie détruite !', t.x, t.z, 'big');
+  popup(T('💥 Toupie détruite !'), t.x, t.z, 'big');
   updateNestHud();
 }
 function nestAttack() {
@@ -5656,7 +5716,7 @@ function stepNest(dt) {
   if (!aliveTops().length) { n.deadT += dt; if (n.deadT > 0.8) nestDefeat(); return; }
   const frac = b.hp / b.maxHp;
   const ph = frac < 0.3 ? 3 : frac < 0.65 ? 2 : 1;
-  if (ph > n.phase) { n.phase = ph; banner(ph === 2 ? '😡 La Reine s’énerve !' : '🔥 La Reine est furieuse !', ph === 2 ? 'Nouvelles attaques : double patte et tourbillon' : 'Nouvelle attaque : la furie'); }
+  if (ph > n.phase) { n.phase = ph; banner(ph === 2 ? T('😡 La Reine s’énerve !') : T('🔥 La Reine est furieuse !'), ph === 2 ? T('Nouvelles attaques : double patte et tourbillon') : T('Nouvelle attaque : la furie')); }
   // Une nouvelle attaque de temps en temps (de plus en plus souvent)
   n.attackT -= dt;
   if (n.attackT <= 0 && !qte) { n.attackT = NEST_PAUSE[n.phase]; nestAttack(); return; }
@@ -5689,13 +5749,13 @@ function nestDefeat() {
   paused = true;
   charging = false;
   playDialog([
-    { face: '😵', text: 'Aïe… la Reine a détruit toutes mes toupies. Je dois fuir le nid !' },
-    { face: '💪', text: 'Je connais ses attaques maintenant. Je peux y retourner quand je veux depuis l’atelier : le chemin est trouvé, c’est gratuit !' },
+    { face: '😵', text: T('Aïe… la Reine a détruit toutes mes toupies. Je dois fuir le nid !') },
+    { face: '💪', text: T('Je connais ses attaques maintenant. Je peux y retourner quand je veux depuis l’atelier : le chemin est trouvé, c’est gratuit !') },
   ], () => {
     leaveNest();
     refillBoard();
     paused = false;
-    banner('🏠 De retour au bureau', 'Retente l’assaut du nid depuis l’atelier (onglet Bureau)');
+    banner(T('🏠 De retour au bureau'), T('Retente l’assaut du nid depuis l’atelier (onglet Bureau)'));
     save();
   });
 }
@@ -5719,9 +5779,9 @@ function nestVictory() {
   save();
   lbSubmitSpeed();
   playDialog([
-    { face: '🎉', text: 'La Reine est tombée ! Le nid est détruit !' },
-    { face: '😌', text: 'Ça y est… je suis enfin débarrassé des cafards. Plus une seule antenne sur mon bureau !' },
-    { face: '😏', text: 'Je range ma vieille toupie dans le carton… mais pas trop loin. On ne sait jamais.' },
+    { face: '🎉', text: T('La Reine est tombée ! Le nid est détruit !') },
+    { face: '😌', text: T('Ça y est… je suis enfin débarrassé des cafards. Plus une seule antenne sur mon bureau !') },
+    { face: '😏', text: T('Je range ma vieille toupie dans le carton… mais pas trop loin. On ne sait jamais.') },
   ], () => {
     openCredits({ time, wave: run.wave, kills: run.kills, record });
     document.getElementById('crNew').onclick = () => {
@@ -5746,25 +5806,25 @@ function fmtClock(sec) {
 function fmtClockLong(sec) {
   sec = Math.max(0, Math.round(sec));
   const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
-  return (h ? h + ' h ' : '') + (h || m ? String(m).padStart(h ? 2 : 1, '0') + ' min ' : '') + String(s).padStart(2, '0') + ' s';
+  return (h ? h + ' h ' : '') + (h || m ? String(m).padStart(h ? 2 : 1, '0') + T(' min ') : '') + String(s).padStart(2, '0') + ' s';
 }
 const crEl = document.getElementById('credits'), crCanvas = document.getElementById('crCanvas');
 let cr = null;
-const CR_STAGES = ['Stade 1 · les cafards', 'Stade 2 · les mutants', 'Stade 3 · les araignées'];
+const CR_STAGES = [T('Stade 1 · les cafards'), T('Stade 2 · les mutants'), T('Stade 3 · les araignées')];
 function creditsItems() {
   return [
-    { name: 'Ma vieille toupie', short: 'Toupie', desc: 'Sortie du carton du grenier… et transformée pièce par pièce, à chaque amélioration.', build: g => {
+    { name: T('Ma vieille toupie'), short: T('Toupie'), desc: T('Sortie du carton du grenier… et transformée pièce par pièce, à chaque amélioration.'), build: g => {
       const m = makeTopMesh(g);
       if (m.trail) g.remove(m.trail);
       return { spin: m.spinner, anims: m.anims };
     } },
-    { name: 'Le lanceur', short: 'Lanceur', desc: 'Pose le doigt, vise, relâche… des milliers de fois.', build: g => { g.add(launcher.clone(true)); return { shared: true }; } },
+    { name: T('Le lanceur'), short: T('Lanceur'), desc: T('Pose le doigt, vise, relâche… des milliers de fois.'), build: g => { g.add(launcher.clone(true)); return { shared: true }; } },
     ...BUG_TYPES.map(t => ({ name: t.name, short: t.name, desc: CR_STAGES[t.stage || 0], build: g => {
       const m = makeBugMesh(t, g);
       m.group.rotation.y = -0.7;
       return {};
     } })),
-    { name: 'La Reine du Nid', short: 'La Reine', desc: 'Mi-cafard, mi-mygale, mi-sauterelle, couronnée… et vaincue !', build: g => { makeQueenMesh(g); return {}; } },
+    { name: T('La Reine du Nid'), short: T('La Reine'), desc: T('Mi-cafard, mi-mygale, mi-sauterelle, couronnée… et vaincue !'), build: g => { makeQueenMesh(g); return {}; } },
   ];
 }
 function crShow(i) {
@@ -5829,7 +5889,7 @@ function openCredits({ time, wave, kills, record }) {
   const pivot = new THREE.Group();
   s.add(pivot);
   cr = { renderer, scene: s, cam, pivot, items: creditsItems(), i: 0, obj: null, yaw: 0.5, pitch: 0.25, drag: null, last: performance.now(), w: 0, h: 0 };
-  document.getElementById('crStats').textContent = 'Nid détruit en ' + fmtClockLong(time) + ' · vague ' + wave + ' · ' + fmtInt(kills) + ' insectes écrasés' + (record ? ' · nouveau record !' : '');
+  document.getElementById('crStats').textContent = T('Nid détruit en ') + fmtClockLong(time) + T(' · vague ') + wave + ' · ' + fmtInt(kills) + T(' insectes écrasés') + (record ? T(' · nouveau record !') : '');
   const frise = document.getElementById('crFrise');
   frise.replaceChildren();
   cr.items.forEach((it, k) => {
@@ -6109,21 +6169,21 @@ function showPerkChoice() {
   modalBox.className = 'modalBox';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = `Vague ${run.wave - 1} repoussée !` + (run.newRecord ? ' 🏆 Nouveau record !' : '');
+  h.textContent = T(`Vague {0} repoussée !`, run.wave - 1) + (run.newRecord ? T(' 🏆 Nouveau record !') : '');
   run.newRecord = false;
   const lead = document.createElement('p');
   lead.className = 'lead';
   lead.textContent = isStory()
-    ? `+${fmtMoney(run.lastReward)}` + (run.lastSpare ? ` (dont ${run.lastSpare} lancer${run.lastSpare > 1 ? 's' : ''} non utilisé${run.lastSpare > 1 ? 's' : ''})` : '')
-      + ` · Choisis un bonus. Vague ${run.wave} : ${waveQuota()} insectes en ${waveLaunches()} lancers.`
-    : `+${fmtMoney(run.lastReward)} · +2 🍪 · Choisis un bonus pour cette partie (vague ${run.wave} ensuite)`;
+    ? `+${fmtMoney(run.lastReward)}` + (run.lastSpare ? T(` (dont {0} lancer{1} non utilisé{2})`, run.lastSpare, run.lastSpare > 1 ? 's' : '', run.lastSpare > 1 ? 's' : '') : '')
+      + T(` · Choisis un bonus. Vague {0} : {1} insectes en {2} lancers.`, run.wave, waveQuota(), waveLaunches())
+    : T(`+{0} · +2 🍪 · Choisis un bonus pour cette partie (vague {1} ensuite)`, fmtMoney(run.lastReward), run.wave);
   lead.textContent += ` · +${run.lastMetaGain || 1} 🌊`;
   let unlock = null;
   if (run.newUnlocks?.length) {
     unlock = document.createElement('p');
     unlock.className = 'lead';
     unlock.style.color = 'var(--green)';
-    unlock.textContent = `🔓 Nouveau dans l’atelier : ${run.newUnlocks.join(', ')}`;
+    unlock.textContent = T(`🔓 Nouveau dans l’atelier : {0}`, run.newUnlocks.join(', '));
   }
   const grid = document.createElement('div');
   grid.className = 'perkChoices';
@@ -6136,7 +6196,7 @@ function showPerkChoice() {
     btn.querySelector('.ico').textContent = p.icon;
     btn.querySelector('.pname').textContent = p.name;
     btn.querySelector('.pdesc').textContent = p.desc(n);
-    btn.querySelector('.pstack').textContent = p.max > 1 ? `Niveau ${n} / ${p.max}` : '';
+    btn.querySelector('.pstack').textContent = p.max > 1 ? T(`Niveau {0} / {1}`, n, p.max) : '';
     btn.onclick = () => takePerk(id);
     grid.appendChild(btn);
   }
@@ -6158,7 +6218,7 @@ function takePerk(id) {
   modal.classList.remove('open');
   paused = false;
   const p = PERKS.find(x => x.id === id);
-  banner(`${p.icon} ${p.name}`, isStory() ? `Vague ${run.wave} : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers` : `Vague ${run.wave} : ça repart !`);
+  banner(`${p.icon} ${p.name}`, isStory() ? T(`Vague {0} : écrase {1} insectes en {2} lancers`, run.wave, waveQuota(), waveLaunches()) : T(`Vague {0} : ça repart !`, run.wave));
   shopDirty = true;
 }
 
@@ -6176,22 +6236,22 @@ function defeat() {
   modalBox.className = 'modalBox defeat';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = isStory() ? 'Défaite ! Le bureau est envahi 🪳🪳🪳' : 'Défaite ! 🪳🍪';
+  h.textContent = isStory() ? T('Défaite ! Le bureau est envahi 🪳🪳🪳') : T('Défaite ! 🪳🍪');
   const lead = document.createElement('p');
   lead.className = 'lead';
   lead.textContent = isStory()
-    ? `Il fallait écraser ${waveQuota()} insectes en ${waveLaunches()} lancers : j’en ai eu ${run.waveKills}.`
-    : 'Les cafards ont dévoré tout ton goûter.';
+    ? T(`Il fallait écraser {0} insectes en {1} lancers : j’en ai eu {2}.`, waveQuota(), waveLaunches(), run.waveKills)
+    : T('Les cafards ont dévoré tout ton goûter.');
   const sum = document.createElement('div');
   sum.className = 'summary';
   const perkNames = Object.entries(run.perks).map(([id, n]) => { const p = PERKS.find(x => x.id === id); return `${p.icon} ${p.name}${n > 1 ? ' ×' + n : ''}`; });
   for (const [k, v] of [
-    ['Vague atteinte', `${run.wave}`],
-    ['Record', `vague ${state.best[run.mode]}`],
-    ['Insectes écrasés', fmtInt(run.kills)],
-    ['Argent gagné', fmtMoney(run.money)],
-    ['Améliorations perdues', `${Object.values(run.levels).reduce((a, b) => a + b, 0)} niveaux`],
-    ['Bonus perdus', perkNames.length ? perkNames.join(', ') : 'aucun'],
+    [T('Vague atteinte'), `${run.wave}`],
+    [T('Record'), T(`vague {0}`, state.best[run.mode])],
+    [T('Insectes écrasés'), fmtInt(run.kills)],
+    [T('Argent gagné'), fmtMoney(run.money)],
+    [T('Améliorations perdues'), T(`{0} niveaux`, Object.values(run.levels).reduce((a, b) => a + b, 0))],
+    [T('Bonus perdus'), perkNames.length ? perkNames.join(', ') : T('aucun')],
   ]) {
     const r = document.createElement('div');
     r.className = 'statRow';
@@ -6202,18 +6262,18 @@ function defeat() {
   }
   const note = document.createElement('p');
   note.className = 'lead';
-  note.textContent = `Tout repart de zéro : argent, améliorations de l’atelier et infestation. Mais tes ${run.wavesCleared} vague${run.wavesCleared > 1 ? 's' : ''} repoussée${run.wavesCleared > 1 ? 's' : ''} t’ont rapporté ${run.metaGain || run.wavesCleared} 🌊 pour le Carton à Jouets (tu en as ${metaBalance()}).`;
+  note.textContent = T(`Tout repart de zéro : argent, améliorations de l’atelier et infestation. Mais tes {0} vague{1} repoussée{2} t’ont rapporté {3} 🌊 pour le Carton à Jouets (tu en as {4}).`, run.wavesCleared, run.wavesCleared > 1 ? 's' : '', run.wavesCleared > 1 ? 's' : '', run.metaGain || run.wavesCleared, metaBalance());
   const btns = document.createElement('div');
   btns.style.cssText = 'display:flex; gap:10px; justify-content:center; flex-wrap:wrap;';
   const box = document.createElement('button');
   box.className = 'bigBtn';
   box.style.background = 'var(--panel-2)';
   box.style.color = 'var(--text)';
-  box.textContent = `📦 Carton à Jouets (${metaBalance()} 🌊)`;
+  box.textContent = T(`📦 Carton à Jouets ({0} 🌊)`, metaBalance());
   box.onclick = openToybox;
   const btn = document.createElement('button');
   btn.className = 'bigBtn';
-  btn.textContent = 'Nouvelle partie';
+  btn.textContent = T('Nouvelle partie');
   btn.onclick = restartRun;
   btns.append(box, btn);
   modalBox.append(h, lead, sum, note, btns);
@@ -6225,8 +6285,8 @@ function tryRescue() {
   const run = state.run;
   if (!metaLevel('secours') || run.rescueUsed) return false;
   run.rescueUsed = true;
-  if (isStory()) { run.launchesLeft += 3; banner('🩹 Toupie de secours !', '+3 lancers pour finir la vague'); }
-  else { run.snack += 6; updateCookies(); banner('🩹 Toupie de secours !', '+6 bouchées de goûter'); }
+  if (isStory()) { run.launchesLeft += 3; banner(T('🩹 Toupie de secours !'), T('+3 lancers pour finir la vague')); }
+  else { run.snack += 6; updateCookies(); banner(T('🩹 Toupie de secours !'), T('+6 bouchées de goûter')); }
   return true;
 }
 
@@ -6263,9 +6323,9 @@ function restartRun() {
   modal.classList.remove('open');
   document.getElementById('toybox').classList.remove('open');
   paused = false;
-  banner('Nouvelle partie', kept
-    ? `📦 Tes ${kept} vague${kept > 1 ? 's' : ''} repoussée${kept > 1 ? 's' : ''} t’ont rapporté ${keptMeta} 🌊, gardées dans le Carton à Jouets (🌊 ${metaBalance()} à dépenser)`
-    : mode === 'histoire' ? `Vague 1 : écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !` : 'Protège ton goûter !');
+  banner(T('Nouvelle partie'), kept
+    ? T(`📦 Tes {0} vague{1} repoussée{2} t’ont rapporté {3} 🌊, gardées dans le Carton à Jouets (🌊 {4} à dépenser)`, kept, kept > 1 ? 's' : '', kept > 1 ? 's' : '', keptMeta, metaBalance())
+    : mode === 'histoire' ? T(`Vague 1 : écrase {0} insectes en {1} lancers !`, waveQuota(), waveLaunches()) : T('Protège ton goûter !'));
   shopDirty = true;
 }
 
@@ -6281,8 +6341,8 @@ function runLabel(m) {
   const run = state.savedRuns[m];
   const started = run.wave > 1 || run.kills > 0;
   const parts = [];
-  if (started && !run.over) parts.push(`▶ Partie en cours : vague ${run.wave}`);
-  parts.push(`Record : vague ${state.best[m]}`);
+  if (started && !run.over) parts.push(T(`▶ Partie en cours : vague {0}`, run.wave));
+  parts.push(T(`Record : vague {0}`, state.best[m]));
   return parts.join(' · ');
 }
 function openMenu() {
@@ -6329,8 +6389,8 @@ function resumeRun() {
   paused = false;
   if (!aliveTops().length) refillBoard();
   if (stageIndex() > (run.stageSeen || 0)) { pendingMutation = true; return; }
-  if (isStory()) { banner(`📖 Vague ${run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers`); maybeLaunchTuto(); }
-  else banner(`🍪 Mode Carnage — vague ${run.wave}`, 'Protège ton goûter des cafards affamés (en rouge) !');
+  if (isStory()) { banner(T(`📖 Vague {0}`, run.wave), T(`Écrase {0} insectes en {1} lancers`, waveQuota(), waveLaunches())); maybeLaunchTuto(); }
+  else banner(T(`🍪 Mode Carnage — vague {0}`, run.wave), T('Protège ton goûter des cafards affamés (en rouge) !'));
 }
 
 // Les répliques en cours (l'intro, ou le récit d'une mutation) et ce qu'on fait à la fin
@@ -6378,7 +6438,7 @@ function endIntro() {
   state.introSeen = true;
   save();
   if (state.run.choice || state.run.over) { resumeRun(); return; }
-  banner(`📖 Vague ${state.run.wave}`, `Écrase ${waveQuota()} insectes en ${waveLaunches()} lancers !`);
+  banner(T(`📖 Vague {0}`, state.run.wave), T(`Écrase {0} insectes en {1} lancers !`, waveQuota(), waveLaunches()));
   maybeLaunchTuto();
 }
 dialogEl.addEventListener('click', nextIntroLine);
@@ -6391,7 +6451,7 @@ const toyboxEl = document.getElementById('toybox');
 function openToybox() { toyResetArmed = false; renderToybox(); toyboxEl.classList.add('open'); }
 function renderToybox() {
   renderToyReset();
-  document.getElementById('toyBalance').textContent = `🌊 ${metaBalance()} vague${metaBalance() > 1 ? 's' : ''} à dépenser · ${state.meta.earned} repoussée${state.meta.earned > 1 ? 's' : ''} au total`;
+  document.getElementById('toyBalance').textContent = T(`🌊 {0} vague{1} à dépenser · {2} repoussée{3} au total`, metaBalance(), metaBalance() > 1 ? 's' : '', state.meta.earned, state.meta.earned > 1 ? 's' : '');
   const list = document.getElementById('toyList');
   list.replaceChildren();
   for (const t of TOYBOX) {
@@ -6402,7 +6462,7 @@ function renderToybox() {
     name.innerHTML = '<span class="ico"></span><span class="name"></span><span class="lvl"></span>';
     name.querySelector('.ico').textContent = t.icon;
     name.querySelector('.name').textContent = t.name;
-    name.querySelector('.lvl').textContent = t.max > 1 ? `${n} / ${t.max}` : (n ? 'possédé' : '');
+    name.querySelector('.lvl').textContent = t.max > 1 ? `${n} / ${t.max}` : (n ? T('possédé') : '');
     const desc = document.createElement('div');
     desc.className = 'desc';
     desc.textContent = t.desc(Math.max(1, maxed ? n : n + 1));
@@ -6419,7 +6479,7 @@ function renderToybox() {
       refreshStats();
       shopDirty = true;
       save();
-      banner(`${t.icon} ${t.name}`, 'Effet dès la prochaine partie' + (['catalogue', 'carte', 'secours', 'loupe', 'chimiste', 'gants', 'trophee'].includes(t.id) ? ' (et déjà maintenant)' : ''));
+      banner(`${t.icon} ${t.name}`, T('Effet dès la prochaine partie') + (['catalogue', 'carte', 'secours', 'loupe', 'chimiste', 'gants', 'trophee'].includes(t.id) ? T(' (et déjà maintenant)') : ''));
       renderToybox();
       openMenuRefresh();
     };
@@ -6430,7 +6490,7 @@ function renderToybox() {
 function openMenuRefresh() {
   updateAchCount();
   const runWaves = ['histoire', 'carnage'].reduce((a, m) => a + (state.savedRuns[m].metaGain ?? state.savedRuns[m].wavesCleared), 0);
-  document.getElementById('toyboxBalance').textContent = `🌊 ${metaBalance()} à dépenser` + (runWaves ? ` · dont ${runWaves} gagnée${runWaves > 1 ? 's' : ''} dans tes parties en cours` : '');
+  document.getElementById('toyboxBalance').textContent = T(`🌊 {0} à dépenser`, metaBalance()) + (runWaves ? T(` · dont {0} gagnée{1} dans tes parties en cours`, runWaves, runWaves > 1 ? 's' : '') : '');
   shopDirty = true;
 }
 document.getElementById('toyboxBtn').onclick = openToybox;
@@ -6438,7 +6498,7 @@ document.getElementById('toyboxBtn').onclick = openToybox;
 let toyResetArmed = false;
 function renderToyReset() {
   const b = document.getElementById('toyReset');
-  b.textContent = toyResetArmed ? `⚠️ Toucher encore pour tout vider (${state.meta.spent} 🌊 rendues)` : '📦 Vider le carton et récupérer mes 🌊';
+  b.textContent = toyResetArmed ? T(`⚠️ Toucher encore pour tout vider ({0} 🌊 rendues)`, state.meta.spent) : T('📦 Vider le carton et récupérer mes 🌊');
   b.disabled = !state.meta.spent;
 }
 document.getElementById('toyReset').onclick = () => {
@@ -6462,7 +6522,7 @@ document.getElementById('toyReset').onclick = () => {
   renderToybox();
   openMenuRefresh();
   SFX.play('buy');
-  banner('📦 Carton vidé', `${back} 🌊 récupérées : tu peux repartir de zéro`);
+  banner(T('📦 Carton vidé'), T(`{0} 🌊 récupérées : tu peux repartir de zéro`, back));
 };
 // =====================================================================
 //  CLASSEMENT EN LIGNE (Firebase) : chaque joueur reçoit un compte anonyme, et sa meilleure vague
@@ -6477,7 +6537,7 @@ document.getElementById('toyReset').onclick = () => {
 //  Règle du jeu : donner ne débloque RIEN. Aucun bonus, aucun contenu réservé.
 // =====================================================================
 const SUPPORT_URL = 'https://fr.tipeee.com/toupie-cafards'; // ← ex. 'https://fr.tipeee.com/mon-pseudo'
-const SUPPORT_NAME = 'Louis'; // ← ex. 'Louis' ; vide = formulation neutre « une personne »
+const SUPPORT_NAME = T('Louis'); // ← ex. 'Louis' ; vide = formulation neutre « une personne »
 (() => {
   const btns = [document.getElementById('coffeeBtn'), document.getElementById('crCoffee')].filter(Boolean);
   if (SUPPORT_NAME) document.querySelectorAll('.coffeeWho').forEach(el => { el.textContent = SUPPORT_NAME; });
@@ -6508,7 +6568,7 @@ async function lbAuth() {
   r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${LB_CONFIG.apiKey}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }),
   });
-  if (!r.ok) throw new Error('connexion impossible');
+  if (!r.ok) throw new Error(T('connexion impossible'));
   const j = await r.json();
   lbToken = j.idToken; lbTokenExp = Date.now() + Number(j.expiresIn) * 1000;
   state.lb.uid = j.localId; state.lb.refreshToken = j.refreshToken;
@@ -6549,14 +6609,14 @@ async function lbSubmitSpeed(force = false) {
 }
 async function lbFetchSpeed() {
   const r = await fetch(`${LB_CONFIG.dbURL}/leaderboard/speedrun.json?orderBy=%22time%22&limitToFirst=50`);
-  if (!r.ok) throw new Error('lecture impossible');
+  if (!r.ok) throw new Error(T('lecture impossible'));
   const data = (await r.json()) || {};
   return Object.entries(data).map(([uid, e]) => ({ uid, pseudo: e.pseudo, time: e.time, t: e.t }))
     .sort((a, b) => a.time - b.time || a.t - b.t);
 }
 async function lbFetch() {
   const r = await fetch(`${LB_CONFIG.dbURL}/leaderboard/histoire.json?orderBy=%22wave%22&limitToLast=50`);
-  if (!r.ok) throw new Error('lecture impossible');
+  if (!r.ok) throw new Error(T('lecture impossible'));
   const data = (await r.json()) || {};
   return Object.entries(data).map(([uid, e]) => ({ uid, pseudo: e.pseudo, wave: e.wave, t: e.t }))
     .sort((a, b) => b.wave - a.wave || a.t - b.t);
@@ -6567,12 +6627,12 @@ async function openLeaderboard(kind = lbKind) {
   const speed = lbKind === 'speed';
   document.getElementById('lbTabWave').classList.toggle('on', !speed);
   document.getElementById('lbTabSpeed').classList.toggle('on', speed);
-  document.getElementById('lbSub').textContent = speed ? 'Détruire le nid le plus vite possible · depuis la vague 1' : 'Mode Histoire · meilleure vague atteinte';
+  document.getElementById('lbSub').textContent = speed ? T('Détruire le nid le plus vite possible · depuis la vague 1') : T('Mode Histoire · meilleure vague atteinte');
   const list = document.getElementById('lbList'), msg = document.getElementById('lbMsg');
   document.getElementById('lbPanel').classList.add('open');
   list.replaceChildren();
-  if (!lbReady()) { msg.textContent = '🔧 Le classement en ligne arrive très bientôt !'; return; }
-  msg.textContent = 'Chargement…';
+  if (!lbReady()) { msg.textContent = T('🔧 Le classement en ligne arrive très bientôt !'); return; }
+  msg.textContent = T('Chargement…');
   await (speed ? lbSubmitSpeed() : lbSubmit());
   if (lbKind !== (speed ? 'speed' : 'wave')) return; // on a changé d'onglet entre-temps
   try {
@@ -6585,12 +6645,12 @@ async function openLeaderboard(kind = lbKind) {
       el.innerHTML = '<span class="rk"></span><span class="ps"></span><span class="wv"></span>';
       el.querySelector('.rk').textContent = ['🥇', '🥈', '🥉'][i] || (i + 1);
       el.querySelector('.ps').textContent = e.pseudo || '???';
-      el.querySelector('.wv').textContent = speed ? fmtClock(e.time) : 'vague ' + e.wave;
+      el.querySelector('.wv').textContent = speed ? fmtClock(e.time) : T('vague ') + e.wave;
       list.appendChild(el);
     });
-    msg.textContent = !(state.pseudo || '').trim() ? '👤 Entre un pseudo dans le menu pour apparaître dans le classement.'
-      : rows.length ? '' : speed ? 'Personne n’a encore détruit le nid : à toi de jouer !' : 'Personne pour l’instant : à toi de jouer !';
-  } catch { msg.textContent = '📡 Classement indisponible (pas de connexion ?)'; }
+    msg.textContent = !(state.pseudo || '').trim() ? T('👤 Entre un pseudo dans le menu pour apparaître dans le classement.')
+      : rows.length ? '' : speed ? T('Personne n’a encore détruit le nid : à toi de jouer !') : T('Personne pour l’instant : à toi de jouer !');
+  } catch { msg.textContent = T('📡 Classement indisponible (pas de connexion ?)'); }
 }
 document.getElementById('lbBtn').onclick = () => openLeaderboard();
 document.getElementById('lbTabWave').onclick = () => openLeaderboard('wave');
@@ -6606,9 +6666,9 @@ function exportSave() {
 }
 function importSave(code) {
   const c = code.trim().replace(/\s+/g, '');
-  if (!c.startsWith('TC1-')) throw new Error('Ce n’est pas un code de sauvegarde de Toupie contre Cafards.');
+  if (!c.startsWith('TC1-')) throw new Error(T('Ce n’est pas un code de sauvegarde de Toupie contre Cafards.'));
   const obj = JSON.parse(decodeURIComponent(escape(atob(c.slice(4)))));
-  if (obj.game !== 'toupie-cafards' || !obj.data || typeof obj.data !== 'object') throw new Error('Code abîmé ou incomplet.');
+  if (obj.game !== 'toupie-cafards' || !obj.data || typeof obj.data !== 'object') throw new Error(T('Code abîmé ou incomplet.'));
   resetting = true;   // la sauvegarde automatique ne doit pas écraser ce qu'on charge
   localStorage.setItem(SAVE_KEY, JSON.stringify(obj.data));
   location.reload();
@@ -6622,6 +6682,15 @@ pseudoInput.addEventListener('input', () => {
   clearTimeout(pseudoTimer);
   pseudoTimer = setTimeout(() => { lbSubmit(); lbSubmitSpeed(); }, 1500);
 });
+// Choix de la langue : on enregistre la partie puis on recharge la page dans la nouvelle langue
+for (const b of document.querySelectorAll('#langRow button')) {
+  b.classList.toggle('on', b.dataset.lang === LANG);
+  b.onclick = () => {
+    if (b.dataset.lang === LANG) return;
+    try { save(); localStorage.setItem(LANG_KEY, b.dataset.lang); } catch { /* stockage bloqué */ }
+    location.reload();
+  };
+}
 document.getElementById('saveBtn').onclick = () => {
   document.getElementById('saveCode').value = exportSave();
   document.getElementById('saveMsg').textContent = '';
@@ -6630,23 +6699,23 @@ document.getElementById('saveBtn').onclick = () => {
 };
 document.getElementById('copySave').onclick = async () => {
   const code = document.getElementById('saveCode').value;
-  try { await navigator.clipboard.writeText(code); document.getElementById('saveMsg').textContent = '✅ Code copié ! Garde-le précieusement.'; }
-  catch { const t = document.getElementById('saveCode'); t.focus(); t.select(); document.getElementById('saveMsg').textContent = 'Sélectionne le code et copie-le (appui long → Copier).'; }
+  try { await navigator.clipboard.writeText(code); document.getElementById('saveMsg').textContent = T('✅ Code copié ! Garde-le précieusement.'); }
+  catch { const t = document.getElementById('saveCode'); t.focus(); t.select(); document.getElementById('saveMsg').textContent = T('Sélectionne le code et copie-le (appui long → Copier).'); }
 };
 let loadArmed = false;
 document.getElementById('loadSave').onclick = () => {
   const code = document.getElementById('loadCode').value;
   const msg = document.getElementById('saveMsg');
-  if (!code.trim()) { msg.textContent = 'Colle d’abord un code dans la case.'; return; }
-  if (!loadArmed) { loadArmed = true; msg.textContent = '⚠️ Appuie encore une fois pour remplacer ta progression actuelle.'; setTimeout(() => { loadArmed = false; }, 4000); return; }
+  if (!code.trim()) { msg.textContent = T('Colle d’abord un code dans la case.'); return; }
+  if (!loadArmed) { loadArmed = true; msg.textContent = T('⚠️ Appuie encore une fois pour remplacer ta progression actuelle.'); setTimeout(() => { loadArmed = false; }, 4000); return; }
   try { importSave(code); } catch (e) { loadArmed = false; msg.textContent = '❌ ' + e.message; }
 };
 document.getElementById('saveClose').onclick = () => document.getElementById('savePanel').classList.remove('open');
 document.getElementById('achBtn').onclick = () => { renderAchievements(); document.getElementById('achPanel').classList.add('open'); };
 document.getElementById('achClose').onclick = () => { document.getElementById('achPanel').classList.remove('open'); updateAchCount(); openMenuRefresh(); };
 function updateSettingsBtns() {
-  document.getElementById('soundBtn').textContent = state.settings.sound !== false ? '🔊 Son : activé' : '🔇 Son : coupé';
-  document.getElementById('vibBtn').textContent = state.settings.vibrate !== false ? '📳 Vibrations : activées' : '📴 Vibrations : coupées';
+  document.getElementById('soundBtn').textContent = state.settings.sound !== false ? T('🔊 Son : activé') : T('🔇 Son : coupé');
+  document.getElementById('vibBtn').textContent = state.settings.vibrate !== false ? T('📳 Vibrations : activées') : T('📴 Vibrations : coupées');
 }
 document.getElementById('soundBtn').onclick = () => { state.settings.sound = state.settings.sound === false; updateSettingsBtns(); SFX.init(); SFX.play('buy'); save(); };
 document.getElementById('vibBtn').onclick = () => { state.settings.vibrate = state.settings.vibrate === false; updateSettingsBtns(); buzz(30); save(); };
@@ -6667,7 +6736,7 @@ function openPause() {
   charging = false;
   const run = state.run;
   document.getElementById('pauseInfo').textContent =
-    `${isStory() ? '📖 Mode Histoire' : '🍪 Mode Carnage'} · vague ${run.wave} · ${fmtMoney(run.cash)} · record : vague ${state.best[run.mode]}`;
+    T(`{0} · vague {1} · {2} · record : vague {3}`, isStory() ? T('📖 Mode Histoire') : T('🍪 Mode Carnage'), run.wave, fmtMoney(run.cash), state.best[run.mode]);
   disarmRestart();
   pauseEl.classList.add('open');
 }
@@ -6675,7 +6744,7 @@ function disarmRestart() {
   restartArmed = false;
   clearTimeout(restartTimer);
   restartBtn.classList.remove('armed');
-  restartBtn.querySelector('.mt').textContent = '🔁 Recommencer la partie';
+  restartBtn.querySelector('.mt').textContent = T('🔁 Recommencer la partie');
 }
 document.getElementById('menuBtn').onclick = openPause;
 // Bouton ⏩ (si on possède la montre du Carton à Jouets)
@@ -6697,7 +6766,7 @@ restartBtn.onclick = () => {
     // Deuxième appui nécessaire : on perd toute la partie
     restartArmed = true;
     restartBtn.classList.add('armed');
-    restartBtn.querySelector('.mt').textContent = '⚠️ Sûr ? Touche encore pour tout recommencer';
+    restartBtn.querySelector('.mt').textContent = T('⚠️ Sûr ? Touche encore pour tout recommencer');
     restartTimer = setTimeout(disarmRestart, 3000);
     return;
   }
@@ -6713,14 +6782,14 @@ document.getElementById('quitBtn').onclick = () => {
   modalBox.className = 'modalBox';
   modalBox.replaceChildren();
   const h = document.createElement('h2');
-  h.textContent = 'Quitter la partie ?';
+  h.textContent = T('Quitter la partie ?');
   const lead = document.createElement('p');
   lead.className = 'lead';
-  lead.textContent = `Ta partie s’arrête ici, à la vague ${run.wave}.` + (gained ? ` Tu gardes les ${gained} 🌊 déjà gagnées : elles sont dans le Carton à Jouets.` : '')
-    + ' L’argent, l’atelier et l’infestation repartent de zéro : la prochaine partie recommencera à la vague 1.';
+  lead.textContent = T(`Ta partie s’arrête ici, à la vague {0}.`, run.wave) + (gained ? T(` Tu gardes les {0} 🌊 déjà gagnées : elles sont dans le Carton à Jouets.`, gained) : '')
+    + T(' L’argent, l’atelier et l’infestation repartent de zéro : la prochaine partie recommencera à la vague 1.');
   const yes = document.createElement('button');
   yes.className = 'bigBtn';
-  yes.textContent = 'Oui, quitter la partie';
+  yes.textContent = T('Oui, quitter la partie');
   yes.onclick = () => {
     modal.classList.remove('open');
     if (nest) leaveNest();
@@ -6732,7 +6801,7 @@ document.getElementById('quitBtn').onclick = () => {
   };
   const no = document.createElement('button');
   no.className = 'linkBtn';
-  no.textContent = 'Non, continuer à jouer';
+  no.textContent = T('Non, continuer à jouer');
   no.onclick = () => { modal.classList.remove('open'); pauseEl.classList.add('open'); };
   modalBox.append(h, lead, yes, no);
   modal.classList.add('open');
@@ -6742,7 +6811,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-11-06.2';
+const VERSION = '2026-11-06.3';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -6761,7 +6830,7 @@ updateBar.onclick = () => {
   // Une adresse différente oblige le téléphone à recharger le jeu au lieu de reprendre sa vieille copie
   location.replace(`${location.pathname}?v=${encodeURIComponent(newVersion || Date.now())}`);
 };
-document.getElementById('versionNote').textContent = `Version ${VERSION}`;
+document.getElementById('versionNote').textContent = T(`Version {0}`, VERSION);
 checkForUpdate();
 setInterval(checkForUpdate, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
@@ -6816,7 +6885,7 @@ function toggleAuto() {
   state.autoOn = !state.autoOn;
   SFX.play(state.autoOn ? 'buy' : 'pick');
   buzz(15);
-  banner(state.autoOn ? '⚙️ Lanceur automatique allumé' : '⚙️ Lanceur automatique éteint', state.autoOn ? 'Les toupies partent toutes seules, au hasard' : 'À toi de lancer !');
+  banner(state.autoOn ? T('⚙️ Lanceur automatique allumé') : T('⚙️ Lanceur automatique éteint'), state.autoOn ? T('Les toupies partent toutes seules, au hasard') : T('À toi de lancer !'));
   save();
 }
 function onLauncher(e) {
@@ -6892,7 +6961,7 @@ function pointerEnd(e, cancelled) {
     if (!gesture.moved && !cancelled && isReady() && gameTime - launcherHintT > 1.5) {
       // Toucher ailleurs ne lance rien : on rappelle juste où poser le doigt
       launcherHintT = gameTime;
-      popup('👇 Pose le doigt sur le lanceur', LAUNCH.x, LAUNCH.y - 0.1, 'big');
+      popup(T('👇 Pose le doigt sur le lanceur'), LAUNCH.x, LAUNCH.y - 0.1, 'big');
     }
     gesture = null;
   } else if (gesture?.type === 'pinch' && pointers.size < 2) gesture = null;
@@ -6913,7 +6982,7 @@ function release() {
     if (g < 0.85) { tutoFail('power', g); return; }
   }
   const perfect = g >= 1 - S.perfect;
-  if (perfect) { popup('PARFAIT !', LAUNCH.x, LAUNCH.y - 0.08, 'big'); SFX.play('perfect'); }
+  if (perfect) { popup(T('PARFAIT !'), LAUNCH.x, LAUNCH.y - 0.08, 'big'); SFX.play('perfect'); }
   state.perfectStreak = perfect ? (state.perfectStreak || 0) + 1 : 0;
   state.perfectBest = Math.max(state.perfectBest || 0, state.perfectStreak);
   launchTops(aimPoint, g, perfect);
@@ -6931,10 +7000,10 @@ let cine = null, cineArms = false;
 const cineEl = document.getElementById('cine'), cineSub = document.getElementById('cineSub');
 const cineEase = x => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const CINE_SUBS = [
-  [0.5, 3.0, '…Ça sent le cafard à plein nez, ici.'],
-  [4.7, 5.9, 'Oh non… C’est elle. La Reine.'],
-  [6.5, 8.3, 'Ma vieille toupie… On a fait tout ce chemin ensemble.'],
-  [8.6, 9.6, 'Respire… Concentre-toi.'],
+  [0.5, 3.0, T('…Ça sent le cafard à plein nez, ici.')],
+  [4.7, 5.9, T('Oh non… C’est elle. La Reine.')],
+  [6.5, 8.3, T('Ma vieille toupie… On a fait tout ce chemin ensemble.')],
+  [8.6, 9.6, T('Respire… Concentre-toi.')],
 ];
 const CINE_END = 9.8;
 // La main : une paume d'un seul morceau (forme de galet, coussinets, lignes de la main), des doigts faits d'un tube
@@ -6972,12 +7041,12 @@ const handTex = (() => {
 function taperTube(pts, side, r0, r1, flat = 1.12, segs = 30, rad = 14) {
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
   const pos = [], idx = [];
-  const T = new THREE.Vector3(), up = new THREE.Vector3(), sd = new THREE.Vector3();
+  const TT = new THREE.Vector3(), up = new THREE.Vector3(), sd = new THREE.Vector3();
   for (let i = 0; i <= segs; i++) {
     const u = i / segs, P = curve.getPointAt(u);
-    curve.getTangentAt(u, T);
-    up.crossVectors(T, side).normalize();
-    sd.crossVectors(up, T).normalize();
+    curve.getTangentAt(u, TT);
+    up.crossVectors(TT, side).normalize();
+    sd.crossVectors(up, TT).normalize();
     let r = r0 + (r1 - r0) * u;
     const tip = 0.16;
     if (u > 1 - tip) { const k = (u - (1 - tip)) / tip; r *= Math.sqrt(Math.max(0, 1 - k * k)); }
@@ -7211,13 +7280,13 @@ function maybeLaunchTuto() {
   launchTuto = { moved: 0, err: '', errT: 0, sx: 0, sy: 0, px: 0, py: 0, held: 0 };
 }
 function tutoFail(kind, g) {
-  const T = launchTuto;
-  T.err = kind;
-  T.errT = performance.now();
+  const TT = launchTuto;
+  TT.err = kind;
+  TT.errT = performance.now();
   if (kind === 'power') {
     // on montre sur la barre où on a lâché, à côté de la zone verte
     gaugeMark.style.left = (g * 100) + '%';
-    T.markT = performance.now();
+    TT.markT = performance.now();
   }
   SFX.play('boing');
   buzz(30);
@@ -7233,14 +7302,14 @@ function setCoachText(html, big) {
   coachText.classList.toggle('big', !!big);
 }
 function updateCoach() {
-  const T = launchTuto;
-  const show = T && isStory() && !nest && !cine && introStep < 0 && !paused
+  const TT = launchTuto;
+  const show = TT && isStory() && !nest && !cine && introStep < 0 && !paused
     && !menuEl.classList.contains('open') && !shopEl.classList.contains('open') && !pauseEl.classList.contains('open');
   coachEl.classList.toggle('on', !!show);
   const gaugeEl = $('gauge');
   if (!show) { gaugeEl.classList.remove('tuto', 'ready', 'review'); document.body.classList.remove('tutoGauge'); return; }
   const now = performance.now();
-  if (T.done && now > T.done) { launchTuto = null; coachEl.classList.remove('on'); gaugeEl.classList.remove('tuto', 'ready', 'review'); document.body.classList.remove('tutoGauge'); return; }
+  if (TT.done && now > TT.done) { launchTuto = null; coachEl.classList.remove('on'); gaugeEl.classList.remove('tuto', 'ready', 'review'); document.body.classList.remove('tutoGauge'); return; }
   const rect = renderer.domElement.getBoundingClientRect();
   const toScreen = (x, y, z) => {
     tmpV.set(x, y, z).project(camera);
@@ -7254,7 +7323,7 @@ function updateCoach() {
   tz = Math.min(tz, LAUNCH.y - 0.3);
   const [cx, cy] = toScreen(tx, 0, tz);
   const ang = Math.atan2(cy - sy, cx - sx), dist = Math.hypot(cx - sx, cy - sy);
-  const step = T.done ? 'done' : !charging ? 'press' : T.moved < 28 ? 'aim' : 'power';
+  const step = TT.done ? 'done' : !charging ? 'press' : TT.moved < 28 ? 'aim' : 'power';
   const g = charging ? gaugeValue() : 0, ready = step === 'power' && g >= 0.85;
   coachEl.dataset.step = step;
   // Le projecteur : tout s'assombrit sauf le lanceur (étape 1) ou la barre (étape 3)
@@ -7262,7 +7331,7 @@ function updateCoach() {
   coachShade.style.setProperty('--y', sy + 'px');
   coachRing.style.left = sx + 'px'; coachRing.style.top = sy + 'px';
   // La main fantôme : appuie sur le lanceur (étape 1), glisse vers les insectes (étape 2), se lève quand c'est le moment (étape 3)
-  const hx = step === 'power' ? T.px : sx, hy = step === 'power' ? T.py : sy;
+  const hx = step === 'power' ? TT.px : sx, hy = step === 'power' ? TT.py : sy;
   coachHand.style.left = hx + 'px'; coachHand.style.top = hy + 'px';
   const reach = Math.min(dist * 0.75, 170);
   coachHand.style.setProperty('--dx', Math.cos(ang) * reach + 'px');
@@ -7274,7 +7343,7 @@ function updateCoach() {
   coachArrow.style.transform = `rotate(${ang}rad)`;
   coachTarget.style.left = cx + 'px'; coachTarget.style.top = cy + 'px';
   // La barre : en grand au milieu de l'écran, flèche sur la zone verte, verte quand on peut lâcher
-  const marking = !!T.markT && now - T.markT < 1800, showGauge = step === 'power' || marking;
+  const marking = !!TT.markT && now - TT.markT < 1800, showGauge = step === 'power' || marking;
   document.body.classList.toggle('tutoGauge', showGauge);
   gaugeEl.classList.toggle('tuto', showGauge);
   gaugeEl.classList.toggle('review', !charging && showGauge);
@@ -7282,14 +7351,14 @@ function updateCoach() {
   gaugeMark.style.display = marking ? '' : 'none';
   gaugeHint.style.right = 'calc(7.5% - 22px)';
   // Les mots : très courts, en gros (l'animation dit déjà tout)
-  const err = T.err && now - T.errT < 1800 && step === 'press' ? T.err : '';
-  if (step === 'done') setCoachText('BRAVO !', true);
-  else if (err === 'aim') setCoachText('Glisse le doigt <b>avant</b> de lâcher !', true);
-  else if (err === 'power') setCoachText('Raté ! Lâche quand la barre est <b>dans le vert</b>', true);
-  else if (step === 'press') setCoachText('Appuie sur le lanceur<br><b>et reste appuyé</b>', true);
-  else if (step === 'aim') setCoachText('<b>Glisse</b> pour viser', true);
-  else if (ready) setCoachText('LÂCHE !', true);
-  else setCoachText('Attends le <b>vert</b>…', true);
+  const err = TT.err && now - TT.errT < 1800 && step === 'press' ? TT.err : '';
+  if (step === 'done') setCoachText(T('BRAVO !'), true);
+  else if (err === 'aim') setCoachText(T('Glisse le doigt <b>avant</b> de lâcher !'), true);
+  else if (err === 'power') setCoachText(T('Raté ! Lâche quand la barre est <b>dans le vert</b>'), true);
+  else if (step === 'press') setCoachText(T('Appuie sur le lanceur<br><b>et reste appuyé</b>'), true);
+  else if (step === 'aim') setCoachText(T('<b>Glisse</b> pour viser'), true);
+  else if (ready) setCoachText(T('LÂCHE !'), true);
+  else setCoachText(T('Attends le <b>vert</b>…'), true);
   coachText.classList.toggle('go', ready);
   coachText.classList.toggle('shake', !!err);
   coachText.style.left = Math.max(150, Math.min(window.innerWidth - 150, step === 'power' || step === 'done' ? window.innerWidth / 2 : sx)) + 'px';
@@ -7461,11 +7530,11 @@ function renderPreview(dt) {
 
 // Une amélioration se débloque à une certaine vague de la partie (et parfois un niveau d'infestation)
 function upgradeLock(u) {
-  if (u.modes && !u.modes.includes(state.run.mode)) return 'Mode Carnage uniquement';
+  if (u.modes && !u.modes.includes(state.run.mode)) return T('Mode Carnage uniquement');
   if (TEST_MODE === 'riche') return null; // session de test : tout est débloqué dès la vague 1
   const need = Math.max(1, (u.wave || 1) - (metaLevel('catalogue') ? 2 : 0));
-  if (state.run.wave < need) return `Débloqué à la vague ${need}`;
-  if (u.unlock && !u.unlock()) return `Débloqué au ${u.lockText}`;
+  if (state.run.wave < need) return T(`Débloqué à la vague {0}`, need);
+  if (u.unlock && !u.unlock()) return T(`Débloqué au {0}`, u.lockText);
   return null;
 }
 
@@ -7484,7 +7553,7 @@ function buy(u) {
   shopDirty = true;
   previewDirty = true;
   SFX.play('buy');
-  if (u.skins && skinTier(u.id) > before) { banner(u.tab === 'lanceur' ? '🚀 Nouvelle pièce pour le lanceur !' : '🌀 Nouvelle pièce pour la toupie !', u.skins[skinTier(u.id)][1]); SFX.play('evolve'); }
+  if (u.skins && skinTier(u.id) > before) { banner(u.tab === 'lanceur' ? T('🚀 Nouvelle pièce pour le lanceur !') : T('🌀 Nouvelle pièce pour la toupie !'), u.skins[skinTier(u.id)][1]); SFX.play('evolve'); }
 }
 
 // Combien de niveaux (et pour quel prix) on peut acheter d'un coup selon le mode choisi
@@ -7509,8 +7578,8 @@ function renderShop() {
   if (currentTab === 'stats') return renderStats();
   const modeRow = document.createElement('div');
   modeRow.className = 'buyModeRow';
-  modeRow.innerHTML = '<span>Acheter :</span>';
-  for (const [m, label] of [[1, '×1'], [5, '×5'], [999, 'Max']]) {
+  modeRow.innerHTML = '<span>' + T('Acheter :') + '</span>';
+  for (const [m, label] of [[1, '×1'], [5, '×5'], [999, T('Max')]]) {
     const b = document.createElement('button');
     b.textContent = label;
     b.classList.toggle('on', buyMode === m);
@@ -7523,16 +7592,16 @@ function renderShop() {
     const card = document.createElement('div');
     card.className = 'card nestCard' + (ok ? '' : ' locked');
     card.innerHTML = '<div><span class="name"></span></div><button></button><div class="desc"></div>';
-    card.querySelector('.name').textContent = '🔥 Détruire le nid';
+    card.querySelector('.name').textContent = T('🔥 Détruire le nid');
     const btn = card.querySelector('button');
     if (!ok) {
-      card.querySelector('.desc').textContent = '🔒 Débloqué au stade 3, quand les araignées arriveront.';
+      card.querySelector('.desc').textContent = T('🔒 Débloqué au stade 3, quand les araignées arriveront.');
       btn.textContent = '🔒'; btn.disabled = true;
     } else if (run.nestPaid) {
-      card.querySelector('.desc').textContent = 'Le nid est localisé. Retourne affronter la Reine quand tu veux (gratuit).';
-      btn.textContent = '⚔️ Y aller'; btn.onclick = startNest;
+      card.querySelector('.desc').textContent = T('Le nid est localisé. Retourne affronter la Reine quand tu veux (gratuit).');
+      btn.textContent = T('⚔️ Y aller'); btn.onclick = startNest;
     } else {
-      card.querySelector('.desc').textContent = 'Trouver le nid des cafards et affronter leur Reine. Ça coûte une fortune… mais c’est la fin de l’invasion.';
+      card.querySelector('.desc').textContent = T('Trouver le nid des cafards et affronter leur Reine. Ça coûte une fortune… mais c’est la fin de l’invasion.');
       btn.textContent = fmtMoney(NEST_COST);
       btn.dataset.cost = NEST_COST;
       btn.disabled = run.cash < NEST_COST;
@@ -7549,7 +7618,7 @@ function renderShop() {
     const name = document.createElement('div');
     name.innerHTML = `<span class="name"></span><span class="lvl"></span>`;
     name.querySelector('.name').textContent = u.name;
-    name.querySelector('.lvl').textContent = maxed ? 'MAX' : `niv. ${level}`;
+    name.querySelector('.lvl').textContent = maxed ? 'MAX' : T(`niv. {0}`, level);
     if (ICON_STYLE && UPGRADE_ICON[u.id]) name.prepend(iconEl(UPGRADE_ICON[u.id], 'upg'));
     const desc = document.createElement('div');
     desc.className = 'desc';
@@ -7581,7 +7650,7 @@ function renderShop() {
           const t0 = tierAt(u.id, level).t, t1 = tierAt(u.id, level + 1).t;
           nextTxt = u.skins && t1 > t0 ? `✨ ${u.skins[t1][1]}` : (UPGRADE_DETAIL[u.id]?.(level + 1) || '');
         }
-        skin.textContent = '🎨 ' + [cur, det].filter(Boolean).join(' · ') + (maxed ? ' · au maximum' : nextTxt ? ` → niv. ${level + 1} : ${nextTxt}` : '');
+        skin.textContent = '🎨 ' + [cur, det].filter(Boolean).join(' · ') + (maxed ? T(' · au maximum') : nextTxt ? T(` → niv. {0} : {1}`, level + 1, nextTxt) : '');
       }
       // En mode ×5 / Max : le prix affiché est celui de tous les niveaux qu'on peut s'offrir d'un coup
       const lot = lotOf(u);
@@ -7612,57 +7681,56 @@ function renderStats() {
     }
   };
   const run = state.run;
-  rows(isStory() ? 'Partie en cours (Histoire)' : 'Partie en cours (Carnage)', [
-    ['Vague', `${run.wave} (record : ${state.best[run.mode]})`],
+  rows(isStory() ? T('Partie en cours (Histoire)') : T('Partie en cours (Carnage)'), [
+    [T('Vague'), T(`{0} (record : {1})`, run.wave, state.best[run.mode])],
     ...(isStory()
-      ? [['Objectif de la vague', `${run.waveKills} / ${waveQuota()} insectes`], ['Lancers restants', `${run.launchesLeft} / ${waveLaunches()}`]]
-      : [['Goûter', `${Math.max(0, run.snack)} / ${run.maxSnack} 🍪`], ['Insectes affamés cette vague', `${waveRaiders()}`]]),
-    ['Bonus', Object.keys(run.perks).length ? Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? '×' + n : '')).join(' ') : 'aucun'],
-    ['Insectes écrasés', fmtInt(run.kills)],
-    ['Argent gagné', fmtMoney(run.money)],
+      ? [[T('Objectif de la vague'), T(`{0} / {1} insectes`, run.waveKills, waveQuota())], [T('Lancers restants'), `${run.launchesLeft} / ${waveLaunches()}`]]
+      : [[T('Goûter'), `${Math.max(0, run.snack)} / ${run.maxSnack} 🍪`], [T('Insectes affamés cette vague'), `${waveRaiders()}`]]),
+    [T('Bonus'), Object.keys(run.perks).length ? Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? '×' + n : '')).join(' ') : T('aucun')],
+    [T('Insectes écrasés'), fmtInt(run.kills)],
+    [T('Argent gagné'), fmtMoney(run.money)],
   ]);
-  rows('Toupie', [
-    ['Diamètre', `${(S.radius * 200).toFixed(1)} cm`],
-    ['Poids', `${Math.round(S.mass)} g`],
-    ['Inertie (perte au choc)', `${Math.round(S.inertia * 100)} %`],
-    ['Endurance', `${estimatedSpin(S).toFixed(1)} s`],
-    ['Frottement de la pointe', S.linFric.toFixed(2)],
-    ['Multiplicateur de dégâts', `×${S.blades.toFixed(2)}`],
-    ['Dégâts par contact (plein régime)', baseDamage(1, 0).toFixed(2)],
-    ['Seuil de chute', `${Math.round(S.fallRatio * 100)} %`],
-    ['Rebond', `${Math.round(S.restitution * 100)} %`],
-    ['Agressivité', S.chase.toFixed(2)],
-    ['Coup critique', `${Math.round(S.crit * 100)} % (×${S.critMult.toFixed(2)})`],
+  rows(T('Toupie'), [
+    [T('Diamètre'), `${(S.radius * 200).toFixed(1)} cm`],
+    [T('Poids'), `${Math.round(S.mass)} g`],
+    [T('Inertie (perte au choc)'), `${Math.round(S.inertia * 100)} %`],
+    [T('Endurance'), `${estimatedSpin(S).toFixed(1)} s`],
+    [T('Frottement de la pointe'), S.linFric.toFixed(2)],
+    [T('Multiplicateur de dégâts'), `×${S.blades.toFixed(2)}`],
+    [T('Dégâts par contact (plein régime)'), baseDamage(1, 0).toFixed(2)],
+    [T('Seuil de chute'), `${Math.round(S.fallRatio * 100)} %`],
+    [T('Rebond'), `${Math.round(S.restitution * 100)} %`],
+    [T('Agressivité'), S.chase.toFixed(2)],
+    [T('Coup critique'), `${Math.round(S.crit * 100)} % (×${S.critMult.toFixed(2)})`],
   ]);
-  rows('Apparence', UPGRADES.filter(u => u.skins).map(u => [u.name, u.skins[skinTier(u.id)][1]]));
-  rows('Lanceur', [
-    ['Rotation au lancer', `${fmtInt(S.rpm)} tr/min`],
-    ['Vitesse au lancer', `${(S.speed * 100).toFixed(0)} cm/s`],
-    ['Zone parfaite', `${Math.round(S.perfect * 100)} %`],
-    ['Recharge (Carnage)', `${S.cooldown.toFixed(2)} s`],
-    ['Toupies par lancer', S.tops],
+  rows(T('Apparence'), UPGRADES.filter(u => u.skins).map(u => [u.name, u.skins[skinTier(u.id)][1]]));
+  rows(T('Lanceur'), [
+    [T('Rotation au lancer'), T(`{0} tr/min`, fmtInt(S.rpm))],
+    [T('Vitesse au lancer'), `${(S.speed * 100).toFixed(0)} cm/s`],
+    [T('Zone parfaite'), `${Math.round(S.perfect * 100)} %`],
+    [T('Toupies par lancer'), S.tops],
   ]);
-  rows('Bureau', [
-    ['Apparition', `${(S.spawnRate * waveSpawnMult()).toFixed(2)} insecte/s`],
-    ['Insectes max', bugCap()],
-    ['Prime (avec bonus de record)', `×${S.bounty.toFixed(2)}`],
-    ['Combo', `+${Math.round(S.comboBonus * 100)} % (fenêtre ${S.comboWindow.toFixed(1)} s)`],
-    ...(isStory() && state.run.timed ? [['Chrono (speedrun)', fmtClock(state.run.time || 0) + (state.best.speedrun ? ` · record ${fmtClock(state.best.speedrun)}` : '')]] : []),
+  rows(T('Bureau'), [
+    [T('Apparition'), T(`{0} insecte/s`, (S.spawnRate * waveSpawnMult()).toFixed(2))],
+    [T('Insectes max'), bugCap()],
+    [T('Prime (avec bonus de record)'), `×${S.bounty.toFixed(2)}`],
+    [T('Combo'), T(`+{0} % (fenêtre {1} s)`, Math.round(S.comboBonus * 100), S.comboWindow.toFixed(1))],
+    ...(isStory() && state.run.timed ? [[T('Chrono (speedrun)'), fmtClock(state.run.time || 0) + (state.best.speedrun ? T(` · record {0}`, fmtClock(state.best.speedrun)) : '')]] : []),
   ]);
-  rows('Carrière', [
-    ['Argent gagné au total', fmtMoney(state.totalMoney)],
-    ['Record Histoire', `vague ${state.best.histoire}`],
-    ['Lancers', fmtInt(state.launches)],
-    ['Insectes écrasés', fmtInt(state.kills)],
-    ['Meilleur combo', `×${state.bestCombo}`],
+  rows(T('Carrière'), [
+    [T('Argent gagné au total'), fmtMoney(state.totalMoney)],
+    [T('Record Histoire'), T(`vague {0}`, state.best.histoire)],
+    [T('Lancers'), fmtInt(state.launches)],
+    [T('Insectes écrasés'), fmtInt(state.kills)],
+    [T('Meilleur combo'), `×${state.bestCombo}`],
     ...ALL_BUG_TYPES.filter(t => state.killsByType[t.id]).map(t => [`  ${t.name}`, fmtInt(state.killsByType[t.id])]),
   ]);
   const reset = document.createElement('button');
   reset.id = 'resetBtn';
-  reset.textContent = 'Recommencer à zéro';
+  reset.textContent = T('Recommencer à zéro');
   let armed = false;
   reset.onclick = () => {
-    if (!armed) { armed = true; reset.textContent = 'Sûr ? Touche encore pour tout effacer'; setTimeout(() => { armed = false; reset.textContent = 'Recommencer à zéro'; }, 3000); return; }
+    if (!armed) { armed = true; reset.textContent = T('Sûr ? Touche encore pour tout effacer'); setTimeout(() => { armed = false; reset.textContent = T('Recommencer à zéro'); }, 3000); return; }
     resetting = true;
     try { localStorage.removeItem(SAVE_KEY); } catch {}
     location.reload();
@@ -7675,11 +7743,11 @@ function updateHud() {
   const run = state.run;
   $('money').textContent = fmtMoney(state.run.cash);
   $('workshopMoney').textContent = fmtMoney(state.run.cash);
-  $('killsLine').textContent = `${fmtInt(run.kills)} insecte${run.kills > 1 ? 's' : ''} écrasé${run.kills > 1 ? 's' : ''} · ${fmtInt(run.launches)} lancer${run.launches > 1 ? 's' : ''}`;
-  $('waveText').textContent = `${isStory() ? '📖' : '🍪'} Vague ${run.wave}`;
+  $('killsLine').textContent = T(`{0} insecte{1} écrasé{2} · {3} lancer{4}`, fmtInt(run.kills), run.kills > 1 ? 's' : '', run.kills > 1 ? 's' : '', fmtInt(run.launches), run.launches > 1 ? 's' : '');
+  $('waveText').textContent = T(`{0} Vague {1}`, isStory() ? '📖' : '🍪', run.wave);
   if (isStory()) {
     const quota = waveQuota();
-    $('waveSide').textContent = `🚀 ${run.launchesLeft} lancer${run.launchesLeft > 1 ? 's' : ''}`;
+    $('waveSide').textContent = T(`🚀 {0} lancer{1}`, run.launchesLeft, run.launchesLeft > 1 ? 's' : '');
     $('quotaText').textContent = `${Math.min(run.waveKills, quota)} / ${quota}`;
     $('quotaBar').style.width = `${Math.min(1, run.waveKills / quota) * 100}%`;
     $('quotaBar').classList.toggle('done', run.cleared);
@@ -7691,7 +7759,7 @@ function updateHud() {
   }
   const l = infestLevel();
   const st = STAGES[stageIndex(l)];
-  $('infestName').textContent = (st.from ? `Stade ${stageIndex(l) + 1} · ` : '') + `Infestation ${l - st.from + 1} — ${BUG_TYPES[l].name}`;
+  $('infestName').textContent = (st.from ? T(`Stade {0} · `, stageIndex(l) + 1) : '') + T(`Infestation {0} — {1}`, l - st.from + 1, BUG_TYPES[l].name);
   const next = INFEST_THRESHOLDS[l + 1] ?? INFEST_MAX;
   $('infestBar').style.width = `${Math.min(100, ((state.run.infest - INFEST_THRESHOLDS[l]) / (next - INFEST_THRESHOLDS[l])) * 100)}%`;
   $('perksLine').textContent = Object.entries(run.perks).map(([id, n]) => PERKS.find(p => p.id === id).icon + (n > 1 ? n : '')).join(' ');
@@ -7712,23 +7780,23 @@ function updateHud() {
   let msg;
   const alive = aliveTops();
   if (introStep >= 0) msg = '…';
-  else if (qte) msg = '⏸️ La Reine attaque : réussis son défi !';
-  else if (paused) msg = run.over ? 'Défaite…' : run.choice ? 'Choisis un bonus' : 'Pause';
-  else if (charging) msg = 'Relâche dans la zone verte = PARFAIT !';
-  else if (nest) msg = nest.launched ? '🌀 Tes toupies tournent sans fin… surveille la Reine !' : 'Un seul lancer : envoie tes toupies sur la Reine !';
+  else if (qte) msg = T('⏸️ La Reine attaque : réussis son défi !');
+  else if (paused) msg = run.over ? T('Défaite…') : run.choice ? T('Choisis un bonus') : T('Pause');
+  else if (charging) msg = T('Relâche dans la zone verte = PARFAIT !');
+  else if (nest) msg = nest.launched ? T('🌀 Tes toupies tournent sans fin… surveille la Reine !') : T('Un seul lancer : envoie tes toupies sur la Reine !');
   else if (isStory()) {
     const missing = waveQuota() - run.waveKills;
-    if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min` + (run.cleared ? ' · objectif atteint ✅' : ` · encore ${missing} à écraser`);
-    else if (run.cleared) msg = 'Objectif atteint ✅';
-    else if (run.launchesLeft === 1) msg = `⚠️ Dernier lancer ! Il en faut encore ${missing}`;
-    else if (state.launches === 0) msg = 'Pose le doigt sur le lanceur, glisse pour viser, relâche pour lancer';
-    else msg = `Prêt ! Encore ${missing} cafard${missing > 1 ? 's' : ''} à écraser`;
+    if (alive.length) msg = T(`🌀 {0} tr/min`, fmtInt(Math.max(...alive.map(t => t.spin)))) + (run.cleared ? T(' · objectif atteint ✅') : T(` · encore {0} à écraser`, missing));
+    else if (run.cleared) msg = T('Objectif atteint ✅');
+    else if (run.launchesLeft === 1) msg = T(`⚠️ Dernier lancer ! Il en faut encore {0}`, missing);
+    else if (state.launches === 0) msg = T('Pose le doigt sur le lanceur, glisse pour viser, relâche pour lancer');
+    else msg = T(`Prêt ! Encore {0} cafard{1} à écraser`, missing, missing > 1 ? 's' : '');
   } else {
     const hungry = bugs.filter(b => b.mode === 'hungry' && !b.dying && !b.gone).length;
-    if (alive.length) msg = `🌀 ${fmtInt(Math.max(...alive.map(t => t.spin)))} tr/min`;
-    else if (cooldown > 0) msg = `Recharge… ${cooldown.toFixed(1)} s` + (hungry ? ` · ⚠️ ${hungry} affamé${hungry > 1 ? 's' : ''} !` : '');
-    else if (hungry) msg = `⚠️ ${hungry} insecte${hungry > 1 ? 's' : ''} affamé${hungry > 1 ? 's' : ''} (en rouge) vers ton goûter !`;
-    else msg = 'Prêt ! Pose le doigt sur le lanceur pour lancer';
+    if (alive.length) msg = T(`🌀 {0} tr/min`, fmtInt(Math.max(...alive.map(t => t.spin))));
+    else if (cooldown > 0) msg = T(`Recharge… {0} s`, cooldown.toFixed(1)) + (hungry ? T(` · ⚠️ {0} affamé{1} !`, hungry, hungry > 1 ? 's' : '') : '');
+    else if (hungry) msg = T(`⚠️ {0} insecte{1} affamé{2} (en rouge) vers ton goûter !`, hungry, hungry > 1 ? 's' : '', hungry > 1 ? 's' : '');
+    else msg = T('Prêt ! Pose le doigt sur le lanceur pour lancer');
   }
   $('status').textContent = msg;
 
@@ -8073,7 +8141,7 @@ if (TEST_MODE === 'riche') {
   refreshStats();
   updateLauncherSkin();
   run.launchesLeft = waveLaunches();
-  document.querySelector('#menu .tag').textContent = '🧪 Session de test : vague 1, toupie et lanceur au niveau 1, toutes les améliorations débloquées et 900 milliards en poche. Ta vraie sauvegarde n’est pas touchée.';
+  document.querySelector('#menu .tag').textContent = T('🧪 Session de test : vague 1, toupie et lanceur au niveau 1, toutes les améliorations débloquées et 900 milliards en poche. Ta vraie sauvegarde n’est pas touchée.');
 }
 if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
   const run = state.savedRuns.histoire = newRun('histoire');
@@ -8095,7 +8163,7 @@ if (TEST_MODE === 'nid' || TEST_MODE === 'boss') {
   run.toyboxApplied = true;
   refreshStats();
   run.launchesLeft = waveLaunches();
-  document.querySelector('#menu .tag').textContent = '🧪 Session de test : fin de partie, 1,2 milliard en poche. Ta vraie sauvegarde n’est pas touchée.';
+  document.querySelector('#menu .tag').textContent = T('🧪 Session de test : fin de partie, 1,2 milliard en poche. Ta vraie sauvegarde n’est pas touchée.');
 }
 openMenu();
 requestAnimationFrame(frame);
