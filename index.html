@@ -327,6 +327,12 @@
   .modeBtn .md { color: var(--muted); font-size: 13px; margin-top: 4px; }
   .modeBtn .mr { color: var(--pink); font-size: 12px; margin-top: 6px; }
   .modeBtn.story { border-color: rgba(255, 201, 74, .5); }
+  /* Soutien : masqué tant que SUPPORT_URL est vide (voir le bloc SOUTIEN dans le script).
+     Ton volontairement doux — on remercie, on ne réclame pas, et le jeu ne change jamais. */
+  .coffeeBtn { display: none; text-decoration: none; border-color: rgba(214, 141, 60, .55); background: rgba(48, 32, 20, .95); }
+  .coffeeBtn .mt { color: #ffc46a; }
+  .madeBy { opacity: .85; }
+  .coffeeBig { display: none; text-decoration: none; background: #d68d3c; color: #231608; }
   .linkBtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
   .menuNote { color: var(--muted); font-size: 12px; margin-top: 10px; }
 
@@ -526,7 +532,7 @@
   <div class="crInfo"><div class="crName" id="crName"></div><div class="crDesc" id="crDesc"></div></div>
   <div class="crFrise" id="crFrise"></div>
   <p class="crThanks">Toupie contre Cafards<br>Merci à toutes celles et ceux qui ont joué, testé, trouvé des bugs (les vrais) et donné des idées.<br>À bientôt sur le bureau !</p>
-  <div class="crBtns"><button class="bigBtn" id="crNew">Nouvelle partie</button><button class="linkBtn" id="crLb">Voir le classement</button></div>
+  <div class="crBtns"><button class="bigBtn" id="crNew">Nouvelle partie</button><a class="bigBtn coffeeBig" id="crCoffee" href="#" target="_blank" rel="noopener noreferrer">☕ Offrir un café</a><button class="linkBtn" id="crLb">Voir le classement</button></div>
 </div>
 
 <div id="menu">
@@ -562,9 +568,14 @@
       <div class="mt">💾 Sauvegarde</div>
       <div class="md">Copie ton code de sauvegarde pour retrouver ta progression sur un autre téléphone.</div>
     </button>
+    <a class="modeBtn coffeeBtn" id="coffeeBtn" href="#" target="_blank" rel="noopener noreferrer">
+      <div class="mt">☕ Offre-moi un café</div>
+      <div class="md">Ce jeu est gratuit, sans pub et sans compte. Derrière, il n’y a pas un studio : juste <span class="coffeeWho">une personne</span> qui le fabrique le soir. Si tu as passé un bon moment, un café fait très plaisir. Et si tu ne donnes rien, tout reste exactement pareil dans le jeu.</div>
+    </a>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
     <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
     <div class="menuNote" id="versionNote"></div>
+    <div class="menuNote madeBy">Fabriqué à la main, un soir après l’autre, par <span class="coffeeWho">une seule personne</span>. 🌀</div>
     <div class="menuNote"><a href="https://louisdeeguerry-dev.github.io/toupie-cafards/confidentialite.html" target="_blank" rel="noopener" style="color:#7fd1ff">Confidentialité</a></div>
   </div>
 </div>
@@ -6463,6 +6474,22 @@ document.getElementById('toyReset').onclick = () => {
 //  du mode Histoire est enregistrée avec son pseudo. La configuration ci-dessous est publique par nature
 //  (c'est l'adresse du projet) ; ce sont les règles de la base qui empêchent la triche simple.
 // =====================================================================
+// =====================================================================
+//  SOUTIEN (pourboire facultatif)
+//  Colle ci-dessous ton lien Tipeee (ou Ko-fi / Buy Me a Coffee, peu importe).
+//  Tant que la chaîne est vide, les deux boutons « café » restent invisibles :
+//  aucun lien mort n'est jamais montré aux joueurs.
+//  Règle du jeu : donner ne débloque RIEN. Aucun bonus, aucun contenu réservé.
+// =====================================================================
+const SUPPORT_URL = 'https://fr.tipeee.com/toupie-cafards'; // ← ex. 'https://fr.tipeee.com/mon-pseudo'
+const SUPPORT_NAME = ''; // ← ex. 'Louis' ; vide = formulation neutre « une personne »
+(() => {
+  const btns = [document.getElementById('coffeeBtn'), document.getElementById('crCoffee')].filter(Boolean);
+  if (SUPPORT_NAME) document.querySelectorAll('.coffeeWho').forEach(el => { el.textContent = SUPPORT_NAME; });
+  if (!SUPPORT_URL) { btns.forEach(b => { b.style.display = 'none'; }); return; }
+  btns.forEach(b => { b.href = SUPPORT_URL; b.style.display = b.id === 'coffeeBtn' ? 'block' : 'inline-block'; });
+})();
+
 const LB_CONFIG = { apiKey: 'AIzaSyA8PL7hfbqEkHbw9_t4Jj2s8aAgBfZBSfc', dbURL: 'https://toupie-cafards-default-rtdb.europe-west1.firebasedatabase.app' };
 const lbReady = () => !!(LB_CONFIG.apiKey && LB_CONFIG.dbURL);
 let lbToken = null, lbTokenExp = 0;
@@ -6720,7 +6747,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-10-19.1';
+const VERSION = '2026-11-06.1';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
