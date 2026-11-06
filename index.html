@@ -545,11 +545,6 @@
       <div class="md">Repousse l’invasion vague après vague : à chaque vague, un nombre de cafards à écraser avec un nombre de lancers limité. Sinon, ils envahissent tout.</div>
       <div class="mr" id="storyRecord"></div>
     </button>
-    <button class="modeBtn" id="carnageBtn">
-      <div class="mt">🍪 Mode Carnage</div>
-      <div class="md">Protège ton goûter ! Des cafards affamés (en rouge) foncent dessus pendant des vagues chronométrées de 40 secondes.</div>
-      <div class="mr" id="carnageRecord"></div>
-    </button>
     <button class="modeBtn toyBtn" id="toyboxBtn">
       <div class="mt">📦 Le Carton à Jouets</div>
       <div class="md">Dépense les vagues que tu as repoussées pour être plus fort à chaque nouvelle partie.</div>
@@ -573,7 +568,7 @@
       <div class="md">Ce jeu est gratuit, sans pub et sans compte. Derrière, il n’y a pas un studio : juste <span class="coffeeWho">une personne</span> qui le fabrique le soir. Si tu as passé un bon moment, un café fait très plaisir. Et si tu ne donnes rien, tout reste exactement pareil dans le jeu.</div>
     </a>
     <button class="linkBtn" id="replayIntro">Revoir l’introduction</button>
-    <div class="menuNote">Chaque mode a sa propre partie. En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
+    <div class="menuNote">En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
     <div class="menuNote" id="versionNote"></div>
     <div class="menuNote madeBy">Fabriqué à la main, un soir après l’autre, par <span class="coffeeWho">une seule personne</span>. 🌀</div>
     <div class="menuNote"><a href="https://louisdeeguerry-dev.github.io/toupie-cafards/confidentialite.html" target="_blank" rel="noopener" style="color:#7fd1ff">Confidentialité</a></div>
@@ -1119,7 +1114,7 @@ const TOYBOX = [
   { id: 'carte', icon: '🃏', name: 'Quatrième carte', max: 1, cost: () => 35,
     desc: () => 'Entre deux vagues, tu choisis parmi 4 bonus au lieu de 3.' },
   { id: 'secours', icon: '🩹', name: 'Toupie de secours', max: 1, cost: () => 40,
-    desc: () => 'Une fois par partie, au moment de perdre : +3 lancers (Histoire) ou +6 bouchées de goûter (Carnage).' },
+    desc: () => 'Une fois par partie, au moment de perdre : +3 lancers.' },
   { id: 'montre', icon: '⌚', name: 'Montre de grand-père', max: 1, cost: () => 20,
     desc: () => 'Ajoute un bouton ⏩ pour jouer en vitesse ×2 (les toupies, les cafards et les vagues vont deux fois plus vite).' },
   // Pour après la mutation des cafards
@@ -1287,7 +1282,9 @@ function load() {
     for (const id of Object.keys(run.perks)) if (!PERKS.some(p => p.id === id && (!p.modes || p.modes.includes(m)))) delete run.perks[id];
     if (run.choice) run.choice = run.choice.filter(id => PERKS.some(p => p.id === id));
   }
-  if (!['histoire', 'carnage'].includes(state.mode)) state.mode = 'histoire';
+  // Le mode Carnage a été retiré du jeu : toute sauvegarde qui y était repasse en Histoire
+  // (les records et les 🌊 déjà gagnés en Carnage sont conservés).
+  if (state.mode !== 'histoire') state.mode = 'histoire';
   state.run = state.savedRuns[state.mode];
   if (!Number.isFinite(state.run.cash)) state.run.cash = 0;
 }
@@ -6293,7 +6290,6 @@ function openMenu() {
   charging = false;
   modal.classList.remove('open');
   document.getElementById('storyRecord').textContent = runLabel('histoire');
-  document.getElementById('carnageRecord').textContent = runLabel('carnage');
   document.getElementById('replayIntro').style.display = state.introSeen ? '' : 'none';
   openMenuRefresh();
   menuEl.classList.add('open');
@@ -6388,7 +6384,6 @@ function endIntro() {
 dialogEl.addEventListener('click', nextIntroLine);
 skipBtn.addEventListener('click', endIntro);
 document.getElementById('storyBtn').onclick = () => enterMode('histoire');
-document.getElementById('carnageBtn').onclick = () => enterMode('carnage');
 document.getElementById('replayIntro').onclick = () => enterMode('histoire', { forceIntro: true });
 
 // Le Carton à Jouets : boutique permanente entre les parties
@@ -6482,7 +6477,7 @@ document.getElementById('toyReset').onclick = () => {
 //  Règle du jeu : donner ne débloque RIEN. Aucun bonus, aucun contenu réservé.
 // =====================================================================
 const SUPPORT_URL = 'https://fr.tipeee.com/toupie-cafards'; // ← ex. 'https://fr.tipeee.com/mon-pseudo'
-const SUPPORT_NAME = ''; // ← ex. 'Louis' ; vide = formulation neutre « une personne »
+const SUPPORT_NAME = 'Louis'; // ← ex. 'Louis' ; vide = formulation neutre « une personne »
 (() => {
   const btns = [document.getElementById('coffeeBtn'), document.getElementById('crCoffee')].filter(Boolean);
   if (SUPPORT_NAME) document.querySelectorAll('.coffeeWho').forEach(el => { el.textContent = SUPPORT_NAME; });
@@ -6747,7 +6742,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-11-06.1';
+const VERSION = '2026-11-06.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -7657,7 +7652,6 @@ function renderStats() {
   rows('Carrière', [
     ['Argent gagné au total', fmtMoney(state.totalMoney)],
     ['Record Histoire', `vague ${state.best.histoire}`],
-    ['Record Carnage', `vague ${state.best.carnage}`],
     ['Lancers', fmtInt(state.launches)],
     ['Insectes écrasés', fmtInt(state.kills)],
     ['Meilleur combo', `×${state.bestCombo}`],
