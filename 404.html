@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toupie contre Cafards a déménagé</title>
+<link rel="canonical" href="https://toupie-cafards.github.io/">
+<meta name="robots" content="noindex">
+<script>
+// Le jeu a déménagé sur https://toupie-cafards.github.io/ : on y renvoie en gardant la page demandée
+// (presse/, confidentialite.html…) et, depuis l'accueil, la sauvegarde du joueur (sans le jeton du classement).
+(function () {
+  var p = location.pathname.replace(/^\/toupie-cafards\/?/, ''), h = location.hash;
+  if (p === '' || p === 'index.html') {
+    try {
+      var s = localStorage.getItem('toupie-cafards-save-v1'), l = localStorage.getItem('toupie-cafards-lang');
+      if (s) {
+        var o = JSON.parse(s);
+        o.lb = { uid: '', refreshToken: '', sent: 0, sentPseudo: '' };
+        h = '#migrer=' + encodeURIComponent(JSON.stringify({ save: JSON.stringify(o), lang: l }));
+      }
+    } catch (e) { /* pas de sauvegarde lisible */ }
+  }
+  location.replace('https://toupie-cafards.github.io/' + p + location.search + h);
+})();
+</script>
+<style>body{margin:0;padding:40px 16px;background:#1a1410;color:#f3e8dc;font:18px/1.5 system-ui,sans-serif;text-align:center}a{color:#ffd45a}</style>
+</head>
+<body>
+<p>🌀 Toupie contre Cafards a déménagé :<br><a href="https://toupie-cafards.github.io/">toupie-cafards.github.io</a></p>
+</body>
+</html>
