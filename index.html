@@ -686,10 +686,18 @@ import { I18N } from './i18n.js';
 //  Partout ailleurs, STORE = localStorage, comme avant.
 // =====================================================================
 const ON_CG = window.PLATFORM === 'crazygames';
+let cgReady = false, cgPlaying = false;
+// CrazyGames veut savoir quand le joueur joue vraiment (pas dans un menu ni en pause)
+function cgGameplay(on) {
+  if (!cgReady || on === cgPlaying) return;
+  cgPlaying = on;
+  (window.__cgLog ||= []).push(on ? 'start' : 'stop'); // visible dans la console pour vérifier
+  try { if (on) window.CrazyGames.SDK.game.gameplayStart(); else window.CrazyGames.SDK.game.gameplayStop(); } catch { /* SDK absent */ }
+}
 let STORE = null;
 try { STORE = window.localStorage; } catch { /* stockage bloqué */ }
 if (ON_CG && window.CrazyGames) {
-  try { await window.CrazyGames.SDK.init(); STORE = window.CrazyGames.SDK.data; }
+  try { await window.CrazyGames.SDK.init(); STORE = window.CrazyGames.SDK.data; cgReady = true; }
   catch (e) { console.warn('SDK CrazyGames indisponible, sauvegarde locale', e); }
 }
 
@@ -6587,7 +6595,6 @@ const SUPPORT_NAME = T('Louis'); // ← ex. 'Louis' ; vide = formulation neutre 
 
 // Partage : « Défie un ami ». Sur téléphone, ouvre la fenêtre de partage (WhatsApp, SMS…) ;
 // sinon, copie le message + le lien dans le presse-papiers.
-if (ON_CG) document.getElementById('privacyNote')?.remove();
 const SHARE_URL = 'https://louisdeeguerry-dev.github.io/toupie-cafards/';
 async function shareChallenge(text, btn) {
   const label = btn.textContent;
@@ -6866,7 +6873,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-11-07.2';
+const VERSION = '2026-11-07.3';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -7869,6 +7876,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (ON_CG) cgGameplay(!paused && !cr && !menuEl.classList.contains('open') && document.visibilityState === 'visible');
   canvasRect = null; // re-mesurée au premier texte flottant de cette image
   // La montre du Carton à Jouets : tout le jeu tourne deux fois plus vite
   if (!paused) update(dt * gameSpeed());
