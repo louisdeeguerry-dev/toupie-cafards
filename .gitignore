@@ -9,3 +9,5 @@ ios/App/build/
 *.keystore
 *.jks
 *.p12
+crazygames/
+crazygames.zip

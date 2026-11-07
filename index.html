@@ -594,7 +594,7 @@
     <div class="menuNote">En cas de défaite, tout repart de zéro : argent, améliorations et infestation.</div>
     <div class="menuNote" id="versionNote"></div>
     <div class="menuNote madeBy">Fabriqué à la main, un soir après l’autre, par <span class="coffeeWho">une seule personne</span>. 🌀</div>
-    <div class="menuNote"><a href="https://louisdeeguerry-dev.github.io/toupie-cafards/confidentialite.html" target="_blank" rel="noopener" style="color:#7fd1ff">Confidentialité</a></div>
+    <div class="menuNote" id="privacyNote"><a href="https://louisdeeguerry-dev.github.io/toupie-cafards/confidentialite.html" target="_blank" rel="noopener" style="color:#7fd1ff">Confidentialité</a></div>
   </div>
 </div>
 
@@ -681,6 +681,19 @@ import * as THREE from 'three';
 import { I18N } from './i18n.js';
 
 // =====================================================================
+//  PLATEFORME : sur CrazyGames (window.PLATFORM posé par scripts/build-crazygames.js), le portail
+//  exige son SDK pour les sauvegardes et interdit les liens vers d'autres sites (café, partage…).
+//  Partout ailleurs, STORE = localStorage, comme avant.
+// =====================================================================
+const ON_CG = window.PLATFORM === 'crazygames';
+let STORE = null;
+try { STORE = window.localStorage; } catch { /* stockage bloqué */ }
+if (ON_CG && window.CrazyGames) {
+  try { await window.CrazyGames.SDK.init(); STORE = window.CrazyGames.SDK.data; }
+  catch (e) { console.warn('SDK CrazyGames indisponible, sauvegarde locale', e); }
+}
+
+// =====================================================================
 //  LANGUES : français (texte d'origine), anglais, espagnol, allemand.
 //  Tout texte affiché passe par T('texte français', valeurs…) ; les traductions sont dans i18n.js.
 //  La langue vient du choix du joueur (menu), sinon de celle du téléphone, sinon l'anglais.
@@ -688,7 +701,7 @@ import { I18N } from './i18n.js';
 const LANGS = ['fr', 'en', 'es', 'de'];
 const LANG_KEY = 'toupie-cafards-lang';
 const LANG = (() => {
-  try { const s = localStorage.getItem(LANG_KEY); if (LANGS.includes(s)) return s; } catch { /* stockage bloqué */ }
+  try { const s = STORE.getItem(LANG_KEY); if (LANGS.includes(s)) return s; } catch { /* stockage bloqué */ }
   for (const l of (navigator.languages || [navigator.language || ''])) {
     const c = String(l).slice(0, 2).toLowerCase();
     if (LANGS.includes(c)) return c;
@@ -1314,7 +1327,7 @@ const state = {
 const PERSISTED = ['totalMoney', 'kills', 'launches', 'bestCombo', 'killsByType', 'mode', 'introSeen', 'tutos', 'best', 'games', 'savedRuns', 'meta', 'speedX2', 'achievements', 'settings', 'maxStage', 'perfectBest', 'bestRunMoney', 'goldenKills', 'pseudo', 'lb', 'nestWins', 'autoOn'];
 function load() {
   try {
-    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    const data = JSON.parse(STORE.getItem(SAVE_KEY));
     if (data && typeof data === 'object') {
       for (const k of PERSISTED) if (k in data) state[k] = data[k];
       // Anciennes sauvegardes (avant les deux modes)
@@ -1367,7 +1380,7 @@ function save() {
   if (resetting) return;
   const out = {};
   for (const k of PERSISTED) out[k] = state[k];
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(out)); } catch { /* stockage indisponible */ }
+  try { STORE.setItem(SAVE_KEY, JSON.stringify(out)); } catch { /* stockage indisponible */ }
 }
 load();
 
@@ -5909,6 +5922,7 @@ function openCredits({ time, wave, kills, record }) {
   s.add(pivot);
   cr = { renderer, scene: s, cam, pivot, items: creditsItems(), i: 0, obj: null, yaw: 0.5, pitch: 0.25, drag: null, last: performance.now(), w: 0, h: 0 };
   const crShare = document.getElementById('crShare');
+  if (ON_CG) crShare.style.display = 'none';
   crShare.onclick = () => shareChallenge(T('J’ai détruit le nid de la Reine des cafards en {0} dans Toupie contre Cafards 👑🪳 Tu fais mieux ? 😏', fmtClockLong(time)), crShare);
   document.getElementById('crStats').textContent = T('Nid détruit en ') + fmtClockLong(time) + T(' · vague ') + wave + ' · ' + fmtInt(kills) + T(' insectes écrasés') + (record ? T(' · nouveau record !') : '');
   const frise = document.getElementById('crFrise');
@@ -6301,7 +6315,7 @@ function defeat() {
   share.style.background = 'var(--accent)';
   share.textContent = T('📣 Défie un ami');
   share.onclick = () => shareChallenge(T('J’ai tenu jusqu’à la vague {0} dans Toupie contre Cafards 🌀🪳 Tu fais mieux ? 😏', run.wave), share);
-  btns.append(share, box, btn);
+  btns.append(...(ON_CG ? [] : [share]), box, btn);
   modalBox.append(h, lead, sum, note, btns);
   modal.classList.add('open');
 }
@@ -6567,12 +6581,13 @@ const SUPPORT_NAME = T('Louis'); // ← ex. 'Louis' ; vide = formulation neutre 
 (() => {
   const btns = [document.getElementById('coffeeBtn'), document.getElementById('crCoffee')].filter(Boolean);
   if (SUPPORT_NAME) document.querySelectorAll('.coffeeWho').forEach(el => { el.textContent = SUPPORT_NAME; });
-  if (!SUPPORT_URL) { btns.forEach(b => { b.style.display = 'none'; }); return; }
+  if (!SUPPORT_URL || ON_CG) { btns.forEach(b => { b.style.display = 'none'; }); return; }
   btns.forEach(b => { b.href = SUPPORT_URL; b.style.display = b.id === 'coffeeBtn' ? 'block' : 'inline-block'; });
 })();
 
 // Partage : « Défie un ami ». Sur téléphone, ouvre la fenêtre de partage (WhatsApp, SMS…) ;
 // sinon, copie le message + le lien dans le presse-papiers.
+if (ON_CG) document.getElementById('privacyNote')?.remove();
 const SHARE_URL = 'https://louisdeeguerry-dev.github.io/toupie-cafards/';
 async function shareChallenge(text, btn) {
   const label = btn.textContent;
@@ -6700,7 +6715,7 @@ document.getElementById('lbClose').onclick = () => document.getElementById('lbPa
 // Code de sauvegarde : la sauvegarde complète, en texte (base64), avec une petite vérification
 function exportSave() {
   save();
-  const raw = localStorage.getItem(SAVE_KEY) || '{}';
+  const raw = STORE.getItem(SAVE_KEY) || '{}';
   const json = JSON.stringify({ v: 1, game: 'toupie-cafards', data: JSON.parse(raw) });
   return 'TC1-' + btoa(unescape(encodeURIComponent(json)));
 }
@@ -6710,7 +6725,7 @@ function importSave(code) {
   const obj = JSON.parse(decodeURIComponent(escape(atob(c.slice(4)))));
   if (obj.game !== 'toupie-cafards' || !obj.data || typeof obj.data !== 'object') throw new Error(T('Code abîmé ou incomplet.'));
   resetting = true;   // la sauvegarde automatique ne doit pas écraser ce qu'on charge
-  localStorage.setItem(SAVE_KEY, JSON.stringify(obj.data));
+  STORE.setItem(SAVE_KEY, JSON.stringify(obj.data));
   location.reload();
 }
 const pseudoInput = document.getElementById('pseudoInput');
@@ -6727,7 +6742,7 @@ for (const b of document.querySelectorAll('#langRow button')) {
   b.classList.toggle('on', b.dataset.lang === LANG);
   b.onclick = () => {
     if (b.dataset.lang === LANG) return;
-    try { save(); localStorage.setItem(LANG_KEY, b.dataset.lang); } catch { /* stockage bloqué */ }
+    try { save(); STORE.setItem(LANG_KEY, b.dataset.lang); } catch { /* stockage bloqué */ }
     location.reload();
   };
 }
@@ -6851,7 +6866,7 @@ document.getElementById('quitBtn').onclick = () => {
 //  MISES À JOUR : le téléphone garde parfois une ancienne copie du jeu.
 //  On compare avec version.json (jamais mis en cache) et on propose de recharger.
 // =====================================================================
-const VERSION = '2026-11-07.1';
+const VERSION = '2026-11-07.2';
 const updateBar = document.getElementById('updateBar');
 let newVersion = null;
 async function checkForUpdate() {
@@ -7772,7 +7787,7 @@ function renderStats() {
   reset.onclick = () => {
     if (!armed) { armed = true; reset.textContent = T('Sûr ? Touche encore pour tout effacer'); setTimeout(() => { armed = false; reset.textContent = T('Recommencer à zéro'); }, 3000); return; }
     resetting = true;
-    try { localStorage.removeItem(SAVE_KEY); } catch {}
+    try { STORE.removeItem(SAVE_KEY); } catch {}
     location.reload();
   };
   shopList.appendChild(reset);
